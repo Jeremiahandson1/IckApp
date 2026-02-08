@@ -20,7 +20,7 @@ cd ..
 echo ""
 echo "▸ Installing frontend dependencies..."
 cd frontend
-npm install
+npm install --include=dev
 echo ""
 echo "▸ Building frontend..."
 npm run build
