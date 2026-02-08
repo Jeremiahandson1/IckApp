@@ -39,8 +39,73 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       swaps = swapResult.rows;
     }
 
-    // 2. If no direct swaps, find by category with higher score
-    //    Handle OFF-style categories (en:breakfast-cereals) and plain categories
+    // Helper: extract product type keywords from name for smarter matching
+    // "Salted Caramel Dark Chocolate Nut" (Kind) → type: bar (from brand context)
+    // "Fruity Pebbles Cereal" → type: cereal
+    const productTypes = {
+      bar:      /\b(bar|bars|protein bar|granola bar|nut bar|snack bar|energy bar)\b/i,
+      cereal:   /\b(cereal|cereals|flakes|puffs|loops|crunch|o's|oats|granola|muesli)\b/i,
+      chips:    /\b(chips|crisps|tortilla|puffs|popcorn|pretzels)\b/i,
+      crackers: /\b(crackers|cracker|goldfish|bunnies|crisps|thins)\b/i,
+      cookies:  /\b(cookies|cookie|wafers|biscuits|oreo)\b/i,
+      candy:    /\b(candy|chocolate|gummies|gummy|gems|cups|m&m|skittles|sour)\b/i,
+      drink:    /\b(juice|drink|water|soda|tea|coffee|milk|lemonade|smoothie)\b/i,
+      sauce:    /\b(sauce|ketchup|mustard|mayo|dressing|salsa|dip)\b/i,
+      yogurt:   /\b(yogurt|yoghurt|parfait|kefir)\b/i,
+      bread:    /\b(bread|bagel|muffin|roll|bun|tortilla|wrap|pita)\b/i,
+      pasta:    /\b(pasta|noodle|spaghetti|macaroni|mac.*cheese|ramen)\b/i,
+      frozen:   /\b(frozen|pizza|nuggets|fries|ice cream|popsicle|waffles)\b/i,
+      baby:     /\b(baby|infant|toddler|puree|formula|gerber|beech-nut)\b/i,
+      fruit:    /\b(fruit snack|fruit roll|fruit leather|dried fruit|applesauce|apple sauce)\b/i,
+    };
+
+    // Also check brand for type hints (e.g., Kind = bars, Cheerios = cereal)
+    const brandTypeHints = {
+      'kind': 'bar', 'rxbar': 'bar', 'larabar': 'bar', 'clif': 'bar', 'gomacro': 'bar',
+      'nature valley': 'bar', 'luna': 'bar', 'quest': 'bar', 'built': 'bar',
+      'cheerios': 'cereal', 'kashi': 'cereal', 'three wishes': 'cereal',
+      'doritos': 'chips', 'lay\'s': 'chips', 'kettle': 'chips',
+      'goldfish': 'crackers', 'annie\'s': 'crackers',
+      'oreo': 'cookies', 'chips ahoy': 'cookies',
+    };
+
+    const nameForMatch = `${product.name || ''} ${product.brand || ''}`.toLowerCase();
+    let detectedType = null;
+    for (const [type, regex] of Object.entries(productTypes)) {
+      if (regex.test(nameForMatch)) {
+        detectedType = type;
+        break;
+      }
+    }
+    // Brand hint fallback
+    if (!detectedType && product.brand) {
+      const brandLower = product.brand.toLowerCase();
+      for (const [brand, type] of Object.entries(brandTypeHints)) {
+        if (brandLower.includes(brand)) {
+          detectedType = type;
+          break;
+        }
+      }
+    }
+
+    // 2. Subcategory match first (most specific)
+    if (swaps.length === 0 && product.subcategory) {
+      const subResult = await pool.query(
+        `SELECT p.*, c.name as company_name 
+         FROM products p 
+         LEFT JOIN companies c ON p.company_id = c.id
+         WHERE p.subcategory = $1
+         AND p.total_score > $2
+         AND p.total_score IS NOT NULL
+         AND p.upc != $3
+         ORDER BY p.total_score DESC
+         LIMIT 5`,
+        [product.subcategory, Math.max(product.total_score || 0, 40), upc]
+      );
+      swaps = subResult.rows;
+    }
+
+    // 3. Category match WITH product type filter (prevents bar → apple sauce)
     if (swaps.length === 0 && product.category) {
       const categoryResult = await pool.query(
         `SELECT p.*, c.name as company_name 
@@ -54,26 +119,36 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
          AND p.total_score IS NOT NULL
          AND p.upc != $3
          ORDER BY p.total_score DESC
-         LIMIT 5`,
+         LIMIT 20`,
         [
           product.category,
-          Math.max(product.total_score || 0, 40), // must actually be better, min 40
+          Math.max(product.total_score || 0, 40),
           upc,
-          // Fuzzy: extract last segment of "en:breakfast-cereals" → "%breakfast-cereals%"
           `%${product.category.split(':').pop().replace(/-/g, '%')}%`
         ]
       );
-      swaps = categoryResult.rows;
+      
+      // If we detected a product type, filter results to same type
+      if (detectedType && categoryResult.rows.length > 0) {
+        const typeRegex = productTypes[detectedType];
+        const typed = categoryResult.rows.filter(r => {
+          const rName = `${r.name || ''} ${r.brand || ''}`.toLowerCase();
+          return typeRegex.test(rName);
+        });
+        swaps = typed.length > 0 ? typed.slice(0, 5) : categoryResult.rows.slice(0, 5);
+      } else {
+        swaps = categoryResult.rows.slice(0, 5);
+      }
     }
 
-    // 3. If still nothing, try matching by brand similarity + higher score
-    if (swaps.length === 0 && product.brand) {
-      // Find products in similar name space with better scores
-      // e.g., if scanning "Kraft Mac & Cheese", find other mac & cheese products
-      const nameWords = product.name?.split(/\s+/).filter(w => w.length > 3) || [];
+    // 4. Name-based matching — find products with similar names/types
+    if (swaps.length === 0) {
+      const nameWords = (product.name || '').split(/\s+/).filter(w => w.length > 3);
+      // Add type keyword if detected
+      if (detectedType) nameWords.push(detectedType);
+      
       if (nameWords.length > 0) {
-        // Use the most distinctive word(s) from the product name
-        const searchTerm = nameWords.slice(0, 2).join(' & ');
+        const searchTerm = nameWords.slice(0, 3).join(' ');
         const nameResult = await pool.query(
           `SELECT p.*, c.name as company_name 
            FROM products p 
