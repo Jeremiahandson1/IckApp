@@ -68,26 +68,26 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       // e.g., prevent "Kind bar" → "Organic apple sauce" when both are in "en:snacks"
       const origName = `${product.name || ''} ${product.brand || ''} ${product.subcategory || ''}`.toLowerCase();
       const typeKeywords = [
-        ['bar', 'bars'], ['cereal', 'loops', 'flakes', 'crunch', 'puffs'],
+        ['bar', 'bars'], ['cereal', 'loops', 'flakes', 'crunch', 'puffs', 'oats', 'oatmeal', 'granola', 'muesli'],
         ['chips', 'crisps', 'tortilla'], ['crackers', 'cracker', 'bunnies', 'goldfish'],
         ['cookies', 'cookie', 'biscuit'], ['candy', 'candies', 'gummies', 'gummy'],
         ['chocolate', 'cocoa'], ['juice', 'drink', 'beverage'],
         ['sauce', 'ketchup', 'mustard', 'dressing'], ['yogurt', 'yoghurt'],
         ['bread', 'bagel', 'muffin'], ['pasta', 'noodle', 'macaroni'],
-        ['oats', 'oatmeal'], ['apple sauce', 'applesauce', 'puree'],
+        ['apple sauce', 'applesauce', 'puree'],
         ['baby', 'infant', 'toddler'],
       ];
       // Find which type group the scanned product belongs to
       const origTypes = typeKeywords.filter(group => group.some(kw => origName.includes(kw)));
       
-      if (origTypes.length > 0 && categoryResult.rows.length > 5) {
-        // Only filter when we have enough results and a clear product type
+      if (origTypes.length > 0) {
+        // Always filter when we can identify product type — 0 good results > 5 garbage results
         const origKeywords = origTypes.flat();
         const filtered = categoryResult.rows.filter(r => {
           const rName = `${r.name || ''} ${r.brand || ''} ${r.subcategory || ''}`.toLowerCase();
           return origKeywords.some(kw => rName.includes(kw));
         });
-        swaps = filtered.length > 0 ? filtered.slice(0, 5) : categoryResult.rows.slice(0, 5);
+        swaps = filtered.slice(0, 5);
       } else {
         swaps = categoryResult.rows.slice(0, 5);
       }
@@ -184,12 +184,41 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     }
 
     // Get homemade alternatives (recipes)
+    // Build recipe category candidates from product data + name keywords
+    const recipeCategories = [product.category, product.subcategory || ''];
+    
+    // Map product name/category keywords to recipe categories
+    const nameAndCat = `${product.name || ''} ${product.category || ''} ${product.subcategory || ''}`.toLowerCase();
+    const recipeKeywordMap = {
+      'cereal|loops|flakes|puffs|crunch': ['Kids Cereal', 'Cereal'],
+      'oats|oatmeal|porridge': ['Instant Oatmeal'],
+      'bar|protein bar|granola bar|nut bar': ['Snack Bars'],
+      'chips|crisps|tortilla|puffs|popcorn': ['Chips'],
+      'candy|chocolate|gummies|gummy': ['Candy'],
+      'juice|drink|lemonade': ['Juice Drinks'],
+      'sport.*drink|electrolyte|gatorade': ['Sports Drinks'],
+      'baby|infant|toddler|puree': ['Baby Snacks'],
+      'fruit snack|fruit roll|fruit leather': ['Fruit Snacks'],
+      'sauce|marinara|tomato sauce': ['Pasta Sauce'],
+      'mac.*cheese|macaroni': ['Mac & Cheese'],
+      'dressing|vinaigrette': ['Salad Dressing'],
+      'ketchup|mustard|mayo|condiment': ['Condiments'],
+      'frozen|pizza|nugget|waffle': ['Frozen Meals'],
+      'ice cream|popsicle|frozen treat': ['Frozen Treats'],
+      'pancake|waffle mix': ['Pancake Mix'],
+      'cheese dip|queso|nacho': ['Cheese Dips'],
+    };
+    for (const [pattern, cats] of Object.entries(recipeKeywordMap)) {
+      if (new RegExp(pattern, 'i').test(nameAndCat)) {
+        recipeCategories.push(...cats);
+      }
+    }
+
     const recipeResult = await pool.query(
       `SELECT * FROM recipes 
-       WHERE replaces_category = $1 
-       OR replaces_category = $2
-       OR replaces_products @> $3::jsonb`,
-      [product.category, product.subcategory || '', JSON.stringify([upc])]
+       WHERE replaces_category = ANY($1::text[])
+       OR replaces_products @> $2::jsonb`,
+      [[...new Set(recipeCategories)], JSON.stringify([upc])]
     );
 
     res.json({

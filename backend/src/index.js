@@ -120,6 +120,14 @@ initDatabase()
       console.log(`Ick API running on port ${PORT}`);
     });
 
+    // Apply curated swap mappings (100 top products get verified swaps_to)
+    try {
+      const { seedCuratedSwaps } = await import('./db/seed-swaps.js');
+      await seedCuratedSwaps();
+    } catch (e) {
+      console.warn('⚠ Curated swaps seed skipped (non-fatal):', e.message);
+    }
+
     // Seed curated store availability (ground truth — always runs)
     try {
       const { initCuratedAvailability } = await import('./services/curatedStores.js');

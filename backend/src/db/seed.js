@@ -1472,10 +1472,17 @@ async function seedDatabase() {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
          ON CONFLICT (upc) DO UPDATE SET
          name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         subcategory = EXCLUDED.subcategory,
          harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
          nutrition_score = EXCLUDED.nutrition_score,
          additives_score = EXCLUDED.additives_score,
-         organic_bonus = EXCLUDED.organic_bonus`,
+         organic_bonus = EXCLUDED.organic_bonus,
+         ingredients = EXCLUDED.ingredients,
+         harmful_ingredients_found = EXCLUDED.harmful_ingredients_found,
+         is_clean_alternative = EXCLUDED.is_clean_alternative,
+         swaps_to = EXCLUDED.swaps_to,
+         typical_price = EXCLUDED.typical_price`,
         [
           product.upc,
           product.name,
