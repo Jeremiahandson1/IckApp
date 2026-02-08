@@ -33,11 +33,18 @@ SERVER_PID=$!
 sleep 3
 
 # 5. Import products in background (won't block the server)
-PRODUCT_COUNT=$(node -e "
+PRODUCT_COUNT=$(node --input-type=module -e "
   import pg from 'pg';
-  const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-  pool.query('SELECT COUNT(*) FROM products').then(r => { console.log(r.rows[0].count); pool.end(); }).catch(() => { console.log('0'); pool.end(); });
-" 2>/dev/null || echo "0")
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+  try {
+    const r = await pool.query('SELECT COUNT(*) FROM products');
+    console.log(r.rows[0].count);
+  } catch(e) {
+    console.error('Count check failed:', e.message);
+    console.log('0');
+  }
+  await pool.end();
+" 2>&1 | tail -1)
 
 echo "  Current products in DB: $PRODUCT_COUNT"
 
