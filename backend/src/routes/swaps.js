@@ -255,11 +255,85 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     }
 
     // Get homemade alternatives (recipes)
+    // Map OFF categories + detected product type to recipe categories
+    const recipeCategoryMap = {
+      // Product type → recipe categories
+      bar:      ['Snack Bars'],
+      cereal:   ['Kids Cereal', 'Instant Oatmeal'],
+      chips:    ['Chips', 'Cheese Dips'],
+      crackers: ['Chips'],
+      cookies:  ['Candy', 'Frozen Treats'],
+      candy:    ['Candy'],
+      drink:    ['Juice Drinks', 'Sports Drinks'],
+      sauce:    ['Pasta Sauce', 'Salad Dressing', 'Condiments'],
+      yogurt:   ['Frozen Treats'],
+      bread:    ['Pancake Mix'],
+      pasta:    ['Mac & Cheese', 'Pasta Sauce'],
+      frozen:   ['Frozen Meals', 'Frozen Treats'],
+      baby:     ['Baby Snacks'],
+      fruit:    ['Fruit Snacks'],
+    };
+
+    // OFF category keywords → recipe categories
+    const offCategoryKeywords = {
+      'snack':       ['Chips', 'Snack Bars', 'Fruit Snacks'],
+      'cereal':      ['Kids Cereal', 'Instant Oatmeal'],
+      'chocolate':   ['Candy'],
+      'confection':  ['Candy'],
+      'sweet':       ['Candy', 'Fruit Snacks'],
+      'beverage':    ['Juice Drinks', 'Sports Drinks'],
+      'drink':       ['Juice Drinks', 'Sports Drinks'],
+      'juice':       ['Juice Drinks'],
+      'sauce':       ['Pasta Sauce', 'Condiments'],
+      'dressing':    ['Salad Dressing'],
+      'cheese':      ['Mac & Cheese', 'Cheese Dips'],
+      'pasta':       ['Mac & Cheese', 'Pasta Sauce'],
+      'frozen':      ['Frozen Meals', 'Frozen Treats'],
+      'ice-cream':   ['Frozen Treats'],
+      'baby':        ['Baby Snacks'],
+      'infant':      ['Baby Snacks'],
+      'chip':        ['Chips'],
+      'crisp':       ['Chips'],
+      'bar':         ['Snack Bars'],
+      'biscuit':     ['Candy'],
+      'cookie':      ['Candy'],
+      'pancake':     ['Pancake Mix'],
+      'oat':         ['Instant Oatmeal'],
+    };
+
+    // Build list of recipe categories to search
+    const recipeCategories = new Set();
+    
+    // From detected product type
+    if (detectedType && recipeCategoryMap[detectedType]) {
+      recipeCategoryMap[detectedType].forEach(c => recipeCategories.add(c));
+    }
+    
+    // From product category string (OFF-style or plain)
+    const catLower = (product.category || '').toLowerCase();
+    for (const [keyword, cats] of Object.entries(offCategoryKeywords)) {
+      if (catLower.includes(keyword)) {
+        cats.forEach(c => recipeCategories.add(c));
+      }
+    }
+
+    // From subcategory
+    const subLower = (product.subcategory || '').toLowerCase();
+    for (const [keyword, cats] of Object.entries(offCategoryKeywords)) {
+      if (subLower.includes(keyword)) {
+        cats.forEach(c => recipeCategories.add(c));
+      }
+    }
+
+    // Also add the exact category (works for curated products)
+    recipeCategories.add(product.category);
+    if (product.subcategory) recipeCategories.add(product.subcategory);
+
     const recipeResult = await pool.query(
       `SELECT * FROM recipes 
-       WHERE replaces_category = $1 
+       WHERE replaces_category = ANY($1::text[])
        OR replaces_products @> $2::jsonb`,
-      [product.category, JSON.stringify([upc])]
+      [Array.from(recipeCategories), JSON.stringify([upc])]
     );
 
     res.json({
