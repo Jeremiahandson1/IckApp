@@ -26,7 +26,7 @@ echo ""
 echo "═══════════════════════════════════════"
 echo "  ✓ Starting Ick server..."
 echo "═══════════════════════════════════════"
-node src/server.js &
+node src/index.js &
 SERVER_PID=$!
 
 # 4. Wait for server to bind port
