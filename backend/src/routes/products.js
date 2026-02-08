@@ -598,8 +598,8 @@ router.get('/curated', async (req, res) => {
       SELECT p.upc, p.name, p.brand, p.category, p.subcategory,
              p.total_score, p.nutrition_score, p.additives_score, p.organic_bonus,
              p.nutriscore_grade, p.nova_group, p.image_url,
-             p.allergens_tags, p.ingredients_text,
-             p.is_organic, p.additives_count
+             p.allergens_tags, p.ingredients,
+             p.is_organic
       FROM products p
       ORDER BY p.total_score DESC
     `);
@@ -826,9 +826,10 @@ router.get('/:id', async (req, res) => {
     // Get swaps for this product
     let swaps = [];
     if (product.swaps_to && product.swaps_to.length > 0) {
+      const swapUpcs = Array.isArray(product.swaps_to) ? product.swaps_to : JSON.parse(product.swaps_to);
       const swapResult = await pool.query(
-        `SELECT * FROM products WHERE upc = ANY($1)`,
-        [product.swaps_to]
+        `SELECT * FROM products WHERE upc = ANY($1::text[])`,
+        [swapUpcs]
       );
       swaps = swapResult.rows.map(s => ({
         ...s,
@@ -838,8 +839,8 @@ router.get('/:id', async (req, res) => {
 
     // Get recipes that replace this product
     const recipeResult = await pool.query(
-      `SELECT * FROM recipes WHERE replaces_category = $1 OR $2 = ANY(replaces_products)`,
-      [product.category, product.upc]
+      `SELECT * FROM recipes WHERE replaces_category = $1 OR replaces_products @> $2::jsonb`,
+      [product.category, JSON.stringify([product.upc])]
     );
 
     res.json({

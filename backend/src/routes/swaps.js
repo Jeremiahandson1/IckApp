@@ -28,12 +28,13 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
 
     // 1. Check for hand-curated direct swaps first
     if (product.swaps_to && product.swaps_to.length > 0) {
+      const swapUpcs = Array.isArray(product.swaps_to) ? product.swaps_to : JSON.parse(product.swaps_to);
       const swapResult = await pool.query(
         `SELECT p.*, c.name as company_name 
          FROM products p 
          LEFT JOIN companies c ON p.company_id = c.id
-         WHERE p.upc = ANY($1)`,
-        [product.swaps_to]
+         WHERE p.upc = ANY($1::text[])`,
+        [swapUpcs]
       );
       swaps = swapResult.rows;
     }
@@ -104,8 +105,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     const recipeResult = await pool.query(
       `SELECT * FROM recipes 
        WHERE replaces_category = $1 
-       OR $2 = ANY(replaces_products)`,
-      [product.category, upc]
+       OR replaces_products @> $2::jsonb`,
+      [product.category, JSON.stringify([upc])]
     );
 
     res.json({
@@ -287,9 +288,10 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
       let bestSwap = null;
       
       if (item.swaps_to && item.swaps_to.length > 0) {
+        const swapUpcs = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to);
         const swapResult = await pool.query(
-          `SELECT * FROM products WHERE upc = ANY($1) ORDER BY total_score DESC LIMIT 1`,
-          [item.swaps_to]
+          `SELECT * FROM products WHERE upc = ANY($1::text[]) ORDER BY total_score DESC LIMIT 1`,
+          [swapUpcs]
         );
         if (swapResult.rows.length > 0) bestSwap = swapResult.rows[0];
       }
