@@ -225,27 +225,30 @@ async function saveFlippResults(results, upc, productId, ourProductName) {
   let saved = 0;
   for (const item of results) {
     try {
+      // Compute expires_at in JS to avoid PG type ambiguity with reused params
+      const expiresAt = item.valid_to ? new Date(item.valid_to) : new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
+
       await pool.query(
         `INSERT INTO flyer_availability 
          (upc, product_id, our_product_name, merchant, flyer_product_name, brand, 
           price, price_text, sale_story, valid_from, valid_to, image_url, 
           flyer_item_id, search_zip, region, crawled_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(),
-                 COALESCE($11, NOW() + INTERVAL '8 days'))
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16)
          ON CONFLICT (upc, merchant, search_zip, flyer_item_id) DO UPDATE SET
            price = EXCLUDED.price,
            price_text = EXCLUDED.price_text,
            sale_story = EXCLUDED.sale_story,
            valid_to = EXCLUDED.valid_to,
            crawled_at = NOW(),
-           expires_at = COALESCE(EXCLUDED.valid_to, NOW() + INTERVAL '8 days')`,
+           expires_at = EXCLUDED.expires_at`,
         [
           upc, productId, ourProductName,
           item.store_name, item.product_name, item.brand,
           item.price, item.price_text, item.sale_story,
-          item.valid_from, item.valid_to, item.image_url,
+          item.valid_from || null, item.valid_to || null, item.image_url,
           String(item.flyer_item_id || 'unknown'),
-          item.search_zip, getRegionForZip(item.search_zip)
+          item.search_zip, getRegionForZip(item.search_zip),
+          expiresAt
         ]
       );
       saved++;
