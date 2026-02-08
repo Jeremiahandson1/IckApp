@@ -1,0 +1,27 @@
+{
+  "name": "ick-backend",
+  "version": "1.0.0",
+  "description": "Ick API - Food Scanner for Kids Health",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "db:init": "node src/db/init.js",
+    "db:seed": "node src/db/seed.js",
+    "db:import": "node src/db/import-off.js",
+    "db:import:test": "node src/db/import-off.js --limit=100",
+    "db:import:full": "node src/db/import-off.js --full"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^7.1.5",
+    "node-fetch": "^3.3.2"
+  }
+}

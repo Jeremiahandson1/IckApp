@@ -1,0 +1,44 @@
+# render.yaml — Render Blueprint
+# Push this to your repo, then go to https://dashboard.render.com/blueprints
+# and connect the repo. Render will create everything automatically.
+
+databases:
+  - name: ick-db
+    plan: starter  # $7/mo — free tier expires after 90 days
+    databaseName: ick
+    user: ick
+    region: ohio   # us-east — closest to Eau Claire
+
+services:
+  - type: web
+    name: ick
+    runtime: node
+    plan: starter  # $7/mo — or use free tier to test first
+    region: ohio
+    buildCommand: ./render-build.sh
+    startCommand: cd backend && node src/index.js
+    healthCheckPath: /api/products/meta/categories
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ick-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true  # Render auto-generates a random secret
+      - key: FRONTEND_URL
+        value: https://ick.onrender.com
+      - key: USDA_API_KEY
+        value: DEMO_KEY  # Get free key at https://fdc.nal.usda.gov/api-key-signup/
+      - key: FATSECRET_CLIENT_ID
+        sync: false  # Add manually — sign up at https://platform.fatsecret.com/
+      - key: FATSECRET_CLIENT_SECRET
+        sync: false
+      # Stripe (add these manually in Render dashboard after setup)
+      # - key: STRIPE_SECRET_KEY
+      # - key: STRIPE_WEBHOOK_SECRET
+      # - key: STRIPE_PRICE_MONTHLY
+      # - key: STRIPE_PRICE_YEARLY

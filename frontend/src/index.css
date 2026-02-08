@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════
+   ICK — Matte Black + Orange
+   Warning label aesthetic
+   ═══════════════════════════════════════ */
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    background-color: #0a0a0a;
+  }
+  
+  body {
+    @apply bg-[#0a0a0a] text-gray-100;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer components {
+  /* Score badges — color spectrum */
+  .score-badge {
+    @apply inline-flex items-center justify-center w-12 h-12 rounded-full text-white font-bold text-lg;
+  }
+  
+  .score-excellent { @apply bg-green-500; }
+  .score-good { @apply bg-green-400; }
+  .score-okay { @apply bg-amber-500; }
+  .score-poor { @apply bg-orange-500; }
+  .score-avoid { @apply bg-red-500; }
+  
+  /* Cards — dark surface */
+  .card {
+    @apply bg-[#141414] rounded-2xl shadow-sm border border-gray-800/50;
+  }
+  
+  .card-pressed {
+    @apply active:scale-[0.98] transition-transform;
+  }
+  
+  /* Buttons — orange is the action color */
+  .btn-primary {
+    @apply bg-orange-500 text-black font-bold py-3 px-6 rounded-xl 
+           active:bg-orange-400 transition-colors disabled:opacity-50;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-800 text-gray-200 font-semibold py-3 px-6 rounded-xl 
+           active:bg-gray-700 transition-colors;
+  }
+  
+  .btn-ghost {
+    @apply text-orange-500 font-semibold py-2 px-4 rounded-lg 
+           active:bg-orange-500/10 transition-colors;
+  }
+  
+  /* Input fields — dark */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border border-gray-700 bg-gray-900
+           text-gray-100 placeholder:text-gray-500
+           focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 
+           outline-none transition-all;
+  }
+  
+  /* Navigation */
+  .nav-item {
+    @apply flex flex-col items-center gap-1 py-2 px-4 text-gray-500 
+           transition-colors;
+  }
+  .nav-item.active {
+    @apply text-orange-500;
+  }
+  
+  /* Scanner */
+  .scan-overlay {
+    @apply absolute inset-0 pointer-events-none;
+  }
+  .scan-corner {
+    @apply absolute w-8 h-8 border-orange-500;
+  }
+  
+  .pull-indicator {
+    @apply absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full py-4 text-gray-500;
+  }
+  
+  /* Skeleton — dark */
+  .skeleton {
+    @apply bg-gray-800 animate-pulse rounded;
+  }
+  
+  .tab-bar-padding {
+    @apply pb-20;
+  }
+}
+
+@layer utilities {
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  
+  .gradient-brand {
+    @apply bg-gradient-to-br from-orange-500 to-orange-600;
+  }
+  .gradient-danger {
+    @apply bg-gradient-to-br from-red-500 to-red-600;
+  }
+  
+  /* Ick text gradient — orange to red */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-red-500;
+  }
+}
+
+/* Scanner video */
+#qr-reader { width: 100% !important; border: none !important; }
+#qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; border-radius: 1rem; }
+#qr-reader__scan_region { min-height: 300px !important; }
+#qr-reader__dashboard { display: none !important; }
+
+@keyframes scan-line {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(120px); }
+}
+.animate-scan-line { animation: scan-line 2s ease-in-out infinite; }
+
+/* ── Native ── */
+body.barcode-scanning-active { background: transparent !important; }
+body.barcode-scanning-active > * { visibility: hidden; }
+
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.px-safe { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.native-bottom-nav { padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px); }
+
+html.native-app { -webkit-user-select: none; user-select: none; overscroll-behavior-y: contain; }
+html.native-app input, html.native-app textarea { -webkit-user-select: text; user-select: text; }
+html.native-app body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
+html.native-app #root { width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
