@@ -157,14 +157,15 @@ async function seedCompanies() {
 // IMPORT FROM OPEN FOOD FACTS (v2 — batched, with nutrition)
 // ============================================================
 
-async function importFromOpenFoodFacts(limit = 50000) {
-  console.log(`\nImporting up to ${limit} US products from Open Food Facts...`);
+async function importFromOpenFoodFacts(limit = 50000, startPage = 1) {
+  console.log(`\nImporting up to ${limit} US products from Open Food Facts (starting page ${startPage})...`);
 
   const pageSize = 100;
   const maxPages = Math.ceil(limit / pageSize);
   let totalImported = 0;
   let totalSkipped = 0;
-  let page = 1;
+  let page = startPage;
+  let consecutiveErrors = 0;
 
   // Fields we need from OFF (includes nutrition, allergens, labels)
   const fields = [
@@ -178,18 +179,29 @@ async function importFromOpenFoodFacts(limit = 50000) {
     'additives_tags',       // OFF's own additive detection
   ].join(',');
 
-  while (page <= maxPages && totalImported < limit) {
+  while (page <= maxPages && totalImported + (startPage - 1) * pageSize < limit) {
     try {
       const url = `https://us.openfoodfacts.org/cgi/search.pl?action=process&tagtype_0=countries&tag_contains_0=contains&tag_0=united-states&sort_by=unique_scans_n&page_size=${pageSize}&page=${page}&json=true&fields=${fields}`;
 
       const response = await fetch(url, {
-        headers: { 'User-Agent': 'Ick/2.0 (hello@ickapp.com)' }
+        headers: { 'User-Agent': 'Ick/2.0 (hello@ickapp.com)' },
+        signal: AbortSignal.timeout(30000) // 30s timeout per request
       });
 
       if (!response.ok) {
-        console.error(`  API error on page ${page}: ${response.status}`);
-        break;
+        consecutiveErrors++;
+        console.error(`  API error on page ${page}: ${response.status} (attempt ${consecutiveErrors}/5)`);
+        if (consecutiveErrors >= 5) {
+          console.error(`  Too many consecutive errors. Stopping at page ${page}.`);
+          break;
+        }
+        // Wait longer on errors, then retry next page
+        await new Promise(r => setTimeout(r, 2000 * consecutiveErrors));
+        page++;
+        continue;
       }
+
+      consecutiveErrors = 0; // Reset on success
 
       const data = await response.json();
       const products = data.products || [];
@@ -308,15 +320,17 @@ async function importFromOpenFoodFacts(limit = 50000) {
 async function main() {
   const args = process.argv.slice(2);
   const limitArg = args.find(a => a.startsWith('--limit='));
+  const startPageArg = args.find(a => a.startsWith('--start-page='));
   const isFull = args.includes('--full');
   const limit = isFull ? 999999 : (limitArg ? parseInt(limitArg.split('=')[1]) : 50000);
+  const startPage = startPageArg ? parseInt(startPageArg.split('=')[1]) : 1;
 
   console.log('=== Ick Data Import v2 ===\n');
 
   try {
     await seedHarmfulIngredients();
     await seedCompanies();
-    await importFromOpenFoodFacts(limit);
+    await importFromOpenFoodFacts(limit, startPage);
     await seedCuratedSwaps();
 
     console.log('\n=== Import Complete ===');
