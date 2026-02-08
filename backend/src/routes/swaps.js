@@ -39,88 +39,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       swaps = swapResult.rows;
     }
 
-    // Helper: extract product type keywords from name for smarter matching
-    // "Salted Caramel Dark Chocolate Nut" (Kind) → type: bar (from brand context)
-    // "Fruity Pebbles Cereal" → type: cereal
-    const productTypes = {
-      bar:      /\b(bar|bars|protein bar|granola bar|nut bar|snack bar|energy bar)\b/i,
-      cereal:   /\b(cereal|cereals|flakes|puffs|loops|crunch|o's|oats|granola|muesli)\b/i,
-      chips:    /\b(chips|crisps|tortilla|puffs|popcorn|pretzels)\b/i,
-      crackers: /\b(crackers|cracker|goldfish|bunnies|crisps|thins)\b/i,
-      cookies:  /\b(cookies|cookie|wafers|biscuits|oreo)\b/i,
-      candy:    /\b(candy|candies|gummies|gummy|gems|cups|truffles|bonbons|m&m|skittles|sour|caramels|fudge|licorice|jelly beans)\b/i,
-      drink:    /\b(juice|drink|water|soda|tea|coffee|milk|lemonade|smoothie)\b/i,
-      sauce:    /\b(sauce|ketchup|mustard|mayo|dressing|salsa|dip)\b/i,
-      yogurt:   /\b(yogurt|yoghurt|parfait|kefir)\b/i,
-      bread:    /\b(bread|bagel|muffin|roll|bun|tortilla|wrap|pita)\b/i,
-      pasta:    /\b(pasta|noodle|spaghetti|macaroni|mac.*cheese|ramen)\b/i,
-      frozen:   /\b(frozen|pizza|nuggets|fries|ice cream|popsicle|waffles)\b/i,
-      baby:     /\b(baby|infant|toddler|puree|formula|gerber|beech-nut)\b/i,
-      fruit:    /\b(fruit snack|fruit roll|fruit leather|dried fruit|applesauce|apple sauce)\b/i,
-    };
-
-    // Also check brand for type hints (e.g., Kind = bars, Cheerios = cereal)
-    const brandTypeHints = {
-      'kind': 'bar', 'rxbar': 'bar', 'larabar': 'bar', 'clif': 'bar', 'gomacro': 'bar',
-      'nature valley': 'bar', 'luna': 'bar', 'quest': 'bar', 'built': 'bar',
-      'cheerios': 'cereal', 'kashi': 'cereal', 'three wishes': 'cereal',
-      'doritos': 'chips', 'lay\'s': 'chips', 'kettle': 'chips',
-      'goldfish': 'crackers', 'annie\'s': 'crackers',
-      'oreo': 'cookies', 'chips ahoy': 'cookies',
-      'dove': 'candy', 'hershey': 'candy', 'reese': 'candy', 'snickers': 'candy',
-      'milky way': 'candy', 'twix': 'candy', 'butterfinger': 'candy', 'nestle': 'candy',
-      'unreal': 'candy', 'hu': 'candy', 'lindt': 'candy', 'ghirardelli': 'candy',
-    };
-
-    // Broader filter regexes — used when filtering category results (more inclusive than detection)
-    const typeFilters = {
-      ...productTypes,
-      candy: /\b(candy|candies|chocolate|gummies|gummy|gems|cups|truffles|bonbons|m&m|skittles|sour|caramels|fudge|licorice|jelly beans|cocoa)\b/i,
-      bar: /\b(bar|bars|protein bar|granola bar|nut bar|snack bar|energy bar|kind|rxbar|larabar|clif)\b/i,
-    };
-
-    const nameForMatch = `${product.name || ''} ${product.brand || ''}`.toLowerCase();
-    let detectedType = null;
-    
-    // Brand hints first — more reliable than name keywords
-    if (product.brand) {
-      const brandLower = product.brand.toLowerCase();
-      for (const [brand, type] of Object.entries(brandTypeHints)) {
-        if (brandLower.includes(brand)) {
-          detectedType = type;
-          break;
-        }
-      }
-    }
-    
-    // Name-based detection only if brand didn't match
-    if (!detectedType) {
-      for (const [type, regex] of Object.entries(productTypes)) {
-        if (regex.test(nameForMatch)) {
-          detectedType = type;
-          break;
-        }
-      }
-    }
-
-    // 2. Subcategory match first (most specific)
-    if (swaps.length === 0 && product.subcategory) {
-      const subResult = await pool.query(
-        `SELECT p.*, c.name as company_name 
-         FROM products p 
-         LEFT JOIN companies c ON p.company_id = c.id
-         WHERE p.subcategory = $1
-         AND p.total_score > $2
-         AND p.total_score IS NOT NULL
-         AND p.upc != $3
-         ORDER BY p.total_score DESC
-         LIMIT 5`,
-        [product.subcategory, Math.max(product.total_score || 0, 40), upc]
-      );
-      swaps = subResult.rows;
-    }
-
-    // 3. Category match WITH product type filter (prevents bar → apple sauce)
+    // 2. If no direct swaps, find by category with higher score
+    //    Handle OFF-style categories (en:breakfast-cereals) and plain categories
     if (swaps.length === 0 && product.category) {
       const categoryResult = await pool.query(
         `SELECT p.*, c.name as company_name 
@@ -137,59 +57,64 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
          LIMIT 20`,
         [
           product.category,
-          Math.max(product.total_score || 0, 40),
+          Math.max(product.total_score || 0, 40), // must actually be better, min 40
           upc,
+          // Fuzzy: extract last segment of "en:breakfast-cereals" → "%breakfast-cereals%"
           `%${product.category.split(':').pop().replace(/-/g, '%')}%`
         ]
       );
+
+      // Post-filter: remove obviously wrong product types
+      // e.g., prevent "Kind bar" → "Organic apple sauce" when both are in "en:snacks"
+      const origName = `${product.name || ''} ${product.brand || ''} ${product.subcategory || ''}`.toLowerCase();
+      const typeKeywords = [
+        ['bar', 'bars'], ['cereal', 'loops', 'flakes', 'crunch', 'puffs'],
+        ['chips', 'crisps', 'tortilla'], ['crackers', 'cracker', 'bunnies', 'goldfish'],
+        ['cookies', 'cookie', 'biscuit'], ['candy', 'candies', 'gummies', 'gummy'],
+        ['chocolate', 'cocoa'], ['juice', 'drink', 'beverage'],
+        ['sauce', 'ketchup', 'mustard', 'dressing'], ['yogurt', 'yoghurt'],
+        ['bread', 'bagel', 'muffin'], ['pasta', 'noodle', 'macaroni'],
+        ['oats', 'oatmeal'], ['apple sauce', 'applesauce', 'puree'],
+        ['baby', 'infant', 'toddler'],
+      ];
+      // Find which type group the scanned product belongs to
+      const origTypes = typeKeywords.filter(group => group.some(kw => origName.includes(kw)));
       
-      // If we detected a product type, filter results to same type
-      if (detectedType && categoryResult.rows.length > 0) {
-        const typeRegex = typeFilters[detectedType] || productTypes[detectedType];
-        const typed = categoryResult.rows.filter(r => {
+      if (origTypes.length > 0 && categoryResult.rows.length > 5) {
+        // Only filter when we have enough results and a clear product type
+        const origKeywords = origTypes.flat();
+        const filtered = categoryResult.rows.filter(r => {
           const rName = `${r.name || ''} ${r.brand || ''} ${r.subcategory || ''}`.toLowerCase();
-          return typeRegex.test(rName);
+          return origKeywords.some(kw => rName.includes(kw));
         });
-        // Only use same-type matches — don't fall back to garbage like apple sauce for chocolate
-        swaps = typed.slice(0, 5);
+        swaps = filtered.length > 0 ? filtered.slice(0, 5) : categoryResult.rows.slice(0, 5);
       } else {
         swaps = categoryResult.rows.slice(0, 5);
       }
     }
 
-    // 4. Name-based matching — find products with similar product words
-    if (swaps.length === 0) {
-      // Strip brand from name to get product-descriptive words
-      const brandWords = (product.brand || '').toLowerCase().split(/\s+/);
-      const nameWords = (product.name || '').split(/\s+/)
-        .filter(w => w.length > 3 && !brandWords.includes(w.toLowerCase()))
-        .map(w => w.toLowerCase());
-      
-      // Try progressively broader searches — type keyword first (most relevant)
-      const searches = [];
-      if (detectedType) searches.push(detectedType);
-      if (nameWords.length >= 2) searches.push(nameWords.slice(0, 2).join(' '));
-      if (nameWords.length >= 1) searches.push(nameWords[0]);
-
-      for (const searchTerm of searches) {
-        if (swaps.length > 0) break;
-        try {
-          const nameResult = await pool.query(
-            `SELECT p.*, c.name as company_name 
-             FROM products p 
-             LEFT JOIN companies c ON p.company_id = c.id
-             WHERE to_tsvector('english', COALESCE(p.name,'') || ' ' || COALESCE(p.brand,'') || ' ' || COALESCE(p.subcategory,''))
-                   @@ plainto_tsquery('english', $1)
-             AND p.total_score > $2
-             AND p.total_score IS NOT NULL
-             AND p.upc != $3
-             AND p.brand != $4
-             ORDER BY p.total_score DESC
-             LIMIT 5`,
-            [searchTerm, Math.max(product.total_score || 0, 40), upc, product.brand || '']
-          );
-          swaps = nameResult.rows;
-        } catch (e) { /* non-fatal */ }
+    // 3. If still nothing, try matching by brand similarity + higher score
+    if (swaps.length === 0 && product.brand) {
+      // Find products in similar name space with better scores
+      // e.g., if scanning "Kraft Mac & Cheese", find other mac & cheese products
+      const nameWords = product.name?.split(/\s+/).filter(w => w.length > 3) || [];
+      if (nameWords.length > 0) {
+        // Use the most distinctive word(s) from the product name
+        const searchTerm = nameWords.slice(0, 2).join(' & ');
+        const nameResult = await pool.query(
+          `SELECT p.*, c.name as company_name 
+           FROM products p 
+           LEFT JOIN companies c ON p.company_id = c.id
+           WHERE to_tsvector('english', p.name) @@ plainto_tsquery('english', $1)
+           AND p.total_score > $2
+           AND p.total_score IS NOT NULL
+           AND p.upc != $3
+           AND p.brand != $4
+           ORDER BY p.total_score DESC
+           LIMIT 5`,
+          [searchTerm, Math.max(product.total_score || 0, 40), upc, product.brand || '']
+        );
+        swaps = nameResult.rows;
       }
     }
 
@@ -198,19 +123,21 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     for (const swap of swaps) {
       let nearbyStores = [];
 
-      // Layer 1: Community sightings
+      // Layer 1: Community sightings (most recent, verified)
       try {
         const sightingResult = await pool.query(
-          `SELECT store_name, store_address, store_zip, price, aisle, verified_count, 'community' as source
+          `SELECT store_name, store_address, store_zip, price, aisle, 
+                  verified_count, 'community' as source
            FROM local_sightings
-           WHERE upc = $1 AND in_stock = true AND last_verified_at > NOW() - INTERVAL '90 days'
+           WHERE upc = $1 AND in_stock = true
+           AND last_verified_at > NOW() - INTERVAL '90 days'
            ORDER BY verified_count DESC LIMIT 3`,
           [swap.upc]
         );
         nearbyStores = sightingResult.rows;
-      } catch (e) { /* non-fatal */ }
+      } catch (e) { /* table may not exist yet */ }
 
-      // Layer 2: Flyer crawler (nationwide, everyone)
+      // Layer 2: Flyer crawler (nationwide, price data)
       if (nearbyStores.length < 3) {
         try {
           const flyerResult = await pool.query(
@@ -227,20 +154,22 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
             disclaimer: `Price as of ${new Date(r.crawled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
           }));
           const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
-          nearbyStores = [...nearbyStores, ...flyerStores.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')))].slice(0, 5);
-        } catch (e) { /* flyer_availability table may not exist yet */ }
+          const flyerUnique = flyerStores.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+          nearbyStores = [...nearbyStores, ...flyerUnique].slice(0, 5);
+        } catch (e) { /* flyer table may not exist yet */ }
       }
 
-      // Layer 3: Curated ground-truth (always available baseline)
+      // Layer 3: Curated ground-truth (always available for top swap products)
       if (nearbyStores.length < 3) {
         try {
           const curatedResult = await pool.query(
-            `SELECT store_name, 'curated' as source FROM curated_availability WHERE upc = $1 LIMIT 8`,
+            `SELECT store_name, 'curated' as source FROM curated_availability WHERE upc = $1 ORDER BY store_name LIMIT 8`,
             [swap.upc]
           );
           const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
-          nearbyStores = [...nearbyStores, ...curatedResult.rows.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')))].slice(0, 5);
-        } catch (e) { /* curated_availability table may not exist yet */ }
+          const curatedUnique = curatedResult.rows.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+          nearbyStores = [...nearbyStores, ...curatedUnique].slice(0, 5);
+        } catch (e) { /* curated table may not exist yet */ }
       }
 
       formattedSwaps.push({
@@ -255,85 +184,12 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     }
 
     // Get homemade alternatives (recipes)
-    // Map OFF categories + detected product type to recipe categories
-    const recipeCategoryMap = {
-      // Product type → recipe categories
-      bar:      ['Snack Bars'],
-      cereal:   ['Kids Cereal', 'Instant Oatmeal'],
-      chips:    ['Chips', 'Cheese Dips'],
-      crackers: ['Chips'],
-      cookies:  ['Candy', 'Frozen Treats'],
-      candy:    ['Candy'],
-      drink:    ['Juice Drinks', 'Sports Drinks'],
-      sauce:    ['Pasta Sauce', 'Salad Dressing', 'Condiments'],
-      yogurt:   ['Frozen Treats'],
-      bread:    ['Pancake Mix'],
-      pasta:    ['Mac & Cheese', 'Pasta Sauce'],
-      frozen:   ['Frozen Meals', 'Frozen Treats'],
-      baby:     ['Baby Snacks'],
-      fruit:    ['Fruit Snacks'],
-    };
-
-    // OFF category keywords → recipe categories
-    const offCategoryKeywords = {
-      'snack':       ['Chips', 'Snack Bars', 'Fruit Snacks'],
-      'cereal':      ['Kids Cereal', 'Instant Oatmeal'],
-      'chocolate':   ['Candy'],
-      'confection':  ['Candy'],
-      'sweet':       ['Candy', 'Fruit Snacks'],
-      'beverage':    ['Juice Drinks', 'Sports Drinks'],
-      'drink':       ['Juice Drinks', 'Sports Drinks'],
-      'juice':       ['Juice Drinks'],
-      'sauce':       ['Pasta Sauce', 'Condiments'],
-      'dressing':    ['Salad Dressing'],
-      'cheese':      ['Mac & Cheese', 'Cheese Dips'],
-      'pasta':       ['Mac & Cheese', 'Pasta Sauce'],
-      'frozen':      ['Frozen Meals', 'Frozen Treats'],
-      'ice-cream':   ['Frozen Treats'],
-      'baby':        ['Baby Snacks'],
-      'infant':      ['Baby Snacks'],
-      'chip':        ['Chips'],
-      'crisp':       ['Chips'],
-      'bar':         ['Snack Bars'],
-      'biscuit':     ['Candy'],
-      'cookie':      ['Candy'],
-      'pancake':     ['Pancake Mix'],
-      'oat':         ['Instant Oatmeal'],
-    };
-
-    // Build list of recipe categories to search
-    const recipeCategories = new Set();
-    
-    // From detected product type
-    if (detectedType && recipeCategoryMap[detectedType]) {
-      recipeCategoryMap[detectedType].forEach(c => recipeCategories.add(c));
-    }
-    
-    // From product category string (OFF-style or plain)
-    const catLower = (product.category || '').toLowerCase();
-    for (const [keyword, cats] of Object.entries(offCategoryKeywords)) {
-      if (catLower.includes(keyword)) {
-        cats.forEach(c => recipeCategories.add(c));
-      }
-    }
-
-    // From subcategory
-    const subLower = (product.subcategory || '').toLowerCase();
-    for (const [keyword, cats] of Object.entries(offCategoryKeywords)) {
-      if (subLower.includes(keyword)) {
-        cats.forEach(c => recipeCategories.add(c));
-      }
-    }
-
-    // Also add the exact category (works for curated products)
-    recipeCategories.add(product.category);
-    if (product.subcategory) recipeCategories.add(product.subcategory);
-
     const recipeResult = await pool.query(
       `SELECT * FROM recipes 
-       WHERE replaces_category = ANY($1::text[])
-       OR replaces_products @> $2::jsonb`,
-      [Array.from(recipeCategories), JSON.stringify([upc])]
+       WHERE replaces_category = $1 
+       OR replaces_category = $2
+       OR replaces_products @> $3::jsonb`,
+      [product.category, product.subcategory || '', JSON.stringify([upc])]
     );
 
     res.json({
