@@ -588,57 +588,6 @@ router.get('/meta/categories', async (req, res) => {
   }
 });
 
-// Get product details (catch-all — must be LAST)
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await pool.query(
-      `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies, c.positive_actions, c.lobbying_history
-       FROM products p
-       LEFT JOIN companies c ON p.company_id = c.id
-       WHERE p.id = $1 OR p.upc = $1`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    const product = result.rows[0];
-
-    // Get swaps for this product
-    let swaps = [];
-    if (product.swaps_to && product.swaps_to.length > 0) {
-      const swapResult = await pool.query(
-        `SELECT * FROM products WHERE upc = ANY($1)`,
-        [product.swaps_to]
-      );
-      swaps = swapResult.rows.map(s => ({
-        ...s,
-        ...getScoreRating(s.total_score)
-      }));
-    }
-
-    // Get recipes that replace this product
-    const recipeResult = await pool.query(
-      `SELECT * FROM recipes WHERE replaces_category = $1 OR $2 = ANY(replaces_products)`,
-      [product.category, product.upc]
-    );
-
-    res.json({
-      ...product,
-      ...getScoreRating(product.total_score),
-      swaps,
-      recipes: recipeResult.rows
-    });
-
-  } catch (err) {
-    console.error('Product details error:', err);
-    res.status(500).json({ error: 'Failed to get product details' });
-  }
-});
-
 // ============================================================
 // CURATED PRODUCTS (for offline pre-loading)
 // Returns all products with swap mappings for IndexedDB cache
@@ -843,6 +792,66 @@ router.delete('/family/:id', authenticateToken, async (req, res) => {
     res.json({ deleted: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete profile' });
+  }
+});
+
+// ============================================================
+// PRODUCT DETAILS (catch-all — MUST be LAST route)
+// ============================================================
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isNumeric = /^\d+$/.test(id);
+    
+    const result = await pool.query(
+      isNumeric
+        ? `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies, 
+                  c.positive_actions, c.lobbying_history
+           FROM products p
+           LEFT JOIN companies c ON p.company_id = c.id
+           WHERE p.id = $1 OR p.upc = $2`
+        : `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies, 
+                  c.positive_actions, c.lobbying_history
+           FROM products p
+           LEFT JOIN companies c ON p.company_id = c.id
+           WHERE p.upc = $1`,
+      isNumeric ? [parseInt(id), id] : [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    const product = result.rows[0];
+
+    // Get swaps for this product
+    let swaps = [];
+    if (product.swaps_to && product.swaps_to.length > 0) {
+      const swapResult = await pool.query(
+        `SELECT * FROM products WHERE upc = ANY($1)`,
+        [product.swaps_to]
+      );
+      swaps = swapResult.rows.map(s => ({
+        ...s,
+        ...getScoreRating(s.total_score)
+      }));
+    }
+
+    // Get recipes that replace this product
+    const recipeResult = await pool.query(
+      `SELECT * FROM recipes WHERE replaces_category = $1 OR $2 = ANY(replaces_products)`,
+      [product.category, product.upc]
+    );
+
+    res.json({
+      ...product,
+      ...getScoreRating(product.total_score),
+      swaps,
+      recipes: recipeResult.rows
+    });
+
+  } catch (err) {
+    console.error('Product details error:', err);
+    res.status(500).json({ error: 'Failed to get product details' });
   }
 });
 
