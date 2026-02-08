@@ -46,65 +46,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get recipe by ID
-router.get('/:id', optionalAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await pool.query(
-      'SELECT * FROM recipes WHERE id = $1',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-
-    const recipe = result.rows[0];
-
-    // Get products this recipe replaces
-    let replacesProducts = [];
-    if (recipe.replaces_products && recipe.replaces_products.length > 0) {
-      const productsResult = await pool.query(
-        'SELECT upc, name, brand, total_score FROM products WHERE upc = ANY($1)',
-        [recipe.replaces_products]
-      );
-      replacesProducts = productsResult.rows;
-    }
-
-    // Track view if user is logged in
-    if (req.user) {
-      // Only increment engagement counter on first view (insert), not re-views (update)
-      const trackResult = await pool.query(
-        `INSERT INTO user_recipes (user_id, recipe_id, viewed_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (user_id, recipe_id) DO UPDATE SET viewed_at = NOW()
-         RETURNING (xmax = 0) AS is_new_view`,
-        [req.user.id, id]
-      );
-
-      // xmax = 0 means INSERT (new row), not UPDATE
-      if (trackResult.rows[0]?.is_new_view) {
-        await pool.query(
-          `UPDATE user_engagement 
-           SET total_recipes_viewed = total_recipes_viewed + 1, updated_at = NOW()
-           WHERE user_id = $1`,
-          [req.user.id]
-        );
-      }
-    }
-
-    res.json({
-      ...recipe,
-      replaces_products_details: replacesProducts
-    });
-
-  } catch (err) {
-    console.error('Recipe fetch error:', err);
-    res.status(500).json({ error: 'Failed to fetch recipe' });
-  }
-});
-
 // Get recipes for a product (alternatives to that product)
 router.get('/for/:upc', async (req, res) => {
   try {
@@ -194,6 +135,65 @@ router.get('/meta/categories', async (req, res) => {
   } catch (err) {
     console.error('Recipe categories error:', err);
     res.status(500).json({ error: 'Failed to get categories' });
+  }
+});
+
+// Get recipe by ID — MUST be last (/:id catches everything)
+router.get('/:id', optionalAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM recipes WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+
+    const recipe = result.rows[0];
+
+    // Get products this recipe replaces
+    let replacesProducts = [];
+    if (recipe.replaces_products && recipe.replaces_products.length > 0) {
+      const productsResult = await pool.query(
+        'SELECT upc, name, brand, total_score FROM products WHERE upc = ANY($1)',
+        [recipe.replaces_products]
+      );
+      replacesProducts = productsResult.rows;
+    }
+
+    // Track view if user is logged in
+    if (req.user) {
+      try {
+        const trackResult = await pool.query(
+          `INSERT INTO user_recipes (user_id, recipe_id, viewed_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id, recipe_id) DO UPDATE SET viewed_at = NOW()
+           RETURNING (xmax = 0) AS is_new_view`,
+          [req.user.id, id]
+        );
+
+        if (trackResult.rows[0]?.is_new_view) {
+          await pool.query(
+            `UPDATE user_engagement 
+             SET total_recipes_viewed = total_recipes_viewed + 1, updated_at = NOW()
+             WHERE user_id = $1`,
+            [req.user.id]
+          );
+        }
+      } catch (e) { /* tracking tables may not exist — non-fatal */ }
+    }
+
+    res.json({
+      ...recipe,
+      replaces_products_details: replacesProducts
+    });
+
+  } catch (err) {
+    console.error('Recipe fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch recipe' });
   }
 });
 
