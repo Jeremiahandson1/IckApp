@@ -479,7 +479,7 @@ export async function initDatabase() {
 }
 
 // Run if called directly
-if (process.argv[1].includes('init.js')) {
+if (process.argv[1]?.includes('init.js')) {
   initDatabase()
     .then(() => process.exit(0))
     .catch(() => process.exit(1));
