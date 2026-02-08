@@ -21,7 +21,8 @@ import velocityRoutes from './routes/velocity.js';
 import progressRoutes from './routes/progress.js';
 import subscriptionRoutes from './routes/subscription.js';
 import analyticsRoutes from './routes/analytics.js';
-// import krogerRoutes from './routes/kroger.js'; // Future: Kroger API integration
+import krogerRoutes from './routes/kroger.js';
+import sightingsRoutes from './routes/sightings.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,7 +84,8 @@ app.use('/api/shopping', shoppingRoutes);
 app.use('/api/velocity', velocityRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/analytics', analyticsRoutes);
-// app.use('/api/kroger', krogerRoutes); // Future: Kroger API integration
+app.use('/api/kroger', krogerRoutes);
+app.use('/api/sightings', sightingsRoutes);
 
 // Serve frontend in production
 import path from 'path';
@@ -113,10 +115,29 @@ app.use((req, res) => {
 
 // Initialize database tables then start server
 initDatabase()
-  .then(() => {
+  .then(async () => {
     app.listen(PORT, () => {
       console.log(`Ick API running on port ${PORT}`);
     });
+
+    // Seed curated store availability (ground truth — always runs)
+    try {
+      const { initCuratedAvailability } = await import('./services/curatedStores.js');
+      await initCuratedAvailability();
+    } catch (e) {
+      console.warn('⚠ Curated availability seed failed (non-fatal):', e.message);
+    }
+
+    // Start flyer crawler (30s delay, then daily at 3AM UTC)
+    setTimeout(async () => {
+      try {
+        const { startCrawlScheduler } = await import('./services/flyerCrawler.js');
+        startCrawlScheduler();
+        console.log('▸ Flyer crawler scheduled');
+      } catch (e) {
+        console.warn('⚠ Flyer crawler start failed (non-fatal):', e.message);
+      }
+    }, 30000);
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err);

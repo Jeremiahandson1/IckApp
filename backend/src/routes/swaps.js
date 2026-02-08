@@ -91,15 +91,66 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       }
     }
 
-    // Format swaps with score improvement
-    const formattedSwaps = swaps.map(swap => ({
-      ...swap,
-      ...getScoreRating(swap.total_score),
-      score_improvement: (swap.total_score || 0) - (product.total_score || 0),
-      savings_potential: product.typical_price && swap.typical_price
-        ? (product.typical_price - swap.typical_price).toFixed(2)
-        : null
-    }));
+    // Format swaps with score improvement + nearby store availability
+    const formattedSwaps = [];
+    for (const swap of swaps) {
+      let nearbyStores = [];
+
+      // Layer 1: Community sightings
+      try {
+        const sightingResult = await pool.query(
+          `SELECT store_name, store_address, store_zip, price, aisle, verified_count, 'community' as source
+           FROM local_sightings
+           WHERE upc = $1 AND in_stock = true AND last_verified_at > NOW() - INTERVAL '90 days'
+           ORDER BY verified_count DESC LIMIT 3`,
+          [swap.upc]
+        );
+        nearbyStores = sightingResult.rows;
+      } catch (e) { /* non-fatal */ }
+
+      // Layer 2: Flyer crawler (nationwide, everyone)
+      if (nearbyStores.length < 3) {
+        try {
+          const flyerResult = await pool.query(
+            `SELECT DISTINCT ON (merchant) 
+               merchant as store_name, price, price_text, crawled_at, 'flyer' as source
+             FROM flyer_availability
+             WHERE upc = $1 AND expires_at > NOW()
+             ORDER BY merchant, crawled_at DESC LIMIT 5`,
+            [swap.upc]
+          );
+          const flyerStores = flyerResult.rows.map(r => ({
+            store_name: r.store_name, price: r.price, price_text: r.price_text,
+            source: 'flyer',
+            disclaimer: `Price as of ${new Date(r.crawled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          }));
+          const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+          nearbyStores = [...nearbyStores, ...flyerStores.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')))].slice(0, 5);
+        } catch (e) { /* flyer_availability table may not exist yet */ }
+      }
+
+      // Layer 3: Curated ground-truth (always available baseline)
+      if (nearbyStores.length < 3) {
+        try {
+          const curatedResult = await pool.query(
+            `SELECT store_name, 'curated' as source FROM curated_availability WHERE upc = $1 LIMIT 8`,
+            [swap.upc]
+          );
+          const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+          nearbyStores = [...nearbyStores, ...curatedResult.rows.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')))].slice(0, 5);
+        } catch (e) { /* curated_availability table may not exist yet */ }
+      }
+
+      formattedSwaps.push({
+        ...swap,
+        ...getScoreRating(swap.total_score),
+        score_improvement: (swap.total_score || 0) - (product.total_score || 0),
+        savings_potential: product.typical_price && swap.typical_price
+          ? (product.typical_price - swap.typical_price).toFixed(2)
+          : null,
+        nearby_stores: nearbyStores
+      });
+    }
 
     // Get homemade alternatives (recipes)
     const recipeResult = await pool.query(
