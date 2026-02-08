@@ -48,7 +48,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       chips:    /\b(chips|crisps|tortilla|puffs|popcorn|pretzels)\b/i,
       crackers: /\b(crackers|cracker|goldfish|bunnies|crisps|thins)\b/i,
       cookies:  /\b(cookies|cookie|wafers|biscuits|oreo)\b/i,
-      candy:    /\b(candy|chocolate|gummies|gummy|gems|cups|m&m|skittles|sour)\b/i,
+      candy:    /\b(candy|candies|gummies|gummy|gems|cups|truffles|bonbons|m&m|skittles|sour|caramels|fudge|licorice|jelly beans)\b/i,
       drink:    /\b(juice|drink|water|soda|tea|coffee|milk|lemonade|smoothie)\b/i,
       sauce:    /\b(sauce|ketchup|mustard|mayo|dressing|salsa|dip)\b/i,
       yogurt:   /\b(yogurt|yoghurt|parfait|kefir)\b/i,
@@ -67,21 +67,36 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       'doritos': 'chips', 'lay\'s': 'chips', 'kettle': 'chips',
       'goldfish': 'crackers', 'annie\'s': 'crackers',
       'oreo': 'cookies', 'chips ahoy': 'cookies',
+      'dove': 'candy', 'hershey': 'candy', 'reese': 'candy', 'snickers': 'candy',
+      'milky way': 'candy', 'twix': 'candy', 'butterfinger': 'candy', 'nestle': 'candy',
+      'unreal': 'candy', 'hu': 'candy', 'lindt': 'candy', 'ghirardelli': 'candy',
+    };
+
+    // Broader filter regexes — used when filtering category results (more inclusive than detection)
+    const typeFilters = {
+      ...productTypes,
+      candy: /\b(candy|candies|chocolate|gummies|gummy|gems|cups|truffles|bonbons|m&m|skittles|sour|caramels|fudge|licorice|jelly beans|cocoa)\b/i,
+      bar: /\b(bar|bars|protein bar|granola bar|nut bar|snack bar|energy bar|kind|rxbar|larabar|clif)\b/i,
     };
 
     const nameForMatch = `${product.name || ''} ${product.brand || ''}`.toLowerCase();
     let detectedType = null;
-    for (const [type, regex] of Object.entries(productTypes)) {
-      if (regex.test(nameForMatch)) {
-        detectedType = type;
-        break;
-      }
-    }
-    // Brand hint fallback
-    if (!detectedType && product.brand) {
+    
+    // Brand hints first — more reliable than name keywords
+    if (product.brand) {
       const brandLower = product.brand.toLowerCase();
       for (const [brand, type] of Object.entries(brandTypeHints)) {
         if (brandLower.includes(brand)) {
+          detectedType = type;
+          break;
+        }
+      }
+    }
+    
+    // Name-based detection only if brand didn't match
+    if (!detectedType) {
+      for (const [type, regex] of Object.entries(productTypes)) {
+        if (regex.test(nameForMatch)) {
           detectedType = type;
           break;
         }
@@ -130,39 +145,51 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       
       // If we detected a product type, filter results to same type
       if (detectedType && categoryResult.rows.length > 0) {
-        const typeRegex = productTypes[detectedType];
+        const typeRegex = typeFilters[detectedType] || productTypes[detectedType];
         const typed = categoryResult.rows.filter(r => {
-          const rName = `${r.name || ''} ${r.brand || ''}`.toLowerCase();
+          const rName = `${r.name || ''} ${r.brand || ''} ${r.subcategory || ''}`.toLowerCase();
           return typeRegex.test(rName);
         });
-        swaps = typed.length > 0 ? typed.slice(0, 5) : categoryResult.rows.slice(0, 5);
+        // Only use same-type matches — don't fall back to garbage like apple sauce for chocolate
+        swaps = typed.slice(0, 5);
       } else {
         swaps = categoryResult.rows.slice(0, 5);
       }
     }
 
-    // 4. Name-based matching — find products with similar names/types
+    // 4. Name-based matching — find products with similar product words
     if (swaps.length === 0) {
-      const nameWords = (product.name || '').split(/\s+/).filter(w => w.length > 3);
-      // Add type keyword if detected
-      if (detectedType) nameWords.push(detectedType);
+      // Strip brand from name to get product-descriptive words
+      const brandWords = (product.brand || '').toLowerCase().split(/\s+/);
+      const nameWords = (product.name || '').split(/\s+/)
+        .filter(w => w.length > 3 && !brandWords.includes(w.toLowerCase()))
+        .map(w => w.toLowerCase());
       
-      if (nameWords.length > 0) {
-        const searchTerm = nameWords.slice(0, 3).join(' ');
-        const nameResult = await pool.query(
-          `SELECT p.*, c.name as company_name 
-           FROM products p 
-           LEFT JOIN companies c ON p.company_id = c.id
-           WHERE to_tsvector('english', p.name) @@ plainto_tsquery('english', $1)
-           AND p.total_score > $2
-           AND p.total_score IS NOT NULL
-           AND p.upc != $3
-           AND p.brand != $4
-           ORDER BY p.total_score DESC
-           LIMIT 5`,
-          [searchTerm, Math.max(product.total_score || 0, 40), upc, product.brand || '']
-        );
-        swaps = nameResult.rows;
+      // Try progressively broader searches — type keyword first (most relevant)
+      const searches = [];
+      if (detectedType) searches.push(detectedType);
+      if (nameWords.length >= 2) searches.push(nameWords.slice(0, 2).join(' '));
+      if (nameWords.length >= 1) searches.push(nameWords[0]);
+
+      for (const searchTerm of searches) {
+        if (swaps.length > 0) break;
+        try {
+          const nameResult = await pool.query(
+            `SELECT p.*, c.name as company_name 
+             FROM products p 
+             LEFT JOIN companies c ON p.company_id = c.id
+             WHERE to_tsvector('english', COALESCE(p.name,'') || ' ' || COALESCE(p.brand,'') || ' ' || COALESCE(p.subcategory,''))
+                   @@ plainto_tsquery('english', $1)
+             AND p.total_score > $2
+             AND p.total_score IS NOT NULL
+             AND p.upc != $3
+             AND p.brand != $4
+             ORDER BY p.total_score DESC
+             LIMIT 5`,
+            [searchTerm, Math.max(product.total_score || 0, 40), upc, product.brand || '']
+          );
+          swaps = nameResult.rows;
+        } catch (e) { /* non-fatal */ }
       }
     }
 
