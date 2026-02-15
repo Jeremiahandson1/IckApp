@@ -1,6 +1,6 @@
 import express from 'express';
 import pool from '../db/init.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth, authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -121,8 +121,8 @@ router.get('/crawler/stats', async (req, res) => {
   }
 });
 
-// Manual crawler trigger
-router.post('/crawler/run', async (req, res) => {
+// Manual crawler trigger (auth required)
+router.post('/crawler/run', authenticateToken, async (req, res) => {
   try {
     const { crawlOnce } = await import('../services/flyerCrawler.js');
     const { limit, zipsPerProduct } = req.body || {};

@@ -416,6 +416,50 @@ export async function initDatabase() {
       created_at TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_family_user ON family_profiles(user_id);
+
+    -- Flyer crawler results (Flipp-sourced weekly ad data)
+    CREATE TABLE IF NOT EXISTS flyer_availability (
+      id SERIAL PRIMARY KEY,
+      upc VARCHAR(20),
+      our_product_name VARCHAR(255),
+      merchant VARCHAR(255) NOT NULL,
+      price DECIMAL(8,2),
+      price_text VARCHAR(100),
+      sale_story TEXT,
+      search_zip VARCHAR(10),
+      region VARCHAR(100),
+      crawled_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_flyer_upc ON flyer_availability(upc);
+    CREATE INDEX IF NOT EXISTS idx_flyer_expires ON flyer_availability(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_flyer_merchant ON flyer_availability(merchant);
+
+    -- Curated ground-truth availability (manually verified store data)
+    CREATE TABLE IF NOT EXISTS curated_availability (
+      id SERIAL PRIMARY KEY,
+      upc VARCHAR(20) NOT NULL,
+      store_name VARCHAR(255) NOT NULL,
+      store_chain VARCHAR(100),
+      verified_at TIMESTAMP DEFAULT NOW(),
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(upc, store_name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_curated_upc ON curated_availability(upc);
+
+    -- Online purchase links (Amazon, Thrive Market, brand sites, etc.)
+    CREATE TABLE IF NOT EXISTS online_links (
+      id SERIAL PRIMARY KEY,
+      upc VARCHAR(20) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      url TEXT NOT NULL,
+      link_type VARCHAR(50) DEFAULT 'marketplace',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(upc, url)
+    );
+    CREATE INDEX IF NOT EXISTS idx_online_links_upc ON online_links(upc);
   `;
 
   try {
@@ -444,6 +488,57 @@ export async function initDatabase() {
       
       -- Push notification subscriptions
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
+
+      -- Admin role
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
+
+      -- Store memory for auto-sighting
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_store VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_store_zip VARCHAR(10);
+
+      -- Contribution review tracking
+      ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+
+      -- Receipt + price tracking on pantry items
+      ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS price_paid DECIMAL(8,2);
+      ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS store_name VARCHAR(255);
+      ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS receipt_id INT;
+
+      -- Receipts
+      CREATE TABLE IF NOT EXISTS receipts (
+        id SERIAL PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        store_name VARCHAR(255),
+        store_address TEXT,
+        receipt_date DATE,
+        subtotal DECIMAL(10,2),
+        tax DECIMAL(10,2),
+        total DECIMAL(10,2),
+        payment_method VARCHAR(50),
+        image_url TEXT,
+        raw_text TEXT,
+        parsed_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_receipts_user ON receipts(user_id);
+      CREATE INDEX IF NOT EXISTS idx_receipts_date ON receipts(user_id, receipt_date);
+
+      CREATE TABLE IF NOT EXISTS receipt_items (
+        id SERIAL PRIMARY KEY,
+        receipt_id INT REFERENCES receipts(id) ON DELETE CASCADE,
+        line_text VARCHAR(500),
+        item_name VARCHAR(255),
+        quantity DECIMAL(8,3) DEFAULT 1,
+        unit_price DECIMAL(8,2),
+        total_price DECIMAL(8,2),
+        upc VARCHAR(20),
+        product_id INT REFERENCES products(id) ON DELETE SET NULL,
+        matched BOOLEAN DEFAULT false,
+        added_to_pantry BOOLEAN DEFAULT false,
+        category VARCHAR(100),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
     `);
 
     // Check if total_score still uses old formula (5 columns)

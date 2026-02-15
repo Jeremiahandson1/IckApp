@@ -158,14 +158,17 @@ router.put('/:id/finish', async (req, res) => {
       [daysToConsume, id]
     );
 
-    // Update velocity tracking
+    // Update velocity tracking (including next_predicted_empty for smart shopping lists)
     const velocityResult = await pool.query(
-      `INSERT INTO consumption_velocity (user_id, product_id, upc, avg_days_to_consume, consumption_count, last_consumed_at)
-       VALUES ($1, $2, $3, $4, 1, NOW())
+      `INSERT INTO consumption_velocity (user_id, product_id, upc, avg_days_to_consume, consumption_count, last_consumed_at, next_predicted_empty)
+       VALUES ($1, $2, $3, $4, 1, NOW(), NOW() + ($4 || ' days')::INTERVAL)
        ON CONFLICT (user_id, upc) DO UPDATE SET
          avg_days_to_consume = (consumption_velocity.avg_days_to_consume * consumption_velocity.consumption_count + $4) / (consumption_velocity.consumption_count + 1),
          consumption_count = consumption_velocity.consumption_count + 1,
          last_consumed_at = NOW(),
+         next_predicted_empty = NOW() + (INTERVAL '1 day' * (
+           (consumption_velocity.avg_days_to_consume * consumption_velocity.consumption_count + $4) / (consumption_velocity.consumption_count + 1)
+         )),
          confidence = CASE 
            WHEN consumption_velocity.consumption_count >= 3 THEN 'high'
            WHEN consumption_velocity.consumption_count >= 1 THEN 'medium'

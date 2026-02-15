@@ -39,6 +39,35 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       swaps = swapResult.rows;
     }
 
+    // 1.5. If no swaps_to on THIS UPC, check if another product with same name has swaps_to
+    //      (handles duplicate UPCs from OFF import vs seed data)
+    if (swaps.length === 0 && product.name) {
+      try {
+        const nameMatch = await pool.query(
+          `SELECT swaps_to FROM products 
+           WHERE LOWER(name) = LOWER($1) AND upc != $2 
+           AND swaps_to IS NOT NULL AND swaps_to != '[]' AND swaps_to != 'null'
+           LIMIT 1`,
+          [product.name, upc]
+        );
+        if (nameMatch.rows.length > 0 && nameMatch.rows[0].swaps_to) {
+          const swapUpcs = Array.isArray(nameMatch.rows[0].swaps_to) 
+            ? nameMatch.rows[0].swaps_to 
+            : JSON.parse(nameMatch.rows[0].swaps_to);
+          if (swapUpcs.length > 0) {
+            const swapResult = await pool.query(
+              `SELECT p.*, c.name as company_name 
+               FROM products p 
+               LEFT JOIN companies c ON p.company_id = c.id
+               WHERE p.upc = ANY($1::text[])`,
+              [swapUpcs]
+            );
+            swaps = swapResult.rows;
+          }
+        }
+      } catch (e) { /* non-fatal */ }
+    }
+
     // 2. If no direct swaps, find by category with higher score
     //    Handle OFF-style categories (en:breakfast-cereals) and plain categories
     if (swaps.length === 0 && product.category) {
@@ -68,7 +97,9 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       // e.g., prevent "Kind bar" → "Organic apple sauce" when both are in "en:snacks"
       const origName = `${product.name || ''} ${product.brand || ''} ${product.subcategory || ''}`.toLowerCase();
       const typeKeywords = [
-        ['bar', 'bars'], ['cereal', 'loops', 'flakes', 'crunch', 'puffs', 'oats', 'oatmeal', 'granola', 'muesli'],
+        ['cereal', 'loops', 'flakes', 'crunch', 'puffs'],
+        ['oats', 'oatmeal', 'granola', 'muesli'],
+        ['bar', 'bars'], 
         ['chips', 'crisps', 'tortilla'], ['crackers', 'cracker', 'bunnies', 'goldfish'],
         ['cookies', 'cookie', 'biscuit'], ['candy', 'candies', 'gummies', 'gummy'],
         ['chocolate', 'cocoa'], ['juice', 'drink', 'beverage'],
@@ -409,11 +440,24 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
       }
 
       if (!bestSwap && item.category) {
+        // Try curated clean alternatives first, then any higher-scored product in category
         const categoryResult = await pool.query(
           `SELECT * FROM products 
-           WHERE category = $1 AND total_score > $2 AND is_clean_alternative = true
-           ORDER BY total_score DESC LIMIT 1`,
-          [item.category, item.total_score]
+           WHERE (
+             category = $1
+             OR category ILIKE $4
+           )
+           AND total_score > $2
+           AND total_score IS NOT NULL
+           AND upc != $3
+           ORDER BY is_clean_alternative DESC, total_score DESC 
+           LIMIT 1`,
+          [
+            item.category, 
+            Math.max(item.total_score || 0, 40),
+            item.upc,
+            `%${item.category.split(':').pop().replace(/-/g, '%')}%`
+          ]
         );
         if (categoryResult.rows.length > 0) bestSwap = categoryResult.rows[0];
       }

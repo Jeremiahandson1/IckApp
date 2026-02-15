@@ -25,6 +25,8 @@ import Progress from './pages/Progress';
 import Profile from './pages/Profile';
 import Subscription from './pages/Subscription';
 import PremiumGate from './components/common/PremiumGate';
+import ReceiptScan from './pages/ReceiptScan';
+import Budget from './pages/Budget';
 
 // Auth gate — only for features that truly need login
 function AuthGate({ children }) {
@@ -156,6 +158,8 @@ export default function App() {
         <Route path="/recipes" element={<Recipes />} />
         <Route path="/recipes/:id" element={<RecipeDetail />} />
         <Route path="/swaps" element={<Swaps />} />
+        <Route path="/receipt" element={<AuthGate><ReceiptScan /></AuthGate>} />
+        <Route path="/budget" element={<AuthGate><Budget /></AuthGate>} />
 
         {/* AUTH REQUIRED: Pantry and account features */}
         <Route path="/pantry" element={<AuthGate><Pantry /></AuthGate>} />

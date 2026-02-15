@@ -32,6 +32,8 @@ export default function Scan() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [notFoundUPC, setNotFoundUPC] = useState(null);
@@ -42,6 +44,7 @@ export default function Scan() {
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   const searchTimeoutRef = useRef(null);
+  const acTimeoutRef = useRef(null);
 
   const [recentScans, setRecentScans] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -183,7 +186,26 @@ export default function Scan() {
   const handleSearch = (query) => {
     setSearchQuery(query);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    if (query.length < 2) { setSearchResults([]); return; }
+    if (acTimeoutRef.current) clearTimeout(acTimeoutRef.current);
+    
+    if (query.length < 2) { 
+      setSearchResults([]); 
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return; 
+    }
+
+    // Autocomplete — fast, lightweight (150ms debounce)
+    acTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/products/autocomplete?q=${encodeURIComponent(query)}`);
+        const items = Array.isArray(res) ? res : [];
+        setSuggestions(items);
+        setShowSuggestions(items.length > 0);
+      } catch { setSuggestions([]); }
+    }, 150);
+
+    // Full search — heavier (400ms debounce)
     searchTimeoutRef.current = setTimeout(async () => {
       setSearching(true);
       try {
@@ -193,8 +215,26 @@ export default function Scan() {
         setSearchResults([]);
       } finally {
         setSearching(false);
+        setShowSuggestions(false);
       }
-    }, 300);
+    }, 400);
+  };
+
+  const selectSuggestion = (suggestion) => {
+    setSearchQuery(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (acTimeoutRef.current) clearTimeout(acTimeoutRef.current);
+    // Trigger full search immediately
+    (async () => {
+      setSearching(true);
+      try {
+        const results = await products.search(suggestion);
+        setSearchResults(Array.isArray(results) ? results : results.products || []);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    })();
   };
 
   return (
@@ -317,12 +357,28 @@ export default function Scan() {
                 autoFocus
               />
               {searchQuery && (
-                <button onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                <button onClick={() => { setSearchQuery(''); setSearchResults([]); setSuggestions([]); setShowSuggestions(false); }}
                   className="absolute right-4 top-1/2 -translate-y-1/2">
                   <X className="w-5 h-5 text-gray-400" />
                 </button>
               )}
             </div>
+            
+            {/* Autocomplete suggestions dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-lg">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectSuggestion(s)}
+                    className="w-full text-left px-4 py-3 text-gray-200 hover:bg-gray-700 active:bg-gray-600 transition-colors border-b border-gray-700/50 last:border-0 flex items-center gap-3"
+                  >
+                    <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="truncate">{s}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="mt-4 space-y-2">
               {/* Product not found — contribution form */}
               {notFoundUPC && (

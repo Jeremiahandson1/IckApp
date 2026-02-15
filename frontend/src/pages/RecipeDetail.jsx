@@ -21,9 +21,14 @@ export default function RecipeDetail() {
   const loadRecipe = async () => {
     try {
       const res = await api.get(`/recipes/${id}`);
+      // api.get might return error objects without throwing
+      if (!res || res.error || !res.name) {
+        throw new Error(res?.error || 'Recipe not found');
+      }
       setRecipe(res);
     } catch (err) {
-      showToast('Failed to load recipe', 'error');
+      console.error('Recipe load error:', err);
+      showToast('Recipe not found', 'error');
       navigate('/recipes');
     } finally {
       setLoading(false);
@@ -80,7 +85,17 @@ export default function RecipeDetail() {
     );
   }
 
-  if (!recipe) return null;
+  if (!recipe) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🍳</div>
+        <h2 className="text-xl font-semibold text-gray-100 mb-2">Recipe not found</h2>
+        <button onClick={() => navigate('/recipes')} className="text-orange-400 mt-2">
+          ← Browse all recipes
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-20">

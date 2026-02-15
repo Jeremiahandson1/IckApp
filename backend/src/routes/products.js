@@ -5,9 +5,57 @@ import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { getScoreRating } from '../utils/helpers.js';
 import { scoreProduct as calculateProductScore } from '../utils/scoring.js';
 import { lookupByUPC as usdaLookup, searchProducts as usdaSearch } from '../utils/usda.js';
-import { lookupByBarcode as fatsecretLookup, searchFoods as fatsecretSearch } from '../utils/fatsecret.js';
+import { lookupByBarcode as fatsecretLookup, searchFoods as fatsecretSearch, getFoodImage, autoComplete as fatsecretAutoComplete } from '../utils/fatsecret.js';
 
 const router = express.Router();
+
+/**
+ * Async image + allergen backfill — if a product is missing data, try FatSecret in background.
+ * Runs after response is sent so user isn't waiting.
+ */
+function backfillImage(upc, productName) {
+  // Fire and forget — don't await
+  (async () => {
+    try {
+      // Check what the product is missing
+      const check = await pool.query('SELECT image_url, allergens_tags FROM products WHERE upc = $1', [upc]);
+      const row = check.rows[0];
+      if (!row) return;
+
+      const needsImage = !row.image_url;
+      const needsAllergens = !row.allergens_tags || row.allergens_tags === '[]' || 
+        (Array.isArray(row.allergens_tags) && row.allergens_tags.length === 0);
+      
+      if (!needsImage && !needsAllergens) return;
+
+      // FatSecret barcode lookup gets both image and allergens
+      const fsProduct = await fatsecretLookup(upc);
+      if (!fsProduct) return;
+
+      const updates = [];
+      const params = [];
+      let paramIdx = 1;
+
+      if (needsImage && fsProduct.image_url) {
+        updates.push(`image_url = $${paramIdx++}`);
+        params.push(fsProduct.image_url);
+      }
+      if (needsAllergens && fsProduct.allergens_tags?.length > 0) {
+        updates.push(`allergens_tags = $${paramIdx++}`);
+        params.push(JSON.stringify(fsProduct.allergens_tags));
+      }
+
+      if (updates.length > 0) {
+        params.push(upc);
+        await pool.query(
+          `UPDATE products SET ${updates.join(', ')} WHERE upc = $${paramIdx}`,
+          params
+        );
+        console.log(`✓ Backfilled ${updates.map(u => u.split(' =')[0]).join(' + ')} for ${productName || upc}`);
+      }
+    } catch (e) { /* silent */ }
+  })();
+}
 
 // Scan/lookup product by UPC
 // Scanning is FREE and UNLIMITED — the core feature must never be gated.
@@ -28,6 +76,9 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
     if (result.rows.length > 0) {
       const product = result.rows[0];
       const scoreInfo = getScoreRating(product.total_score);
+
+      // Async backfill image if missing
+      if (!product.image_url) backfillImage(upc, product.name);
 
       // Log scan and update engagement
       if (req.user) {
@@ -102,6 +153,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
            ON CONFLICT (upc) DO UPDATE SET
              name = EXCLUDED.name,
+             image_url = COALESCE(EXCLUDED.image_url, products.image_url),
              nutrition_score = EXCLUDED.nutrition_score,
              additives_score = EXCLUDED.additives_score,
              organic_bonus = EXCLUDED.organic_bonus,
@@ -112,7 +164,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
              company_behavior_score = EXCLUDED.company_behavior_score,
              harmful_ingredients_found = EXCLUDED.harmful_ingredients_found,
              nutrition_facts = EXCLUDED.nutrition_facts,
-             allergens_tags = EXCLUDED.allergens_tags,
+             allergens_tags = COALESCE(NULLIF(EXCLUDED.allergens_tags, '[]'), products.allergens_tags),
              is_organic = EXCLUDED.is_organic,
              updated_at = NOW()
            RETURNING id, total_score`,
@@ -121,7 +173,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
             fsProduct.name,
             fsProduct.brand,
             fsProduct.category,
-            null,
+            fsProduct.image_url || null,
             fsProduct.ingredients || '',
             fsScores?.nutrition_score ?? null,
             fsScores?.additives_score ?? null,
@@ -133,7 +185,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
             fsScores?.company_behavior_score ?? null,
             fsScores?.harmful_ingredients_found ? JSON.stringify(fsScores.harmful_ingredients_found) : null,
             fsScores?.nutrition_facts ? JSON.stringify(fsScores.nutrition_facts) : JSON.stringify(fsProduct.nutrition_facts || {}),
-            '[]',
+            JSON.stringify(fsProduct.allergens_tags || []),
             fsScores?.nutriscore_grade || null,
             fsScores?.nova_group || null,
             fsProduct.is_organic || false,
@@ -159,7 +211,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
           name: fsProduct.name,
           brand: fsProduct.brand,
           category: fsProduct.category,
-          image_url: null,
+          image_url: fsProduct.image_url || null,
           ingredients: fsProduct.ingredients || '',
           ...(fsScores || {}),
           total_score: fsSavedScore,
@@ -199,6 +251,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
          ON CONFLICT (upc) DO UPDATE SET
            name = EXCLUDED.name,
+           image_url = COALESCE(EXCLUDED.image_url, products.image_url),
            nutrition_score = EXCLUDED.nutrition_score,
            additives_score = EXCLUDED.additives_score,
            organic_bonus = EXCLUDED.organic_bonus,
@@ -209,7 +262,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
            company_behavior_score = EXCLUDED.company_behavior_score,
            harmful_ingredients_found = EXCLUDED.harmful_ingredients_found,
            nutrition_facts = EXCLUDED.nutrition_facts,
-           allergens_tags = EXCLUDED.allergens_tags,
+           allergens_tags = COALESCE(NULLIF(EXCLUDED.allergens_tags, '[]'), products.allergens_tags),
            is_organic = EXCLUDED.is_organic,
            updated_at = NOW()
          RETURNING id, total_score`,
@@ -251,6 +304,9 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
         );
       }
 
+      // USDA never has images — backfill from FatSecret
+      backfillImage(upc, usdaProduct.name);
+
       return res.json({
         id: usdaInsert.rows[0]?.id,
         upc,
@@ -291,6 +347,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        ON CONFLICT (upc) DO UPDATE SET
          name = EXCLUDED.name,
+         image_url = COALESCE(EXCLUDED.image_url, products.image_url),
          nutrition_score = EXCLUDED.nutrition_score,
          additives_score = EXCLUDED.additives_score,
          organic_bonus = EXCLUDED.organic_bonus,
@@ -301,7 +358,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
          company_behavior_score = EXCLUDED.company_behavior_score,
          harmful_ingredients_found = EXCLUDED.harmful_ingredients_found,
          nutrition_facts = EXCLUDED.nutrition_facts,
-         allergens_tags = EXCLUDED.allergens_tags,
+         allergens_tags = COALESCE(NULLIF(EXCLUDED.allergens_tags, '[]'), products.allergens_tags),
          nutriscore_grade = EXCLUDED.nutriscore_grade,
          nova_group = EXCLUDED.nova_group,
          is_organic = EXCLUDED.is_organic,
@@ -345,19 +402,24 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
       );
     }
 
+    const offImageUrl = offProduct.image_url || offProduct.image_front_url;
+
     res.json({
       id: insertResult.rows[0]?.id,
       upc,
       name: offProduct.product_name || 'Unknown Product',
       brand,
       category: offProduct.categories_tags?.[0]?.replace('en:', '') || 'Unknown',
-      image_url: offProduct.image_url || offProduct.image_front_url,
+      image_url: offImageUrl,
       ingredients,
       ...(scores || {}),
       total_score: savedTotalScore,
       ...scoreInfo,
       source: 'openfoodfacts'
     });
+
+    // Async backfill image if OFF didn't have one
+    if (!offImageUrl) backfillImage(upc, offProduct.product_name);
 
   } catch (err) {
     console.error('Product scan error:', err);
@@ -384,6 +446,9 @@ router.get('/view/:upc', optionalAuth, async (req, res) => {
 
     const product = result.rows[0];
     const scoreInfo = getScoreRating(product.total_score);
+
+    // Async backfill image if missing
+    if (!product.image_url) backfillImage(upc, product.name);
 
     res.json({ ...product, ...scoreInfo, source: 'database' });
   } catch (err) {
@@ -415,6 +480,43 @@ router.get('/history', authenticateToken, async (req, res) => {
   }
 });
 
+// Autocomplete search suggestions (FatSecret Premier + local DB)
+router.get('/autocomplete', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    // Run local DB + FatSecret in parallel
+    const [localResults, fsResults] = await Promise.allSettled([
+      pool.query(
+        `SELECT DISTINCT name FROM products 
+         WHERE name ILIKE $1 
+         ORDER BY total_score DESC NULLS LAST 
+         LIMIT 5`,
+        [`%${q}%`]
+      ),
+      fatsecretAutoComplete(q, 5)
+    ]);
+
+    const suggestions = new Set();
+
+    // Local DB names first
+    if (localResults.status === 'fulfilled') {
+      localResults.value.rows.forEach(r => suggestions.add(r.name));
+    }
+
+    // FatSecret suggestions
+    if (fsResults.status === 'fulfilled') {
+      fsResults.value.forEach(s => suggestions.add(s));
+    }
+
+    res.json([...suggestions].slice(0, 8));
+  } catch (err) {
+    console.error('Autocomplete error:', err);
+    res.json([]);
+  }
+});
+
 router.get('/search', async (req, res) => {
   try {
     const { q, category, min_score, max_score, limit = 20 } = req.query;
@@ -429,9 +531,14 @@ router.get('/search', async (req, res) => {
     let paramCount = 0;
 
     if (q) {
-      paramCount++;
-      query += ` AND (p.name ILIKE $${paramCount} OR p.brand ILIKE $${paramCount})`;
-      params.push(`%${q}%`);
+      // Split query into words — match each word in name, brand, or category
+      // "froot loops cereal" → matches products where name/brand/category contains ALL words
+      const words = q.trim().split(/\s+/).filter(w => w.length > 0);
+      for (const word of words) {
+        paramCount++;
+        query += ` AND (p.name ILIKE $${paramCount} OR p.brand ILIKE $${paramCount} OR p.category ILIKE $${paramCount})`;
+        params.push(`%${word}%`);
+      }
     }
 
     if (category) {
@@ -458,7 +565,34 @@ router.get('/search', async (req, res) => {
 
     const result = await pool.query(query, params);
     
-    let products = result.rows.map(p => ({
+    // Deduplicate: group by name+brand, keep the best version
+    // (OFF import creates many variants of same product with different UPCs)
+    const deduped = new Map();
+    for (const row of result.rows) {
+      const key = `${(row.name || '').toLowerCase().trim()}|${(row.brand || '').toLowerCase().trim()}`;
+      const existing = deduped.get(key);
+      if (!existing) {
+        deduped.set(key, row);
+      } else {
+        // Pick the better version: prefer has swaps_to > has image > has score
+        const score = (r) => {
+          let s = 0;
+          if (r.swaps_to && r.swaps_to !== '[]' && r.swaps_to !== 'null') s += 100;
+          if (r.image_url) s += 50;
+          if (r.total_score != null) s += 25;
+          if (r.subcategory) s += 10;
+          if (r.ingredients) s += 5;
+          return s;
+        };
+        if (score(row) > score(existing)) {
+          deduped.set(key, row);
+        }
+      }
+    }
+
+    let products = [...deduped.values()]
+      .sort((a, b) => (b.total_score || 0) - (a.total_score || 0))
+      .map(p => ({
       ...p,
       ...getScoreRating(p.total_score)
     }));
@@ -528,7 +662,7 @@ router.get('/search', async (req, res) => {
       }
     }
 
-    // If still few results, try FatSecret search
+    // If still few results, try FatSecret search (Premier: includes images)
     if (q && products.length < 5) {
       try {
         const fsResults = await fatsecretSearch(q, 10 - products.length);
@@ -540,7 +674,7 @@ router.get('/search', async (req, res) => {
             name: p.name,
             brand: p.brand,
             category: 'Food',
-            image_url: null,
+            image_url: p.image_url || null,
             total_score: null,
             estimated_score: false,
             source: 'fatsecret',
@@ -551,6 +685,26 @@ router.get('/search', async (req, res) => {
         // FatSecret search failed — continue
       }
     }
+
+    // Final dedup across all sources by name+brand
+    const finalDeduped = new Map();
+    for (const p of products) {
+      const key = `${(p.name || '').toLowerCase().replace(/[^a-z0-9]/g, '')}|${(p.brand || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+      if (!finalDeduped.has(key)) {
+        finalDeduped.set(key, p);
+      } else {
+        // Prefer: scored > has image > external
+        const existing = finalDeduped.get(key);
+        const score = (r) => (r.total_score != null ? 100 : 0) + (r.image_url ? 50 : 0);
+        if (score(p) > score(existing)) {
+          finalDeduped.set(key, p);
+        } else if (score(p) === score(existing) && !existing.image_url && p.image_url) {
+          // Merge: keep scored product but add image from external source
+          existing.image_url = p.image_url;
+        }
+      }
+    }
+    products = [...finalDeduped.values()];
 
     res.json(products);
 
@@ -792,6 +946,188 @@ router.delete('/family/:id', authenticateToken, async (req, res) => {
     res.json({ deleted: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete profile' });
+  }
+});
+
+// ============================================================
+// ADMIN HELPER
+// ============================================================
+const requireAdmin = async (req, res, next) => {
+  try {
+    const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
+    if (!result.rows[0]?.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+  } catch {
+    res.status(403).json({ error: 'Admin check failed' });
+  }
+};
+
+// ============================================================
+// ADMIN: Contribution Review (#2 fix)
+// ============================================================
+
+// List pending contributions
+router.get('/admin/contributions', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { status = 'pending' } = req.query;
+    const result = await pool.query(
+      `SELECT pc.*, u.email as submitted_by_email
+       FROM product_contributions pc
+       LEFT JOIN users u ON pc.submitted_by = u.id
+       WHERE pc.status = $1
+       ORDER BY pc.created_at ASC`,
+      [status]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Admin contributions error:', err);
+    res.status(500).json({ error: 'Failed to load contributions' });
+  }
+});
+
+// Approve a contribution (creates or updates product)
+router.put('/admin/contributions/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const contrib = await pool.query('SELECT * FROM product_contributions WHERE id = $1', [id]);
+    if (contrib.rows.length === 0) return res.status(404).json({ error: 'Contribution not found' });
+    
+    const c = contrib.rows[0];
+    
+    // Upsert product
+    await pool.query(
+      `INSERT INTO products (upc, name, brand, ingredients)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (upc) DO UPDATE SET
+         name = COALESCE(EXCLUDED.name, products.name),
+         brand = COALESCE(EXCLUDED.brand, products.brand),
+         ingredients = COALESCE(EXCLUDED.ingredients, products.ingredients),
+         image_url = COALESCE($5, products.image_url)`,
+      [c.upc, c.name, c.brand, c.ingredients_text, c.image_url]
+    );
+
+    // Mark as approved
+    await pool.query(
+      `UPDATE product_contributions SET status = 'approved', reviewed_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ approved: true, upc: c.upc });
+  } catch (err) {
+    console.error('Approve contribution error:', err);
+    res.status(500).json({ error: 'Failed to approve' });
+  }
+});
+
+// Reject a contribution
+router.put('/admin/contributions/:id/reject', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE product_contributions SET status = 'rejected', reviewed_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Contribution not found' });
+    
+    res.json({ rejected: true, reason });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject' });
+  }
+});
+
+// ============================================================
+// KID RATINGS (#8 fix — activate dead table)
+// ============================================================
+
+// Get kid ratings for a product
+router.get('/kid-ratings/:upc', optionalAuth, async (req, res) => {
+  try {
+    const { upc } = req.params;
+    
+    // Community average
+    const avgResult = await pool.query(
+      `SELECT ROUND(AVG(rating), 1) as avg_rating,
+              COUNT(*) as total_ratings,
+              COUNT(CASE WHEN would_eat_again THEN 1 END) as would_eat_again_count
+       FROM kid_ratings WHERE upc = $1`,
+      [upc]
+    );
+
+    // User's own ratings (if logged in)
+    let myRatings = [];
+    if (req.user) {
+      const myResult = await pool.query(
+        'SELECT * FROM kid_ratings WHERE user_id = $1 AND upc = $2 ORDER BY created_at DESC',
+        [req.user.id, upc]
+      );
+      myRatings = myResult.rows;
+    }
+
+    const avg = avgResult.rows[0];
+    res.json({
+      community: {
+        avg_rating: parseFloat(avg.avg_rating) || null,
+        total_ratings: parseInt(avg.total_ratings),
+        eat_again_pct: avg.total_ratings > 0
+          ? Math.round((avg.would_eat_again_count / avg.total_ratings) * 100)
+          : null
+      },
+      my_ratings: myRatings
+    });
+  } catch (err) {
+    console.error('Kid ratings fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch kid ratings' });
+  }
+});
+
+// Add/update kid rating
+router.post('/kid-ratings', authenticateToken, async (req, res) => {
+  try {
+    const { upc, kid_name, kid_age, rating, would_eat_again, notes } = req.body;
+    if (!upc || !kid_name || !rating) {
+      return res.status(400).json({ error: 'upc, kid_name, and rating required' });
+    }
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be 1-5' });
+    }
+
+    const productResult = await pool.query('SELECT id FROM products WHERE upc = $1', [upc]);
+    const productId = productResult.rows[0]?.id || null;
+
+    const result = await pool.query(
+      `INSERT INTO kid_ratings (user_id, product_id, upc, kid_name, kid_age, rating, would_eat_again, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (user_id, upc, kid_name) DO UPDATE SET
+         kid_age = COALESCE($5, kid_ratings.kid_age),
+         rating = $6,
+         would_eat_again = COALESCE($7, kid_ratings.would_eat_again),
+         notes = COALESCE($8, kid_ratings.notes),
+         created_at = NOW()
+       RETURNING *`,
+      [req.user.id, productId, upc, kid_name, kid_age, rating, would_eat_again, notes]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Kid rating add error:', err);
+    res.status(500).json({ error: 'Failed to save kid rating' });
+  }
+});
+
+// Delete kid rating
+router.delete('/kid-ratings/:id', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM kid_ratings WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete rating' });
   }
 });
 

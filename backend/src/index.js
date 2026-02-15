@@ -8,7 +8,6 @@ dotenv.config();
 
 // Database (must come after dotenv so DATABASE_URL is available)
 import { initDatabase } from './db/init.js';
-import { requirePremium } from './middleware/subscription.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -23,6 +22,8 @@ import subscriptionRoutes from './routes/subscription.js';
 import analyticsRoutes from './routes/analytics.js';
 import krogerRoutes from './routes/kroger.js';
 import sightingsRoutes from './routes/sightings.js';
+import adminRoutes from './routes/admin.js';
+import receiptRoutes from './routes/receipts.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,15 +69,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 
-// Premium routes (trial or paid required for full access)
-// Note: individual routes already handle authenticateToken
-// This adds a subscription check layer on top
-const premiumCheck = (req, res, next) => {
-  // Skip subscription check for OPTIONS requests
-  if (req.method === 'OPTIONS') return next();
-  // Let the route's own auth run first, then check premium in the route
-  next();
-};
+// Premium routes (individual routes handle auth + premium checks internally)
 app.use('/api/pantry', pantryRoutes);
 app.use('/api/swaps', swapRoutes);
 app.use('/api/recipes', recipeRoutes);
@@ -86,6 +79,8 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/kroger', krogerRoutes);
 app.use('/api/sightings', sightingsRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/receipts', receiptRoutes);
 
 // Serve frontend in production
 import path from 'path';

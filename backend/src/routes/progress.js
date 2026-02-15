@@ -240,28 +240,35 @@ router.get('/achievements', authenticateToken, async (req, res) => {
 // Get leaderboard stats (anonymized)
 router.get('/leaderboard', authenticateToken, async (req, res) => {
   try {
-    // Get top pantry scores
+    // Get top pantry scores (no names in query)
     const result = await pool.query(
       `SELECT 
-         u.name,
+         u.id as user_id,
          ROUND(AVG(p.total_score)) as avg_score,
          COUNT(pi.id) as item_count
        FROM users u
        JOIN pantry_items pi ON u.id = pi.user_id
        JOIN products p ON pi.product_id = p.id
        WHERE pi.status = 'active'
-       GROUP BY u.id, u.name
+       GROUP BY u.id
        HAVING COUNT(pi.id) >= 5
        ORDER BY AVG(p.total_score) DESC
        LIMIT 10`
     );
 
-    // Anonymize names
+    // Anonymize — use fun labels, no real names or initials
+    const labels = [
+      '🥬 Green Machine', '🍎 Apple Pro', '🥕 Carrot King', '🫐 Berry Boss',
+      '🥦 Broccoli Hero', '🍋 Lemon Star', '🥑 Avo Fan', '🌽 Corn Champ',
+      '🍇 Grape Ace', '🍊 Citrus MVP'
+    ];
+
     const leaderboard = result.rows.map((row, index) => ({
       rank: index + 1,
-      name: row.name ? row.name.charAt(0) + '***' : 'Anonymous',
+      name: labels[index] || `🌱 Health Fan #${index + 1}`,
       avg_score: parseInt(row.avg_score),
-      item_count: parseInt(row.item_count)
+      item_count: parseInt(row.item_count),
+      is_you: row.user_id === req.user.id
     }));
 
     res.json(leaderboard);

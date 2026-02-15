@@ -203,4 +203,20 @@ router.post('/push-subscribe', authenticateToken, async (req, res) => {
   }
 });
 
+// Bootstrap: promote to admin (only works if NO admins exist yet)
+router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
+  try {
+    const adminCheck = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = true');
+    if (parseInt(adminCheck.rows[0].count) > 0) {
+      return res.status(403).json({ error: 'Admin already exists. Ask an existing admin to promote you.' });
+    }
+
+    await pool.query('UPDATE users SET is_admin = true WHERE id = $1', [req.user.id]);
+    res.json({ promoted: true, message: 'You are now the first admin.' });
+  } catch (err) {
+    // is_admin column may not exist yet
+    res.status(500).json({ error: 'Failed. Run database migration first.' });
+  }
+});
+
 export default router;

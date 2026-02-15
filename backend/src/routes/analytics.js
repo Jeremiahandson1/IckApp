@@ -4,6 +4,19 @@ import { optionalAuth, authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Admin check helper
+const requireAdmin = async (req, res, next) => {
+  try {
+    const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
+    if (!result.rows[0]?.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+  } catch {
+    res.status(403).json({ error: 'Admin check failed' });
+  }
+};
+
 // Track an event (works for anonymous and logged-in users)
 router.post('/event', optionalAuth, async (req, res) => {
   try {
@@ -51,8 +64,8 @@ router.post('/batch', optionalAuth, async (req, res) => {
   }
 });
 
-// Dashboard (admin/internal - shows funnel data)
-router.get('/dashboard', authenticateToken, async (req, res) => {
+// Dashboard (admin only — #4 fix)
+router.get('/dashboard', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const [
       totalUsers,

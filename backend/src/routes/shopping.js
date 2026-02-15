@@ -259,8 +259,10 @@ router.post('/lists/generate', async (req, res) => {
     );
 
     const listId = listResult.rows[0].id;
+    let itemsAdded = 0;
+    let listType = 'velocity';
 
-    // Get items predicted to run out
+    // 1. Try velocity-based predictions first
     const velocityResult = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category, p.typical_price
        FROM consumption_velocity cv
@@ -271,18 +273,86 @@ router.post('/lists/generate', async (req, res) => {
       [req.user.id, String(daysNum)]
     );
 
-    // Add items to list
     for (const item of velocityResult.rows) {
       await pool.query(
         `INSERT INTO shopping_list_items (list_id, product_id, upc, predicted_need)
          VALUES ($1, $2, $3, true)`,
         [listId, item.product_id, item.upc]
       );
+      itemsAdded++;
+    }
+
+    // 2. Fallback: if no velocity data, suggest healthier swaps for worst pantry items
+    if (itemsAdded === 0) {
+      listType = 'swap_suggestions';
+      
+      // Get user's worst pantry items (score < 50)
+      const worstItems = await pool.query(
+        `SELECT pi.upc, pi.product_id, p.name, p.brand, p.category, p.total_score, p.swaps_to
+         FROM pantry_items pi
+         JOIN products p ON pi.product_id = p.id
+         WHERE pi.user_id = $1 AND pi.status = 'active'
+         AND p.total_score IS NOT NULL AND p.total_score < 50
+         ORDER BY p.total_score ASC
+         LIMIT 8`,
+        [req.user.id]
+      );
+
+      for (const item of worstItems.rows) {
+        // Find the best swap for this item
+        let swapProduct = null;
+
+        if (item.swaps_to && item.swaps_to.length > 0) {
+          const swapUpcs = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to);
+          const swapResult = await pool.query(
+            `SELECT id, upc FROM products WHERE upc = ANY($1::text[]) ORDER BY total_score DESC LIMIT 1`,
+            [swapUpcs]
+          );
+          if (swapResult.rows.length > 0) swapProduct = swapResult.rows[0];
+        }
+
+        if (!swapProduct && item.category) {
+          const catResult = await pool.query(
+            `SELECT id, upc FROM products 
+             WHERE category = $1 AND total_score > $2 AND upc != $3
+             ORDER BY total_score DESC LIMIT 1`,
+            [item.category, item.total_score, item.upc]
+          );
+          if (catResult.rows.length > 0) swapProduct = catResult.rows[0];
+        }
+
+        if (swapProduct) {
+          await pool.query(
+            `INSERT INTO shopping_list_items (list_id, product_id, upc, custom_name, predicted_need)
+             VALUES ($1, $2, $3, $4, false)`,
+            [listId, swapProduct.id, swapProduct.upc, `Swap for: ${item.name}`]
+          );
+          itemsAdded++;
+        }
+      }
+
+      // Update list name to reflect type
+      if (itemsAdded > 0) {
+        await pool.query(
+          `UPDATE shopping_lists SET name = $1 WHERE id = $2`,
+          [`Healthier Swaps - ${new Date().toLocaleDateString()}`, listId]
+        );
+      }
+    }
+
+    // 3. If still empty, delete the empty list
+    if (itemsAdded === 0) {
+      await pool.query('DELETE FROM shopping_lists WHERE id = $1', [listId]);
+      return res.json({ 
+        message: 'Not enough data to generate a smart list yet. Add items to your pantry and mark them as finished to build consumption patterns.',
+        items: [],
+        list_type: 'empty'
+      });
     }
 
     // Get full list
     const fullList = await pool.query(
-      `SELECT sli.*, p.name, p.brand, p.category, p.total_score
+      `SELECT sli.*, p.name, p.brand, p.category, p.total_score, p.image_url
        FROM shopping_list_items sli
        LEFT JOIN products p ON sli.product_id = p.id
        WHERE sli.list_id = $1`,
@@ -292,6 +362,7 @@ router.post('/lists/generate', async (req, res) => {
     res.status(201).json({
       ...listResult.rows[0],
       items: fullList.rows,
+      list_type: listType,
       prediction_window_days: days_ahead
     });
 
