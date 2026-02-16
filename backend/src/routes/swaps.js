@@ -116,52 +116,86 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     if (swaps.length === 0) {
       const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
       
+      // Helper: check if a candidate matches the product type (must_contain + exclude)
+      const matchesType = (candidateName, type) => {
+        const name = candidateName.toLowerCase();
+        const hasRequired = type.must_contain.some(kw => name.includes(kw));
+        const hasExcluded = (type.exclude || []).some(kw => name.includes(kw));
+        return hasRequired && !hasExcluded;
+      };
+      
       // Identify what TYPE of product this is and build targeted search
+      // Each entry has: test (regex), search terms, must_contain keywords, exclude keywords
       const productTypeMap = [
         { test: /fruit\s*snack|fruit\s*roll|fruit\s*leather|fruit\s*gumm/i, 
-          search: "fruit snack organic", must_contain: ['fruit'] },
+          search: "fruit snack organic", must_contain: ['fruit snack', 'fruit roll', 'fruit leather', 'fruit bite'],
+          exclude: ['nut', 'seed', 'chip'] },
         { test: /granola\s*bar|chewy\s*bar|oat\s*bar|snack\s*bar/i, 
-          search: "organic granola bar clean", must_contain: ['bar', 'granola'] },
+          search: "organic granola bar clean", must_contain: ['bar', 'granola'],
+          exclude: ['cereal', 'cookie'] },
         { test: /protein\s*bar|energy\s*bar/i, 
-          search: "organic protein bar", must_contain: ['bar', 'protein'] },
+          search: "organic protein bar", must_contain: ['bar', 'protein'],
+          exclude: ['cereal', 'cookie'] },
         { test: /cookie|biscuit/i, 
-          search: "organic cookies clean", must_contain: ['cookie', 'biscuit'] },
+          search: "organic cookies clean", must_contain: ['cookie', 'biscuit'],
+          exclude: ['chip', 'cracker'] },
         { test: /cracker|goldfish|cheez-?it/i, 
-          search: "organic crackers clean", must_contain: ['cracker'] },
-        { test: /chip|crisp|tortilla\s*chip/i, 
-          search: "organic chips clean", must_contain: ['chip', 'crisp'] },
+          search: "organic crackers clean", must_contain: ['cracker'],
+          exclude: ['cookie', 'chip'] },
+        { test: /tortilla\s*chip|corn\s*chip|nacho|dorito|tostito/i, 
+          search: "organic tortilla chips", must_contain: ['tortilla', 'corn chip', 'nacho'],
+          exclude: ['cookie', 'cracker', 'chocolate'] },
+        { test: /potato\s*chip|chip|crisp|lay'?s|pringle|cheeto|frito/i, 
+          search: "organic potato chips", must_contain: ['potato', 'chip', 'crisp', 'kettle'],
+          exclude: ['cookie', 'chocolate', 'tortilla'] },
         { test: /cereal|loops|flakes|puffs|crunch|charms/i, 
-          search: "organic cereal clean", must_contain: ['cereal', 'flake', 'puff', 'crunch', 'loop', 'o\'s'] },
+          search: "organic cereal clean", must_contain: ['cereal', 'flake', 'puff', 'crunch', 'loop', 'o\'s', 'grain'],
+          exclude: ['bar', 'cookie'] },
         { test: /candy|skittle|gumm|sour|jelly/i, 
-          search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'] },
+          search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'],
+          exclude: ['chocolate', 'bar', 'chip'] },
         { test: /chocolate\s*(bar|candy)|cocoa/i, 
-          search: "organic dark chocolate bar", must_contain: ['chocolate', 'cocoa'] },
+          search: "organic dark chocolate bar", must_contain: ['chocolate', 'cocoa'],
+          exclude: ['cookie', 'cereal', 'milk', 'chip'] },
         { test: /mac.*cheese|macaroni/i, 
-          search: "organic mac cheese", must_contain: ['mac', 'cheese', 'macaroni'] },
+          search: "organic mac cheese", must_contain: ['mac', 'cheese', 'macaroni'],
+          exclude: ['pizza', 'sauce'] },
         { test: /yogurt|yoghurt/i, 
-          search: "organic yogurt", must_contain: ['yogurt', 'yoghurt'] },
+          search: "organic yogurt", must_contain: ['yogurt', 'yoghurt'],
+          exclude: ['bar', 'drink'] },
         { test: /ice\s*cream|frozen\s*dessert/i, 
-          search: "organic ice cream", must_contain: ['ice cream', 'frozen'] },
+          search: "organic ice cream", must_contain: ['ice cream', 'frozen'],
+          exclude: ['sandwich', 'bar'] },
         { test: /juice|lemonade|fruit\s*drink/i, 
-          search: "organic juice 100", must_contain: ['juice', 'lemonade'] },
+          search: "organic juice 100", must_contain: ['juice', 'lemonade'],
+          exclude: ['snack', 'bar', 'candy'] },
         { test: /soda|cola|sprite|pop/i, 
-          search: "sparkling water prebiotic soda", must_contain: ['sparkling', 'soda', 'cola', 'water'] },
+          search: "sparkling water prebiotic soda", must_contain: ['sparkling', 'soda', 'cola', 'water'],
+          exclude: ['candy', 'gummy'] },
         { test: /bread|bun|roll/i, 
-          search: "organic whole grain bread", must_contain: ['bread', 'grain', 'wheat'] },
+          search: "organic whole grain bread", must_contain: ['bread', 'grain', 'wheat'],
+          exclude: ['crumb', 'stick'] },
         { test: /pasta\s*sauce|marinara|tomato\s*sauce/i, 
-          search: "organic pasta sauce marinara", must_contain: ['sauce', 'marinara'] },
+          search: "organic pasta sauce marinara", must_contain: ['sauce', 'marinara'],
+          exclude: ['pizza', 'salsa'] },
         { test: /ketchup/i, 
-          search: "organic ketchup unsweetened", must_contain: ['ketchup'] },
+          search: "organic ketchup unsweetened", must_contain: ['ketchup'],
+          exclude: [] },
         { test: /dressing|vinaigrette|ranch/i, 
-          search: "organic dressing clean", must_contain: ['dressing', 'ranch', 'vinaigrette'] },
+          search: "organic dressing clean", must_contain: ['dressing', 'ranch', 'vinaigrette'],
+          exclude: [] },
         { test: /peanut\s*butter|nut\s*butter|almond\s*butter/i, 
-          search: "organic peanut butter", must_contain: ['peanut', 'almond', 'butter'] },
+          search: "organic peanut butter", must_contain: ['peanut', 'almond', 'butter'],
+          exclude: ['cup', 'candy', 'bar'] },
         { test: /ramen|instant\s*noodle/i, 
-          search: "organic ramen noodles", must_contain: ['ramen', 'noodle'] },
+          search: "organic ramen noodles", must_contain: ['ramen', 'noodle'],
+          exclude: [] },
         { test: /soup|broth|stock/i, 
-          search: "organic soup low sodium", must_contain: ['soup', 'broth', 'stock'] },
+          search: "organic soup low sodium", must_contain: ['soup', 'broth', 'stock'],
+          exclude: ['cracker'] },
         { test: /hot\s*dog|frank|wiener/i, 
-          search: "uncured hot dogs organic", must_contain: ['hot dog', 'frank', 'wiener', 'uncured'] },
+          search: "uncured hot dogs organic", must_contain: ['hot dog', 'frank', 'wiener', 'uncured'],
+          exclude: [] },
         { test: /frozen\s*pizza|pizza/i, 
           search: "organic frozen pizza", must_contain: ['pizza'] },
         { test: /popcorn/i, 
@@ -197,8 +231,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
           );
           // Filter to same product type
           swaps = subResult.rows.filter(r => {
-            const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-            return matchedType.must_contain.some(kw => rName.includes(kw));
+            const rName = `${r.name || ''} ${r.subcategory || ''}`;
+            return matchesType(rName, matchedType);
           }).slice(0, 5);
         }
 
@@ -222,8 +256,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
             );
             // Strict filter: must actually be the same type of product
             swaps = ftsResult.rows.filter(r => {
-              const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-              return matchedType.must_contain.some(kw => rName.includes(kw));
+              const rName = `${r.name || ''} ${r.subcategory || ''}`;
+              return matchesType(rName, matchedType);
             }).slice(0, 5);
           } catch (e) { /* FTS may fail */ }
         }
@@ -254,8 +288,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         );
         // STRICT filter — only same type
         swaps = catResult.rows.filter(r => {
-          const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-          return matchedType.must_contain.some(kw => rName.includes(kw));
+          const rName = `${r.name || ''} ${r.subcategory || ''}`;
+          return matchesType(rName, matchedType);
         }).slice(0, 5);
       }
 
