@@ -458,7 +458,7 @@ export async function seedCuratedSwaps() {
   for (const swap of CURATED_SWAPS) {
     try {
       // Find all products with similar names that have empty/no swaps
-      const stopWords = ['original', 'classic', 'regular', 'the', 'candy', 'candies', 'cereal', 'snack', 'snacks'];
+      const stopWords = ['original', 'classic', 'regular', 'the', 'candy', 'candies', 'cereal', 'snack', 'snacks', 'bar', 'bars', 'flavored', 'bite', 'size'];
       const coreWords = swap.name
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, '')
@@ -475,14 +475,11 @@ export async function seedCuratedSwaps() {
          SET swaps_to = $1
          WHERE LOWER(name) ILIKE $2
          AND upc != $3
-         AND (category ILIKE $4 OR category ILIKE $5)
          AND (is_clean_alternative IS NULL OR is_clean_alternative = false)`,
         [
           JSON.stringify(swap.swaps_to), 
           `%${primaryWord}%`, 
-          swap.upc,
-          `%${swap.category}%`,
-          `%${swap.category.split('-').pop()}%`
+          swap.upc
         ]
       );
       propagated += result.rowCount;
