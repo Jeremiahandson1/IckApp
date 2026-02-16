@@ -22,7 +22,23 @@ router.get('/', async (req, res) => {
       [req.user.id, status]
     );
 
-    res.json(result.rows);
+    // Normalize harmful_ingredients_found — scoring engine stores objects
+    // with {name, category, severity, ...} but Pantry list renders them as text.
+    // Convert to string array for safe rendering. Detail view (ProductResult) 
+    // fetches its own data and handles objects via IngredientCard.
+    const items = result.rows.map(row => {
+      if (row.harmful_ingredients_found) {
+        const raw = typeof row.harmful_ingredients_found === 'string'
+          ? JSON.parse(row.harmful_ingredients_found)
+          : row.harmful_ingredients_found;
+        row.harmful_ingredients_found = raw.map(h => 
+          typeof h === 'string' ? h : (h.name || 'Unknown')
+        );
+      }
+      return row;
+    });
+
+    res.json(items);
 
   } catch (err) {
     console.error('Pantry fetch error:', err);
@@ -264,7 +280,17 @@ router.get('/audit', requirePremium, async (req, res) => {
       [req.user.id]
     );
 
-    const items = result.rows;
+    const items = result.rows.map(row => {
+      if (row.harmful_ingredients_found) {
+        const raw = typeof row.harmful_ingredients_found === 'string'
+          ? JSON.parse(row.harmful_ingredients_found)
+          : row.harmful_ingredients_found;
+        row.harmful_ingredients_found = raw.map(h => 
+          typeof h === 'string' ? h : (h.name || 'Unknown')
+        );
+      }
+      return row;
+    });
     
     // Calculate stats
     const totalItems = items.length;
@@ -294,11 +320,14 @@ router.get('/audit', requirePremium, async (req, res) => {
           ? JSON.parse(item.harmful_ingredients_found)
           : item.harmful_ingredients_found;
         found.forEach(h => {
-          if (!harmfulFound[h.name]) {
-            harmfulFound[h.name] = { ...h, count: 0, products: [] };
+          // Handle both string format ("Red 40") and object format ({name: "Red 40", ...})
+          const name = typeof h === 'string' ? h : (h.name || 'Unknown');
+          const entry = typeof h === 'string' ? { name: h } : h;
+          if (!harmfulFound[name]) {
+            harmfulFound[name] = { ...entry, count: 0, products: [] };
           }
-          harmfulFound[h.name].count++;
-          harmfulFound[h.name].products.push(item.name);
+          harmfulFound[name].count++;
+          harmfulFound[name].products.push(item.name);
         });
       }
     });
