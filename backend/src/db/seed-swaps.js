@@ -450,6 +450,48 @@ export async function seedCuratedSwaps() {
   }
 
   console.log(`  ✓ ${updated} swap mappings applied (${created} new product stubs created)`);
+
+  // 3. Propagate swaps to ALL UPC variants of the same product
+  //    e.g., "Skittles Original" has UPCs 0040000001607, 0040000496823, 0040000140924, etc.
+  //    Only one got the curated swap — now spread it to all of them
+  let propagated = 0;
+  for (const swap of CURATED_SWAPS) {
+    try {
+      // Find all products with similar names that have empty/no swaps
+      const stopWords = ['original', 'classic', 'regular', 'the', 'candy', 'candies', 'cereal', 'snack', 'snacks'];
+      const coreWords = swap.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !stopWords.includes(w));
+      
+      if (coreWords.length === 0) continue;
+      
+      // Use the most distinctive word
+      const primaryWord = [...coreWords].sort((a, b) => b.length - a.length)[0];
+      
+      const result = await pool.query(
+        `UPDATE products 
+         SET swaps_to = $1
+         WHERE LOWER(name) ILIKE $2
+         AND upc != $3
+         AND (category ILIKE $4 OR category ILIKE $5)
+         AND (is_clean_alternative IS NULL OR is_clean_alternative = false)`,
+        [
+          JSON.stringify(swap.swaps_to), 
+          `%${primaryWord}%`, 
+          swap.upc,
+          `%${swap.category}%`,
+          `%${swap.category.split('-').pop()}%`
+        ]
+      );
+      propagated += result.rowCount;
+    } catch (err) {
+      // Non-fatal
+    }
+  }
+  console.log(`  ✓ ${propagated} swap mappings propagated to UPC variants`);
+
   console.log('  ✓ Curated swap seeding complete\n');
 }
 

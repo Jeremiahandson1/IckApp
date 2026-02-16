@@ -44,30 +44,64 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       }
     }
 
-    // 1.5. If no swaps_to on THIS UPC, check if another product with same name has swaps_to
-    //      (handles duplicate UPCs from OFF import vs seed data)
+    // 1.5. If no swaps_to (or swap targets don't exist in DB), find another UPC of the 
+    //      same product that HAS working swaps. Handles: "Skittles Original" UPC A has [],
+    //      but "Skittles Original" UPC B has ['smartsweets_upc']. Also handles name variants
+    //      like "Original Skittles" vs "Skittles Original" vs "Skittles - Original Bite Size"
     if (swaps.length === 0 && product.name) {
       try {
-        const nameMatch = await pool.query(
-          `SELECT swaps_to FROM products 
-           WHERE LOWER(name) = LOWER($1) AND upc != $2 
-           AND swaps_to IS NOT NULL AND swaps_to != '[]' AND swaps_to != 'null'
-           LIMIT 1`,
-          [product.name, upc]
-        );
-        if (nameMatch.rows.length > 0 && nameMatch.rows[0].swaps_to) {
-          const swapUpcs = Array.isArray(nameMatch.rows[0].swaps_to) 
-            ? nameMatch.rows[0].swaps_to 
-            : JSON.parse(nameMatch.rows[0].swaps_to);
-          if (swapUpcs.length > 0) {
+        // Extract core product name words (remove generic words like Original, Classic, etc.)
+        const stopWords = ['original', 'classic', 'regular', 'the', 'bite', 'size', 'candy', 'candies', 'cereal', 'snack', 'snacks', 'bar', 'bars', 'flavored'];
+        const coreWords = product.name
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, '')
+          .split(/\s+/)
+          .filter(w => w.length > 2 && !stopWords.includes(w));
+        
+        if (coreWords.length > 0) {
+          // Build ILIKE pattern: find any product containing the core name words
+          const likePatterns = coreWords.map(w => `%${w}%`);
+          
+          // Query: find products with matching names that have non-empty swaps_to
+          // Use the most specific (longest) word first for better matching
+          const sortedWords = [...coreWords].sort((a, b) => b.length - a.length);
+          const primaryWord = sortedWords[0];
+          
+          const nameMatch = await pool.query(
+            `SELECT swaps_to, name, upc FROM products 
+             WHERE LOWER(name) ILIKE $1
+             AND upc != $2 
+             AND swaps_to IS NOT NULL 
+             AND swaps_to != '[]' 
+             AND swaps_to != 'null'
+             AND jsonb_array_length(swaps_to::jsonb) > 0
+             ORDER BY 
+               CASE WHEN LOWER(name) = LOWER($3) THEN 0 ELSE 1 END,
+               LENGTH(swaps_to::text) DESC
+             LIMIT 3`,
+            [`%${primaryWord}%`, upc, product.name]
+          );
+          
+          // Try each match — pick the first one whose swap targets actually exist
+          for (const match of nameMatch.rows) {
+            const swapUpcs = Array.isArray(match.swaps_to) 
+              ? match.swaps_to 
+              : JSON.parse(match.swaps_to);
+            const validUpcs = swapUpcs.filter(u => u && u.length > 0);
+            if (validUpcs.length === 0) continue;
+            
             const swapResult = await pool.query(
               `SELECT p.*, c.name as company_name 
                FROM products p 
                LEFT JOIN companies c ON p.company_id = c.id
-               WHERE p.upc = ANY($1::text[])`,
-              [swapUpcs]
+               WHERE p.upc = ANY($1::text[])
+               AND p.total_score IS NOT NULL`,
+              [validUpcs]
             );
-            swaps = swapResult.rows;
+            if (swapResult.rows.length > 0) {
+              swaps = swapResult.rows;
+              break;
+            }
           }
         }
       } catch (e) { /* non-fatal */ }

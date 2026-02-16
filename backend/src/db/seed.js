@@ -471,7 +471,7 @@ const products = [
     ingredients: 'Sugar, Corn Syrup, Hydrogenated Palm Kernel Oil, Citric Acid, Tapioca Dextrin, Modified Corn Starch, Natural and Artificial Flavors, Red 40, Titanium Dioxide, Red 40 Lake, Yellow 5 Lake, Yellow 5, Yellow 6 Lake, Yellow 6, Blue 2 Lake, Blue 1, Blue 1 Lake, Sodium Citrate, Carnauba Wax',
     harmful_ingredients_found: ['Red 40', 'Yellow 5', 'Yellow 6', 'Blue 1', 'Blue 2', 'Titanium Dioxide'],
     is_clean_alternative: false,
-    swaps_to: ['040000003445'],
+    swaps_to: [],
     typical_price: 3.49
   },
   {
@@ -489,7 +489,7 @@ const products = [
     ingredients: 'Corn flour blend, Sugar, Wheat flour, Whole grain oat flour, Modified food starch, Oat fiber, Salt, Soluble corn fiber, Natural flavor, Red 40, Blue 1, Yellow 6, BHT',
     harmful_ingredients_found: ['Red 40', 'Blue 1', 'Yellow 6', 'BHT'],
     is_clean_alternative: false,
-    swaps_to: ['850015717017'],
+    swaps_to: [],
     typical_price: 5.29
   },
   {
@@ -507,7 +507,7 @@ const products = [
     ingredients: 'Whole Grain Oats, Sugar, Corn Starch, Modified Corn Starch, Corn Syrup, Dextrose, Salt, Red 40, Yellow 5 & 6, Blue 1, Natural and Artificial Flavor, Trisodium Phosphate',
     harmful_ingredients_found: ['Red 40', 'Yellow 5', 'Yellow 6', 'Blue 1'],
     is_clean_alternative: false,
-    swaps_to: ['850015717017'],
+    swaps_to: [],
     typical_price: 5.49
   },
   {
@@ -525,7 +525,7 @@ const products = [
     ingredients: 'Enriched Corn Meal, Vegetable Oil, Cheese Seasoning (Whey, Cheddar Cheese, Canola Oil, Maltodextrin, Natural and Artificial Flavors, Salt, MSG, Citric Acid, Artificial Color including Yellow 6, Lactic Acid)',
     harmful_ingredients_found: ['MSG', 'Yellow 6', 'Artificial Flavors'],
     is_clean_alternative: false,
-    swaps_to: ['015665601004'],
+    swaps_to: [],
     typical_price: 4.29
   },
   {
@@ -563,7 +563,7 @@ const products = [
     ingredients: 'Rice Flour, Whole Wheat Flour, Whole Grain Oat Flour, Sugar, Banana Puree, Mixed Tocopherols, Sunflower Lecithin',
     harmful_ingredients_found: ['Sugar'],
     is_clean_alternative: false,
-    swaps_to: ['860000826201'],
+    swaps_to: [],
     typical_price: 4.29
   },
   {
@@ -581,7 +581,7 @@ const products = [
     ingredients: 'Water, High Fructose Corn Syrup, Pear and Grape Juice Concentrates, Citric Acid, Natural Flavor',
     harmful_ingredients_found: ['High Fructose Corn Syrup'],
     is_clean_alternative: false,
-    swaps_to: ['657622101273'],
+    swaps_to: [],
     typical_price: 3.99
   },
   {
