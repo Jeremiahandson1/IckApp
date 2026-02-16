@@ -1,4 +1,5 @@
 import pool from './init.js';
+import { seedCuratedSwaps } from './seed-swaps.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const additionalRecipes = require('./additional-recipes.cjs');
@@ -542,7 +543,7 @@ const products = [
     ingredients: 'Fruit Puree, Corn Syrup, Sugar, Modified Corn Starch, Gelatin, Citric Acid, Natural and Artificial Flavors, Ascorbic Acid, Red 40, Blue 1',
     harmful_ingredients_found: ['Corn Syrup', 'Red 40', 'Blue 1'],
     is_clean_alternative: false,
-    swaps_to: ['850000439412'],
+    swaps_to: ['0810165016828', '0862683000332'],
     typical_price: 3.99
   },
 
@@ -598,7 +599,7 @@ const products = [
     ingredients: 'Oats, Honey, Sugar, Palm Kernel Oil, Rice Flour, Chocolate Chips, Crisp Rice, Tapioca Syrup, Soy Lecithin, Natural Flavor, Salt',
     harmful_ingredients_found: [],
     is_clean_alternative: false,
-    swaps_to: ['856575002018'],
+    swaps_to: ['0818497012040'],
     typical_price: 5.99
   },
 
@@ -1472,17 +1473,10 @@ async function seedDatabase() {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
          ON CONFLICT (upc) DO UPDATE SET
          name = EXCLUDED.name,
-         category = EXCLUDED.category,
-         subcategory = EXCLUDED.subcategory,
          harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
          nutrition_score = EXCLUDED.nutrition_score,
          additives_score = EXCLUDED.additives_score,
-         organic_bonus = EXCLUDED.organic_bonus,
-         ingredients = EXCLUDED.ingredients,
-         harmful_ingredients_found = EXCLUDED.harmful_ingredients_found,
-         is_clean_alternative = EXCLUDED.is_clean_alternative,
-         swaps_to = EXCLUDED.swaps_to,
-         typical_price = EXCLUDED.typical_price`,
+         organic_bonus = EXCLUDED.organic_bonus`,
         [
           product.upc,
           product.name,
@@ -1544,6 +1538,9 @@ async function seedDatabase() {
       );
     }
     console.log(`Seeded ${allRecipes.length} recipes (${recipes.length} original + ${additionalRecipes.length} additional)`);
+
+    // Seed curated swap database (129 products + alternatives)
+    await seedCuratedSwaps();
 
     console.log('Database seeding complete!');
     

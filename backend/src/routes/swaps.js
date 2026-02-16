@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { getScoreRating } from '../utils/helpers.js';
+import { findDynamicSwaps, getProductType } from '../utils/swap-discovery.js';
 
 const router = express.Router();
 
@@ -29,14 +30,18 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     // 1. Check for hand-curated direct swaps first
     if (product.swaps_to && product.swaps_to.length > 0) {
       const swapUpcs = Array.isArray(product.swaps_to) ? product.swaps_to : JSON.parse(product.swaps_to);
-      const swapResult = await pool.query(
-        `SELECT p.*, c.name as company_name 
-         FROM products p 
-         LEFT JOIN companies c ON p.company_id = c.id
-         WHERE p.upc = ANY($1::text[])`,
-        [swapUpcs]
-      );
-      swaps = swapResult.rows;
+      const validUpcs = swapUpcs.filter(u => u && u.length > 0);
+      if (validUpcs.length > 0) {
+        const swapResult = await pool.query(
+          `SELECT p.*, c.name as company_name 
+           FROM products p 
+           LEFT JOIN companies c ON p.company_id = c.id
+           WHERE p.upc = ANY($1::text[])
+           AND p.total_score IS NOT NULL`,
+          [validUpcs]
+        );
+        swaps = swapResult.rows;
+      }
     }
 
     // 1.5. If no swaps_to on THIS UPC, check if another product with same name has swaps_to
@@ -68,84 +73,175 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       } catch (e) { /* non-fatal */ }
     }
 
-    // 2. If no direct swaps, find by category with higher score
-    //    Handle OFF-style categories (en:breakfast-cereals) and plain categories
-    if (swaps.length === 0 && product.category) {
-      const categoryResult = await pool.query(
-        `SELECT p.*, c.name as company_name 
-         FROM products p 
-         LEFT JOIN companies c ON p.company_id = c.id
-         WHERE (
-           p.category = $1 
-           OR p.category ILIKE $4
-         )
-         AND p.total_score > $2
-         AND p.total_score IS NOT NULL
-         AND p.upc != $3
-         ORDER BY p.total_score DESC
-         LIMIT 20`,
-        [
-          product.category,
-          Math.max(product.total_score || 0, 40), // must actually be better, min 40
-          upc,
-          // Fuzzy: extract last segment of "en:breakfast-cereals" → "%breakfast-cereals%"
-          `%${product.category.split(':').pop().replace(/-/g, '%')}%`
-        ]
-      );
-
-      // Post-filter: remove obviously wrong product types
-      // e.g., prevent "Kind bar" → "Organic apple sauce" when both are in "en:snacks"
-      const origName = `${product.name || ''} ${product.brand || ''} ${product.subcategory || ''}`.toLowerCase();
-      const typeKeywords = [
-        ['cereal', 'loops', 'flakes', 'crunch', 'puffs'],
-        ['oats', 'oatmeal', 'granola', 'muesli'],
-        ['bar', 'bars'], 
-        ['chips', 'crisps', 'tortilla'], ['crackers', 'cracker', 'bunnies', 'goldfish'],
-        ['cookies', 'cookie', 'biscuit'], ['candy', 'candies', 'gummies', 'gummy'],
-        ['chocolate', 'cocoa'], ['juice', 'drink', 'beverage'],
-        ['sauce', 'ketchup', 'mustard', 'dressing'], ['yogurt', 'yoghurt'],
-        ['bread', 'bagel', 'muffin'], ['pasta', 'noodle', 'macaroni'],
-        ['apple sauce', 'applesauce', 'puree'],
-        ['baby', 'infant', 'toddler'],
-      ];
-      // Find which type group the scanned product belongs to
-      const origTypes = typeKeywords.filter(group => group.some(kw => origName.includes(kw)));
+    // 2. Smart subcategory + name matching
+    //    The old approach matched on OFF's broad categories like "en:snacks" which 
+    //    returned chia seeds as swaps for fruit snacks. Now we:
+    //    a) Match subcategory first (most specific)
+    //    b) Match product TYPE via name keywords
+    //    c) Return NOTHING rather than garbage — 0 results > 5 wrong results
+    if (swaps.length === 0) {
+      const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
       
-      if (origTypes.length > 0) {
-        // Always filter when we can identify product type — 0 good results > 5 garbage results
-        const origKeywords = origTypes.flat();
-        const filtered = categoryResult.rows.filter(r => {
-          const rName = `${r.name || ''} ${r.brand || ''} ${r.subcategory || ''}`.toLowerCase();
-          return origKeywords.some(kw => rName.includes(kw));
-        });
-        swaps = filtered.slice(0, 5);
-      } else {
-        swaps = categoryResult.rows.slice(0, 5);
-      }
-    }
+      // Identify what TYPE of product this is and build targeted search
+      const productTypeMap = [
+        { test: /fruit\s*snack|fruit\s*roll|fruit\s*leather|fruit\s*gumm/i, 
+          search: "fruit snack organic", must_contain: ['fruit'] },
+        { test: /granola\s*bar|chewy\s*bar|oat\s*bar|snack\s*bar/i, 
+          search: "organic granola bar clean", must_contain: ['bar', 'granola'] },
+        { test: /protein\s*bar|energy\s*bar/i, 
+          search: "organic protein bar", must_contain: ['bar', 'protein'] },
+        { test: /cookie|biscuit/i, 
+          search: "organic cookies clean", must_contain: ['cookie', 'biscuit'] },
+        { test: /cracker|goldfish|cheez-?it/i, 
+          search: "organic crackers clean", must_contain: ['cracker'] },
+        { test: /chip|crisp|tortilla\s*chip/i, 
+          search: "organic chips clean", must_contain: ['chip', 'crisp'] },
+        { test: /cereal|loops|flakes|puffs|crunch|charms/i, 
+          search: "organic cereal clean", must_contain: ['cereal', 'flake', 'puff', 'crunch', 'loop', 'o\'s'] },
+        { test: /candy|skittle|gumm|sour|jelly/i, 
+          search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'] },
+        { test: /chocolate\s*(bar|candy)|cocoa/i, 
+          search: "organic dark chocolate bar", must_contain: ['chocolate', 'cocoa'] },
+        { test: /mac.*cheese|macaroni/i, 
+          search: "organic mac cheese", must_contain: ['mac', 'cheese', 'macaroni'] },
+        { test: /yogurt|yoghurt/i, 
+          search: "organic yogurt", must_contain: ['yogurt', 'yoghurt'] },
+        { test: /ice\s*cream|frozen\s*dessert/i, 
+          search: "organic ice cream", must_contain: ['ice cream', 'frozen'] },
+        { test: /juice|lemonade|fruit\s*drink/i, 
+          search: "organic juice 100", must_contain: ['juice', 'lemonade'] },
+        { test: /soda|cola|sprite|pop/i, 
+          search: "sparkling water prebiotic soda", must_contain: ['sparkling', 'soda', 'cola', 'water'] },
+        { test: /bread|bun|roll/i, 
+          search: "organic whole grain bread", must_contain: ['bread', 'grain', 'wheat'] },
+        { test: /pasta\s*sauce|marinara|tomato\s*sauce/i, 
+          search: "organic pasta sauce marinara", must_contain: ['sauce', 'marinara'] },
+        { test: /ketchup/i, 
+          search: "organic ketchup unsweetened", must_contain: ['ketchup'] },
+        { test: /dressing|vinaigrette|ranch/i, 
+          search: "organic dressing clean", must_contain: ['dressing', 'ranch', 'vinaigrette'] },
+        { test: /peanut\s*butter|nut\s*butter|almond\s*butter/i, 
+          search: "organic peanut butter", must_contain: ['peanut', 'almond', 'butter'] },
+        { test: /ramen|instant\s*noodle/i, 
+          search: "organic ramen noodles", must_contain: ['ramen', 'noodle'] },
+        { test: /soup|broth|stock/i, 
+          search: "organic soup low sodium", must_contain: ['soup', 'broth', 'stock'] },
+        { test: /hot\s*dog|frank|wiener/i, 
+          search: "uncured hot dogs organic", must_contain: ['hot dog', 'frank', 'wiener', 'uncured'] },
+        { test: /frozen\s*pizza|pizza/i, 
+          search: "organic frozen pizza", must_contain: ['pizza'] },
+        { test: /popcorn/i, 
+          search: "organic popcorn", must_contain: ['popcorn'] },
+        { test: /pretzel/i, 
+          search: "organic pretzels", must_contain: ['pretzel'] },
+        { test: /oatmeal|oats/i, 
+          search: "organic oats oatmeal", must_contain: ['oat'] },
+      ];
 
-    // 3. If still nothing, try matching by brand similarity + higher score
-    if (swaps.length === 0 && product.brand) {
-      // Find products in similar name space with better scores
-      // e.g., if scanning "Kraft Mac & Cheese", find other mac & cheese products
-      const nameWords = product.name?.split(/\s+/).filter(w => w.length > 3) || [];
-      if (nameWords.length > 0) {
-        // Use the most distinctive word(s) from the product name
-        const searchTerm = nameWords.slice(0, 2).join(' & ');
-        const nameResult = await pool.query(
+      let matchedType = null;
+      for (const type of productTypeMap) {
+        if (type.test.test(fullName)) {
+          matchedType = type;
+          break;
+        }
+      }
+
+      if (matchedType) {
+        // Try subcategory match first (tightest)
+        if (product.subcategory) {
+          const subResult = await pool.query(
+            `SELECT p.*, c.name as company_name 
+             FROM products p 
+             LEFT JOIN companies c ON p.company_id = c.id
+             WHERE p.subcategory ILIKE $1
+             AND p.total_score > $2
+             AND p.total_score IS NOT NULL
+             AND p.upc != $3
+             ORDER BY p.total_score DESC
+             LIMIT 10`,
+            [`%${product.subcategory}%`, Math.max(product.total_score || 0, 40), upc]
+          );
+          // Filter to same product type
+          swaps = subResult.rows.filter(r => {
+            const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
+            return matchedType.must_contain.some(kw => rName.includes(kw));
+          }).slice(0, 5);
+        }
+
+        // If subcategory didn't work, try full-text search
+        if (swaps.length === 0) {
+          try {
+            const ftsResult = await pool.query(
+              `SELECT p.*, c.name as company_name,
+                      ts_rank(to_tsvector('english', p.name || ' ' || COALESCE(p.subcategory, '')), 
+                              plainto_tsquery('english', $1)) as rank
+               FROM products p 
+               LEFT JOIN companies c ON p.company_id = c.id
+               WHERE to_tsvector('english', p.name || ' ' || COALESCE(p.subcategory, '')) 
+                     @@ plainto_tsquery('english', $1)
+               AND p.total_score > $2
+               AND p.total_score IS NOT NULL
+               AND p.upc != $3
+               ORDER BY rank DESC, p.total_score DESC
+               LIMIT 15`,
+              [matchedType.search, Math.max(product.total_score || 0, 40), upc]
+            );
+            // Strict filter: must actually be the same type of product
+            swaps = ftsResult.rows.filter(r => {
+              const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
+              return matchedType.must_contain.some(kw => rName.includes(kw));
+            }).slice(0, 5);
+          } catch (e) { /* FTS may fail */ }
+        }
+      }
+
+      // Last resort: category match with STRICT type filtering
+      // Only if we identified a product type but FTS found nothing
+      if (swaps.length === 0 && matchedType && product.category) {
+        const catResult = await pool.query(
           `SELECT p.*, c.name as company_name 
            FROM products p 
            LEFT JOIN companies c ON p.company_id = c.id
-           WHERE to_tsvector('english', p.name) @@ plainto_tsquery('english', $1)
+           WHERE (
+             p.category = $1 
+             OR p.category ILIKE $4
+           )
            AND p.total_score > $2
            AND p.total_score IS NOT NULL
            AND p.upc != $3
-           AND p.brand != $4
            ORDER BY p.total_score DESC
-           LIMIT 5`,
-          [searchTerm, Math.max(product.total_score || 0, 40), upc, product.brand || '']
+           LIMIT 30`,
+          [
+            product.category, 
+            Math.max(product.total_score || 0, 40),
+            upc,
+            `%${product.category.split(':').pop().replace(/-/g, '%')}%`
+          ]
         );
-        swaps = nameResult.rows;
+        // STRICT filter — only same type
+        swaps = catResult.rows.filter(r => {
+          const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
+          return matchedType.must_contain.some(kw => rName.includes(kw));
+        }).slice(0, 5);
+      }
+
+      // If STILL nothing and we couldn't even identify the type, 
+      // do NOT return random category matches — return empty
+      // 0 results > 5 garbage results
+    }
+
+    // 3. DYNAMIC DISCOVERY — search OFF in real-time for alternatives
+    //    Only fires when curated + local DB matching found nothing
+    //    Results get cached in DB so subsequent lookups are instant
+    if (swaps.length === 0) {
+      try {
+        const dynamicResults = await findDynamicSwaps(product, upc, 5);
+        if (dynamicResults.length > 0) {
+          swaps = dynamicResults;
+        }
+      } catch (e) {
+        console.error('Dynamic swap discovery error:', e.message);
+        // Non-fatal — user just gets no swaps
       }
     }
 
@@ -223,21 +319,45 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     const recipeKeywordMap = {
       'cereal|loops|flakes|puffs|crunch': ['Kids Cereal', 'Cereal'],
       'oats|oatmeal|porridge': ['Instant Oatmeal'],
-      'bar|protein bar|granola bar|nut bar': ['Snack Bars'],
-      'chips|crisps|tortilla|puffs|popcorn': ['Chips'],
-      'candy|chocolate|gummies|gummy': ['Candy'],
-      'juice|drink|lemonade': ['Juice Drinks'],
-      'sport.*drink|electrolyte|gatorade': ['Sports Drinks'],
+      'bar|protein bar|granola bar|nut bar': ['Snack Bars', 'Protein Bars'],
+      'chips|crisps|tortilla|puffs|popcorn': ['Chips', 'Microwave Popcorn'],
+      'cookie|cookies|biscuit': ['Packaged Cookies'],
+      'candy|gummies|gummy|skittles|sour patch': ['Candy'],
+      'chocolate(?!.*cookie)': ['Candy', 'Candy Bars'],
+      'juice|drink|lemonade|capri sun': ['Juice Drinks'],
+      'soda|cola|sprite|fanta|sparkling': ['Soda & Flavored Water'],
+      'sport.*drink|electrolyte|gatorade|powerade': ['Sports Drinks'],
       'baby|infant|toddler|puree': ['Baby Snacks'],
       'fruit snack|fruit roll|fruit leather': ['Fruit Snacks'],
       'sauce|marinara|tomato sauce': ['Pasta Sauce'],
       'mac.*cheese|macaroni': ['Mac & Cheese'],
       'dressing|vinaigrette': ['Salad Dressing'],
-      'ketchup|mustard|mayo|condiment': ['Condiments'],
-      'frozen|pizza|nugget|waffle': ['Frozen Meals'],
-      'ice cream|popsicle|frozen treat': ['Frozen Treats'],
+      'ketchup': ['Ketchup'],
+      'mustard|mayo|condiment': ['Condiments', 'Mayonnaise'],
+      'bbq.*sauce|barbecue': ['BBQ Sauce'],
+      'frozen.*pizza|pizza roll': ['Frozen Pizza', 'Pizza Rolls', 'Frozen Snacks'],
+      'nugget|tender|chicken strip': ['Frozen Chicken Tenders'],
+      'waffle': ['Frozen Waffles'],
+      'ice cream|popsicle|frozen treat|frozen yogurt': ['Frozen Treats', 'Ice Cream'],
       'pancake|waffle mix': ['Pancake Mix'],
       'cheese dip|queso|nacho': ['Cheese Dips'],
+      'cracker|goldfish|cheez-it': ['Crackers', 'Goldfish Crackers'],
+      'pretzel': ['Pretzels'],
+      'ramen|noodle.*instant': ['Instant Ramen'],
+      'bread|bun|roll': ['Sliced Bread'],
+      'muffin': ['Muffins'],
+      'toaster pastry|pop.*tart': ['Toaster Pastries'],
+      'yogurt': ['Yogurt', 'Yogurt Tubes'],
+      'applesauce|apple sauce': ['Applesauce'],
+      'hummus': ['Hummus'],
+      'peanut butter|nut butter|almond butter': ['Nut Butter Alternatives'],
+      'broth|bouillon|stock': ['Broth & Bouillon'],
+      'soup': ['Canned Soup'],
+      'creamer|coffee mate': ['Coffee Creamer'],
+      'chocolate milk': ['Chocolate Milk'],
+      'lunchable': ['Lunchables'],
+      'sausage': ['Breakfast Sausage'],
+      'trail mix': ['Trail Mix'],
     };
     for (const [pattern, cats] of Object.entries(recipeKeywordMap)) {
       if (new RegExp(pattern, 'i').test(nameAndCat)) {

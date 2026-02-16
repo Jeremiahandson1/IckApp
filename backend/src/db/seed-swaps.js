@@ -46,17 +46,17 @@ const CAT = {
 const CURATED_SWAPS = [
   // --- CEREALS ---
   { upc: '0016000275287', name: 'Cinnamon Toast Crunch', brand: 'General Mills', category: CAT.CEREAL,
-    swaps_to: ['0058449400028', '0023923203006', '0884734006115'] }, // Nature's Path Heritage Flakes, Barbara's Puffins, Cascadian Farm
+    swaps_to: ['0850015717017', '0884734006115'] }, // Three Wishes Cinnamon, Cascadian Farm
   { upc: '0016000487925', name: 'Lucky Charms', brand: 'General Mills', category: CAT.CEREAL,
     swaps_to: ['0058449400028', '0884734006115'] },
   { upc: '0038000596278', name: 'Froot Loops', brand: 'Kellogg\'s', category: CAT.CEREAL,
-    swaps_to: ['0058449400028', '0023923203006'] },
+    swaps_to: ['0860091002154', '0058449860051'] },
   { upc: '0038000596230', name: 'Frosted Flakes', brand: 'Kellogg\'s', category: CAT.CEREAL,
     swaps_to: ['0058449400028', '0884734006115'] },
   { upc: '0016000124783', name: 'Cheerios', brand: 'General Mills', category: CAT.CEREAL,
     swaps_to: ['0058449400028', '0884734006115'] },
   { upc: '0016000288553', name: 'Cocoa Puffs', brand: 'General Mills', category: CAT.CEREAL,
-    swaps_to: ['0058449400028', '0023923203006'] },
+    swaps_to: ['0058449860020', '0023923203006'] },
 
   // --- CHIPS & SNACKS ---
   { upc: '0028400064545', name: 'Doritos Nacho Cheese', brand: 'Frito-Lay', category: CAT.CHIPS,
@@ -142,11 +142,11 @@ const CURATED_SWAPS = [
   { upc: '0034000002405', name: 'Reese\'s Peanut Butter Cups', brand: 'Hershey\'s', category: CAT.CANDY,
     swaps_to: ['0757528008116', '0853715003268'] },
   { upc: '0040000496823', name: 'Skittles Original', brand: 'Mars', category: CAT.CANDY,
-    swaps_to: ['0853715003268'] },
+    swaps_to: ['0850006801015', '0810165019799'] },
   { upc: '0034000111503', name: 'Kit Kat', brand: 'Hershey\'s', category: CAT.CANDY,
     swaps_to: ['0853715003268', '0757528008116'] },
   { upc: '0022000159977', name: 'Twizzlers', brand: 'Hershey\'s', category: CAT.CANDY,
-    swaps_to: ['0853715003268'] },
+    swaps_to: ['0810165013766', '0850006801022'] },
 
   // --- ICE CREAM ---
   { upc: '0077567254153', name: 'Häagen-Dazs Vanilla', brand: 'Häagen-Dazs', category: CAT.ICE_CREAM,
@@ -286,44 +286,101 @@ const CURATED_SWAPS = [
 // ============================================================
 
 const CLEAN_ALTERNATIVES = [
-  { upc: '0058449400028', name: 'Heritage Flakes', brand: "Nature's Path", category: CAT.CEREAL },
-  { upc: '0023923203006', name: 'Original Puffins Cereal', brand: "Barbara's", category: CAT.CEREAL },
-  { upc: '0884734006115', name: 'Honey Nut O\'s', brand: 'Cascadian Farm', category: CAT.CEREAL },
+  // --- CEREAL: Need variety (fruity, chocolate, cinnamon, plain) ---
+  { upc: '0058449400028', name: 'Heritage Flakes', brand: "Nature's Path", category: CAT.CEREAL, subcategory: 'plain' },
+  { upc: '0023923203006', name: 'Original Puffins Cereal', brand: "Barbara's", category: CAT.CEREAL, subcategory: 'plain' },
+  { upc: '0884734006115', name: 'Honey Nut O\'s', brand: 'Cascadian Farm', category: CAT.CEREAL, subcategory: 'honey' },
+  { upc: '0860091002154', name: 'Fruity Cereal', brand: 'Three Wishes', category: CAT.CEREAL, subcategory: 'fruity' },
+  { upc: '0058449860020', name: 'EnviroKidz Cheetah Chomps Chocolate', brand: "Nature's Path", category: CAT.CEREAL, subcategory: 'chocolate' },
+  { upc: '0058449860051', name: 'EnviroKidz Gorilla Munch Corn Puffs', brand: "Nature's Path", category: CAT.CEREAL, subcategory: 'plain' },
+  { upc: '0850015717017', name: 'Cinnamon Cereal', brand: 'Three Wishes', category: CAT.CEREAL, subcategory: 'cinnamon' },
+  { upc: '0023923203112', name: 'Peanut Butter Puffins', brand: "Barbara's", category: CAT.CEREAL, subcategory: 'peanut-butter' },
+
+  // --- CANDY: Need fruity, chewy, chocolate, and sour varieties ---
+  { upc: '0853715003268', name: 'Simple Dark Chocolate Bar', brand: 'Hu', category: CAT.CANDY, subcategory: 'chocolate' },
+  { upc: '0757528008116', name: 'Dark Chocolate Peanut Butter Cups', brand: 'Unreal', category: CAT.CANDY, subcategory: 'chocolate' },
+  { upc: '0850006801015', name: 'Sour Blast Buddies', brand: 'SmartSweets', category: CAT.CANDY, subcategory: 'fruity' },
+  { upc: '0850006801022', name: 'Sweet Fish', brand: 'SmartSweets', category: CAT.CANDY, subcategory: 'gummy' },
+  { upc: '0850006801039', name: 'Peach Rings', brand: 'SmartSweets', category: CAT.CANDY, subcategory: 'gummy' },
+  { upc: '0810165016842', name: 'Organic Fruit Snacks', brand: 'YumEarth', category: CAT.CANDY, subcategory: 'fruity' },
+  { upc: '0757528008147', name: 'Dark Chocolate Gems', brand: 'Unreal', category: CAT.CANDY, subcategory: 'chocolate' },
+  { upc: '0810165019799', name: 'Organic Giggles Chewy Candy', brand: 'YumEarth', category: CAT.CANDY, subcategory: 'fruity' },
+  { upc: '0810165013766', name: 'Organic Licorice', brand: 'YumEarth', category: CAT.CANDY, subcategory: 'licorice' },
+
+  // --- FRUIT SNACKS (separate from candy) ---
+  { upc: '0810165016828', name: 'Organic Tropical Fruit Snacks', brand: 'YumEarth', category: 'fruit-snacks', subcategory: 'fruit-snacks' },
+  { upc: '0862683000332', name: 'Organic Fruit Bites Strawberry', brand: 'Stretch Island', category: 'fruit-snacks', subcategory: 'fruit-snacks' },
+
+  // --- CHIPS ---
   { upc: '0016000505261', name: 'Organic Sea Salt Tortilla Chips', brand: 'Late July', category: CAT.CHIPS },
   { upc: '0849911000106', name: 'Sea Salt Tortilla Chips', brand: 'Siete', category: CAT.CHIPS },
   { upc: '0021908501222', name: 'Sea Salt Potato Chips', brand: 'Kettle Brand', category: CAT.CHIPS },
+  
+  // --- SODA ---
   { upc: '0856544006301', name: 'Vintage Cola', brand: 'Olipop', category: CAT.SODA },
   { upc: '0012000171581', name: 'Lemon Sparkling Water', brand: 'Spindrift', category: CAT.SODA },
+  
+  // --- ENERGY ---
   { upc: '0818523020009', name: 'Sparkling Green Tea', brand: 'Celsius', category: CAT.ENERGY },
+  
+  // --- COOKIES ---
   { upc: '0856575002016', name: 'Chocolate Chip Cookies', brand: 'Simple Mills', category: CAT.COOKIES },
   { upc: '0723346101126', name: 'Chocolate Chip Cookies', brand: "Tate's Bake Shop", category: CAT.COOKIES },
+  
+  // --- CRACKERS ---
   { upc: '0856575002191', name: 'Almond Flour Crackers Sea Salt', brand: 'Simple Mills', category: CAT.CRACKERS },
   { upc: '0021130340804', name: 'Original Crackers', brand: "Mary's Gone Crackers", category: CAT.CRACKERS },
+  
+  // --- MAC & CHEESE ---
   { upc: '0013562000043', name: 'Organic Mac & Cheese Classic Mild Cheddar', brand: "Annie's", category: CAT.MAC_CHEESE },
   { upc: '0856575002535', name: 'Organic Pasta Sauce', brand: 'Simple Mills', category: CAT.MAC_CHEESE },
+  
+  // --- YOGURT ---
   { upc: '0689544002017', name: 'Organic Whole Milk Yogurt', brand: 'Stonyfield', category: CAT.YOGURT },
   { upc: '0052159700119', name: 'Vanilla Skyr', brand: "Siggi's", category: CAT.YOGURT },
+  
+  // --- BREAD ---
   { upc: '0073410013301', name: '21 Whole Grains and Seeds', brand: "Dave's Killer Bread", category: CAT.BREAD },
   { upc: '0764442000051', name: 'Ezekiel 4:9 Sprouted Whole Grain Bread', brand: "Food for Life", category: CAT.BREAD },
-  { upc: '0853715003268', name: 'Simple Dark Chocolate Bar', brand: 'Hu', category: CAT.CANDY },
-  { upc: '0757528008116', name: 'Dark Chocolate Peanut Butter Cups', brand: 'Unreal', category: CAT.CANDY },
+  
+  // --- ICE CREAM ---
   { upc: '0856283004013', name: 'Organic Vanilla Ice Cream', brand: 'Three Twins', category: CAT.ICE_CREAM },
+  
+  // --- DRESSING ---
   { upc: '0853529002032', name: 'Ranch Dressing', brand: 'Primal Kitchen', category: CAT.DRESSING },
   { upc: '0042272005550', name: 'Organic Creamy Ranch', brand: "Tessemae's", category: CAT.DRESSING },
+  
+  // --- SNACK BARS ---
   { upc: '0602652171130', name: 'Caramel Almond & Sea Salt', brand: 'KIND', category: CAT.SNACK_BARS },
   { upc: '0818497012040', name: 'Chocolate Sea Salt', brand: 'RXBAR', category: CAT.SNACK_BARS },
+  
+  // --- PEANUT BUTTER ---
   { upc: '0854862006001', name: 'Organic Crunchy Peanut Butter', brand: 'Once Again', category: CAT.PEANUT_BUTTER },
   { upc: '0072431001376', name: 'Organic Dark Roasted Peanut Butter', brand: 'Santa Cruz', category: CAT.PEANUT_BUTTER },
+  
+  // --- PASTA SAUCE ---
   { upc: '0017532003010', name: 'Marinara Sauce', brand: "Rao's Homemade", category: CAT.PASTA_SAUCE },
   { upc: '0725342200016', name: 'Marinara Sauce', brand: 'Victoria', category: CAT.PASTA_SAUCE },
+  
+  // --- SOUP ---
   { upc: '0052603054607', name: 'Organic Lentil Soup', brand: "Amy's", category: CAT.SOUP },
+  
+  // --- HOT DOGS / LUNCH MEAT ---
   { upc: '0025317074001', name: 'Uncured Beef Hot Dogs', brand: 'Applegate', category: CAT.HOT_DOGS },
   { upc: '0025317000048', name: 'Organic Roasted Turkey Breast', brand: 'Applegate', category: CAT.LUNCH_MEAT },
+  
+  // --- CONDIMENTS ---
   { upc: '0852476003005', name: 'Organic Unsweetened Ketchup', brand: 'Primal Kitchen', category: CAT.KETCHUP },
   { upc: '0853529002018', name: 'Avocado Oil Mayo', brand: 'Primal Kitchen', category: CAT.MAYO },
+  
+  // --- OATMEAL / GRANOLA ---
   { upc: '0039978009012', name: 'Organic Old Fashioned Rolled Oats', brand: "Bob's Red Mill", category: CAT.OATMEAL },
   { upc: '0058449400103', name: 'Organic Pumpkin Seed + Flax Granola', brand: "Nature's Path", category: CAT.GRANOLA },
+  
+  // --- MILK ---
   { upc: '0049022783232', name: 'Organic Chocolate Lowfat Milk', brand: 'Horizon', category: CAT.MILK },
+  
+  // --- OTHER ---
   { upc: '0054800420711', name: 'Organic Millet & Brown Rice Ramen', brand: 'Lotus Foods', category: 'instant-noodles' },
   { upc: '0096749262106', name: 'Organic Cheese Pizza', brand: "Amy's", category: 'frozen-pizza' },
   { upc: '0039978005700', name: 'Organic Pancake Mix', brand: "Bob's Red Mill", category: 'pancake-mixes' },
