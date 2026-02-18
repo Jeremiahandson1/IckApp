@@ -111,7 +111,7 @@ app.use((req, res) => {
 // Initialize database tables then start server
 initDatabase()
   .then(async () => {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Ick API running on port ${PORT}`);
     });
 
