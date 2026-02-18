@@ -87,9 +87,8 @@ export default function Scan() {
     if (html5QrCodeRef.current) return;
     try {
       html5QrCodeRef.current = new Html5Qrcode('qr-reader');
-      await html5QrCodeRef.current.start(
-        { facingMode: 'environment' },
-        {
+      
+      const scanConfig = {
           fps: 15,
           qrbox: { width: 280, height: 150 },
           aspectRatio: 1.0,
@@ -98,14 +97,31 @@ export default function Scan() {
           rememberLastUsedCamera: true,
           showTorchButtonIfSupported: false,
           videoConstraints: {
+            facingMode: { exact: 'environment' },
             focusMode: 'continuous',
             width: { ideal: 1280 },
             height: { ideal: 720 }
           }
-        },
-        onScanSuccess,
-        () => {}
-      );
+      };
+
+      try {
+        // Try exact rear camera first
+        await html5QrCodeRef.current.start(
+          { facingMode: { exact: 'environment' } },
+          scanConfig,
+          onScanSuccess,
+          () => {}
+        );
+      } catch {
+        // Fallback: prefer rear but don't require it
+        scanConfig.videoConstraints.facingMode = 'environment';
+        await html5QrCodeRef.current.start(
+          { facingMode: 'environment' },
+          scanConfig,
+          onScanSuccess,
+          () => {}
+        );
+      }
       setScanning(true);
     } catch (error) {
       toast.error('Camera access denied. Try search instead.');
