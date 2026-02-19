@@ -511,7 +511,7 @@ export function startCrawlScheduler() {
   // Initial crawl — wait 30 seconds after server start, then run in background
   setTimeout(() => {
     console.log('Starting initial flyer crawl...');
-    crawlProducts({ limit: 100, zipsPerProduct: 8, onlyNew: true })
+    crawlProducts({ limit: 20, zipsPerProduct: 3, onlyNew: true })
       .then(result => console.log('Initial crawl done:', result))
       .catch(err => console.error('Initial crawl error:', err.message));
   }, 30000);
@@ -522,7 +522,7 @@ export function startCrawlScheduler() {
     // 3 AM UTC = ~9-10 PM Central
     if (hour === 3) {
       console.log('Starting scheduled flyer re-crawl...');
-      crawlProducts({ limit: 200, zipsPerProduct: 10 })
+      crawlProducts({ limit: 50, zipsPerProduct: 5 })
         .then(result => console.log('Scheduled crawl done:', result))
         .catch(err => console.error('Scheduled crawl error:', err.message));
     }

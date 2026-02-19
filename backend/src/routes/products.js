@@ -744,7 +744,8 @@ router.get('/meta/categories', async (req, res) => {
 
 // ============================================================
 // CURATED PRODUCTS (for offline pre-loading)
-// Returns all products with swap mappings for IndexedDB cache
+// Returns swap-relevant products for IndexedDB cache
+// Only clean alternatives + products with swap mappings (NOT all 850k)
 // ============================================================
 router.get('/curated', async (req, res) => {
   try {
@@ -752,10 +753,12 @@ router.get('/curated', async (req, res) => {
       SELECT p.upc, p.name, p.brand, p.category, p.subcategory,
              p.total_score, p.nutrition_score, p.additives_score, p.organic_bonus,
              p.nutriscore_grade, p.nova_group, p.image_url,
-             p.allergens_tags, p.ingredients,
              p.is_organic
       FROM products p
+      WHERE p.is_clean_alternative = true
+         OR (p.swaps_to IS NOT NULL AND p.swaps_to != '[]' AND p.swaps_to != 'null')
       ORDER BY p.total_score DESC
+      LIMIT 2000
     `);
     res.json(result.rows);
   } catch (err) {

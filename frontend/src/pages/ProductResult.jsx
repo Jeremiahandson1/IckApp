@@ -644,19 +644,59 @@ function IngredientCard({ ingredient }) {
 
 function SwapCard({ swap, currentScore, onClick }) {
   const improvement = swap.total_score - currentScore;
+  const stores = swap.nearby_stores || [];
+  const links = swap.online_links || [];
+  
   return (
-    <button onClick={onClick} className="w-full p-4 bg-orange-500/10 rounded-xl text-left card-pressed">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="font-semibold text-gray-100">{swap.name}</h4>
-          <p className="text-sm text-gray-400">{swap.brand}</p>
+    <div className="p-4 bg-orange-500/10 rounded-xl">
+      <button onClick={onClick} className="w-full text-left card-pressed">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-gray-100 truncate">{swap.name}</h4>
+            <p className="text-sm text-gray-400">{swap.brand}</p>
+          </div>
+          <div className="text-right ml-3">
+            <span className="text-2xl font-bold text-orange-400">{Math.round(swap.total_score)}</span>
+            <p className="text-xs text-orange-400 font-medium">+{improvement} pts</p>
+          </div>
         </div>
-        <div className="text-right">
-          <span className="text-2xl font-bold text-orange-400">{Math.round(swap.total_score)}</span>
-          <p className="text-xs text-orange-400 font-medium">+{improvement} pts</p>
+      </button>
+      
+      {/* Where to Buy — stores */}
+      {stores.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-700/50">
+          <p className="text-xs font-medium text-gray-400 mb-1.5">Available at</p>
+          <div className="flex flex-wrap gap-1.5">
+            {stores.map((s, i) => (
+              <span key={i} className="text-xs px-2 py-0.5 bg-gray-700/60 text-gray-300 rounded-full">
+                {s.store_name}{s.price ? ` · $${Number(s.price).toFixed(2)}` : ''}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-    </button>
+      )}
+      
+      {/* Online purchase links */}
+      {links.length > 0 && (
+        <div className={`${stores.length > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-gray-700/50'}`}>
+          {stores.length === 0 && <p className="text-xs font-medium text-gray-400 mb-1.5">Buy online</p>}
+          <div className="flex flex-wrap gap-1.5">
+            {links.map((link, i) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-300 rounded-full hover:bg-orange-500/30 transition-colors"
+              >
+                {link.name} ↗
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

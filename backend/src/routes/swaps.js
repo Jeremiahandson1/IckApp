@@ -367,6 +367,16 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         } catch (e) { /* curated table may not exist yet */ }
       }
 
+      // Layer 4: Online purchase links (Amazon, Thrive Market, brand DTC)
+      let onlineLinks = [];
+      try {
+        const linksResult = await pool.query(
+          `SELECT name, url, link_type FROM online_links WHERE upc = $1 AND active = true ORDER BY link_type LIMIT 5`,
+          [swap.upc]
+        );
+        onlineLinks = linksResult.rows;
+      } catch (e) { /* online_links table may not exist yet */ }
+
       formattedSwaps.push({
         ...swap,
         ...getScoreRating(swap.total_score),
@@ -374,7 +384,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         savings_potential: product.typical_price && swap.typical_price
           ? (product.typical_price - swap.typical_price).toFixed(2)
           : null,
-        nearby_stores: nearbyStores
+        nearby_stores: nearbyStores,
+        online_links: onlineLinks
       });
     }
 
