@@ -2,6 +2,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 import { getScoreRating } from '../utils/helpers.js';
 import { scoreProduct as calculateProductScore } from '../utils/scoring.js';
 import { lookupByUPC as usdaLookup, searchProducts as usdaSearch } from '../utils/usda.js';
@@ -64,7 +65,10 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
   try {
     const { upc } = req.params;
 
-    // First check our database
+    // Validate UPC format before hitting external APIs
+    if (!/^\d{8,14}$/.test(upc)) {
+      return res.status(400).json({ error: 'Invalid UPC format. Expected 8–14 digit barcode.' });
+    }
     let result = await pool.query(
       `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies
        FROM products p
@@ -953,21 +957,6 @@ router.delete('/family/:id', authenticateToken, async (req, res) => {
 });
 
 // ============================================================
-// ADMIN HELPER
-// ============================================================
-const requireAdmin = async (req, res, next) => {
-  try {
-    const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
-    if (!result.rows[0]?.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    next();
-  } catch {
-    res.status(403).json({ error: 'Admin check failed' });
-  }
-};
-
-// ============================================================
 // ADMIN: Contribution Review (#2 fix)
 // ============================================================
 
@@ -1031,8 +1020,8 @@ router.put('/admin/contributions/:id/reject', authenticateToken, requireAdmin, a
     const { reason } = req.body;
     
     const result = await pool.query(
-      `UPDATE product_contributions SET status = 'rejected', reviewed_at = NOW() WHERE id = $1 RETURNING *`,
-      [id]
+      `UPDATE product_contributions SET status = 'rejected', reviewed_at = NOW(), rejection_reason = $2 WHERE id = $1 RETURNING *`,
+      [id, reason || null]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Contribution not found' });
     

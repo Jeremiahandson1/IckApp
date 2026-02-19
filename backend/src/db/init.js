@@ -498,6 +498,7 @@ export async function initDatabase() {
 
       -- Contribution review tracking
       ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+      ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
       -- Receipt + price tracking on pantry items
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS price_paid DECIMAL(8,2);

@@ -34,7 +34,9 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || true, // true reflects the request origin (safe for dev, requires FRONTEND_URL in prod)
+  origin: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production'
+    ? false  // Block all cross-origin requests if FRONTEND_URL not set in prod
+    : true), // Reflect origin in dev only
   credentials: true
 }));
 
@@ -52,6 +54,14 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+
+// Stricter rate limit for scan endpoint — each scan can trigger 3 external API calls
+const scanLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150, // 150 scans per 15 min per IP
+  message: { error: 'Too many scans. Please wait a few minutes.' }
+});
+app.use('/api/products/scan', scanLimiter);
 
 // Body parsing
 // Stripe webhook needs raw body for signature verification — mount before json parser

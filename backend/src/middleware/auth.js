@@ -28,11 +28,11 @@ export function optionalAuth(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-      if (!err) {
-        req.user = user;
-      }
-    });
+    try {
+      req.user = jwt.verify(token, JWT_SECRET); // sync — throws on invalid/expired
+    } catch (_err) {
+      // Invalid or expired token — continue as anonymous user
+    }
   }
   next();
 }

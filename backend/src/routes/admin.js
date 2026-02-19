@@ -1,24 +1,12 @@
 import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 
 const router = express.Router();
 
 // All admin routes require auth + admin
 router.use(authenticateToken);
-
-const requireAdmin = async (req, res, next) => {
-  try {
-    const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
-    if (!result.rows[0]?.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    next();
-  } catch {
-    res.status(403).json({ error: 'Admin check failed' });
-  }
-};
-
 router.use(requireAdmin);
 
 // ── System Health ──
