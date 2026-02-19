@@ -50,28 +50,26 @@ async function queryRetry(sql, params = [], retries = 3) {
 async function normalizeCategories() {
   console.log('\n── Step 1: Normalizing categories ──');
   
-  // Strip "en:" prefix from OFF categories (batch)
+  // Strip "en:" prefix — select IDs first, then update by ID
   let total1 = 0;
   while (true) {
-    const r = await pool.query(`
-      UPDATE products SET category = REGEXP_REPLACE(category, '^en:', '')
-      WHERE id IN (SELECT id FROM products WHERE category LIKE 'en:%' LIMIT 10000)
-    `);
-    total1 += r.rowCount;
-    if (r.rowCount === 0) break;
+    const ids = await pool.query(`SELECT id FROM products WHERE category LIKE 'en:%' LIMIT 5000`);
+    if (ids.rows.length === 0) break;
+    const idList = ids.rows.map(r => r.id);
+    await pool.query(`UPDATE products SET category = REGEXP_REPLACE(category, '^en:', '') WHERE id = ANY($1)`, [idList]);
+    total1 += idList.length;
     console.log(`  ... stripped ${total1} so far`);
   }
   console.log(`  Stripped en: prefix from ${total1} products`);
   
-  // Replace dashes with spaces (batch)
+  // Replace dashes with spaces
   let total2 = 0;
   while (true) {
-    const r = await pool.query(`
-      UPDATE products SET category = REPLACE(category, '-', ' ')
-      WHERE id IN (SELECT id FROM products WHERE category LIKE '%-%' AND category NOT LIKE 'en:%' LIMIT 10000)
-    `);
-    total2 += r.rowCount;
-    if (r.rowCount === 0) break;
+    const ids = await pool.query(`SELECT id FROM products WHERE category LIKE '%-%' AND category NOT LIKE 'en:%' LIMIT 5000`);
+    if (ids.rows.length === 0) break;
+    const idList = ids.rows.map(r => r.id);
+    await pool.query(`UPDATE products SET category = REPLACE(category, '-', ' ') WHERE id = ANY($1)`, [idList]);
+    total2 += idList.length;
     console.log(`  ... normalized ${total2} so far`);
   }
   console.log(`  Normalized dashes in ${total2} categories`);
@@ -83,7 +81,10 @@ async function scoreUnscoredProducts() {
   
   let total = 0;
   while (true) {
-    const result = await pool.query(`
+    const ids = await pool.query(`SELECT id FROM products WHERE total_score IS NULL AND nutriscore_grade IS NOT NULL LIMIT 5000`);
+    if (ids.rows.length === 0) break;
+    const idList = ids.rows.map(r => r.id);
+    await pool.query(`
       UPDATE products SET total_score = 
         CASE nutriscore_grade
           WHEN 'a' THEN 85 + CASE WHEN is_organic THEN 10 ELSE 0 END
@@ -97,14 +98,9 @@ async function scoreUnscoredProducts() {
                WHEN nova_group = 3 THEN 8
                WHEN nova_group = 2 THEN 3
                ELSE 0 END
-      WHERE id IN (
-        SELECT id FROM products 
-        WHERE total_score IS NULL AND nutriscore_grade IS NOT NULL 
-        LIMIT 10000
-      )
-    `);
-    total += result.rowCount;
-    if (result.rowCount === 0) break;
+      WHERE id = ANY($1)
+    `, [idList]);
+    total += idList.length;
     console.log(`  ... scored ${total} so far`);
   }
   console.log(`  Scored ${total} products from nutriscore + nova`);
@@ -115,32 +111,25 @@ async function markCleanAlternatives() {
   console.log('\n── Step 3: Marking clean alternatives ──');
   
   // Reset in batches
-  let resetCount = 0;
   while (true) {
-    const r = await pool.query(`
-      UPDATE products SET is_clean_alternative = false
-      WHERE id IN (SELECT id FROM products WHERE is_clean_alternative = true LIMIT 10000)
-    `);
-    resetCount += r.rowCount;
-    if (r.rowCount === 0) break;
+    const ids = await pool.query(`SELECT id FROM products WHERE is_clean_alternative = true LIMIT 5000`);
+    if (ids.rows.length === 0) break;
+    await pool.query(`UPDATE products SET is_clean_alternative = false WHERE id = ANY($1)`, [ids.rows.map(r => r.id)]);
   }
   
   // Mark in batches
   let total = 0;
   while (true) {
-    const result = await pool.query(`
-      UPDATE products SET is_clean_alternative = true
-      WHERE id IN (
-        SELECT id FROM products
-        WHERE total_score >= 65
-        AND total_score IS NOT NULL
-        AND (nutriscore_grade IN ('a', 'b') OR total_score >= 75)
-        AND is_clean_alternative = false
-        LIMIT 10000
-      )
+    const ids = await pool.query(`
+      SELECT id FROM products
+      WHERE total_score >= 65 AND total_score IS NOT NULL
+      AND (nutriscore_grade IN ('a', 'b') OR total_score >= 75)
+      AND is_clean_alternative = false
+      LIMIT 5000
     `);
-    total += result.rowCount;
-    if (result.rowCount === 0) break;
+    if (ids.rows.length === 0) break;
+    await pool.query(`UPDATE products SET is_clean_alternative = true WHERE id = ANY($1)`, [ids.rows.map(r => r.id)]);
+    total += ids.rows.length;
     console.log(`  ... marked ${total} so far`);
   }
   console.log(`  Marked ${total} clean alternatives`);
