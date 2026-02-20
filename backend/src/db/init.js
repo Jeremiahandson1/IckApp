@@ -448,6 +448,19 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_curated_upc ON curated_availability(upc);
 
+    -- Refresh tokens (for JWT rotation)
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      token_hash VARCHAR(64) UNIQUE NOT NULL,
+      revoked BOOLEAN DEFAULT false,
+      revoked_at TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
     -- Online purchase links (Amazon, Thrive Market, brand sites, etc.)
     CREATE TABLE IF NOT EXISTS online_links (
       id SERIAL PRIMARY KEY,
@@ -498,7 +511,6 @@ export async function initDatabase() {
 
       -- Contribution review tracking
       ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
-      ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
       -- Receipt + price tracking on pantry items
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS price_paid DECIMAL(8,2);
@@ -545,6 +557,33 @@ export async function initDatabase() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
       CREATE INDEX IF NOT EXISTS idx_products_swap_type ON products(swap_discovery_type, total_score DESC);
+
+      -- Refresh tokens for JWT rotation (added Feb 2026)
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) UNIQUE NOT NULL,
+        revoked BOOLEAN DEFAULT false,
+        revoked_at TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
+      -- Login attempt tracking for per-email brute-force protection
+      CREATE TABLE IF NOT EXISTS login_attempts (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        ip VARCHAR(45),
+        success BOOLEAN NOT NULL,
+        attempted_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email, attempted_at);
+
+      -- Periodic cleanup: remove old expired/revoked refresh tokens and login attempts
+      DELETE FROM refresh_tokens WHERE created_at < NOW() - INTERVAL '90 days';
+      DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '7 days';
     `);
 
     // Check if total_score still uses old formula (5 columns)

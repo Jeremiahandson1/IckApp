@@ -1,12 +1,59 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import pool from '../db/init.js';
-import { generateToken, authenticateToken } from '../middleware/auth.js';
+import {
+  generateToken, generateRefreshToken,
+  storeRefreshToken, validateAndRotateRefreshToken, revokeRefreshToken, revokeAllUserRefreshTokens,
+  authenticateToken
+} from '../middleware/auth.js';
 import { startTrial, getSubscriptionStatus } from '../middleware/subscription.js';
 
 const router = express.Router();
 
-// Register
+// ── Per-email brute-force protection ────────────────────────────────────────
+// Tracks failed login attempts per email in DB. Locks for 15 min after 10 failures.
+const MAX_ATTEMPTS = 10;
+const LOCKOUT_MINUTES = 15;
+
+async function checkLoginAllowed(email) {
+  const result = await pool.query(
+    `SELECT COUNT(*) as attempts
+     FROM login_attempts
+     WHERE email = LOWER($1)
+       AND success = false
+       AND attempted_at > NOW() - INTERVAL '${LOCKOUT_MINUTES} minutes'`,
+    [email]
+  );
+  return parseInt(result.rows[0].attempts) < MAX_ATTEMPTS;
+}
+
+async function recordLoginAttempt(email, ip, success) {
+  await pool.query(
+    'INSERT INTO login_attempts (email, ip, success) VALUES (LOWER($1), $2, $3)',
+    [email, ip || null, success]
+  ).catch(() => {}); // non-fatal — don't let logging failure block auth
+}
+
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+}
+
+// ── Shared user response shape ───────────────────────────────────────────────
+function userResponse(user, subscription) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    zip_code: user.zip_code,
+    household_size: user.household_size,
+    has_kids: user.has_kids,
+    kids_ages: user.kids_ages,
+    allergen_alerts: user.allergen_alerts,
+    subscription
+  };
+}
+
+// ── Register ─────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, zip_code, household_size, has_kids, kids_ages, allergen_alerts } = req.body;
@@ -15,49 +62,34 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
-    // Check if user exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create user
     const result = await pool.query(
       `INSERT INTO users (email, password_hash, name, zip_code, household_size, has_kids, kids_ages, allergen_alerts)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, email, name, zip_code, household_size, has_kids, kids_ages, allergen_alerts, created_at`,
-      [email, passwordHash, name, zip_code, household_size || 1, has_kids || false, JSON.stringify(kids_ages || []), JSON.stringify(allergen_alerts || [])]
+      [email.toLowerCase(), passwordHash, name, zip_code, household_size || 1,
+       has_kids || false, JSON.stringify(kids_ages || []), JSON.stringify(allergen_alerts || [])]
     );
 
     const user = result.rows[0];
 
-    // Create engagement tracking record
-    await pool.query(
-      'INSERT INTO user_engagement (user_id) VALUES ($1)',
-      [user.id]
-    );
+    await pool.query('INSERT INTO user_engagement (user_id) VALUES ($1)', [user.id]);
 
-    // Start on free tier — trial offered after first scan limit hit
     const subscription = await getSubscriptionStatus(user.id);
-
-    const token = generateToken(user);
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+    await storeRefreshToken(user.id, refreshToken);
 
     res.status(201).json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        zip_code: user.zip_code,
-        household_size: user.household_size,
-        has_kids: user.has_kids,
-        kids_ages: user.kids_ages,
-        allergen_alerts: user.allergen_alerts,
-        subscription
-      },
-      token
+      user: userResponse(user, subscription),
+      token: accessToken,
+      refreshToken
     });
 
   } catch (err) {
@@ -66,8 +98,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login
+// ── Login ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
+  const ip = getClientIp(req);
   try {
     const { email, password } = req.body;
 
@@ -75,12 +108,19 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
-    const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
+    // Per-email lockout check
+    const allowed = await checkLoginAllowed(email);
+    if (!allowed) {
+      return res.status(429).json({
+        error: `Too many failed login attempts. Try again in ${LOCKOUT_MINUTES} minutes.`,
+        code: 'LOGIN_LOCKED'
+      });
+    }
+
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
 
     if (result.rows.length === 0) {
+      await recordLoginAttempt(email, ip, false);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -88,25 +128,22 @@ router.post('/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {
+      await recordLoginAttempt(email, ip, false);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = generateToken(user);
+    // Success — record and clear lockout by recording a success
+    await recordLoginAttempt(email, ip, true);
+
     const subscription = await getSubscriptionStatus(user.id);
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+    await storeRefreshToken(user.id, refreshToken);
 
     res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        zip_code: user.zip_code,
-        household_size: user.household_size,
-        has_kids: user.has_kids,
-        kids_ages: user.kids_ages,
-        allergen_alerts: user.allergen_alerts,
-        subscription
-      },
-      token
+      user: userResponse(user, subscription),
+      token: accessToken,
+      refreshToken
     });
 
   } catch (err) {
@@ -115,24 +152,60 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Refresh token (extends session without re-login)
-router.post('/refresh', authenticateToken, async (req, res) => {
+// ── Refresh token ─────────────────────────────────────────────────────────────
+// POST /api/auth/refresh  { refreshToken: "..." }
+// Returns new { token, refreshToken } pair (old refresh token is revoked)
+router.post('/refresh', async (req, res) => {
   try {
-    // Verify user still exists
-    const result = await pool.query('SELECT id, email FROM users WHERE id = $1', [req.user.id]);
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'User not found' });
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'refreshToken required', code: 'MISSING_REFRESH_TOKEN' });
     }
 
-    const token = generateToken(result.rows[0]);
-    res.json({ token });
+    const result = await validateAndRotateRefreshToken(refreshToken);
+
+    if (!result) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token', code: 'REFRESH_TOKEN_INVALID' });
+    }
+
+    res.json({
+      token: result.accessToken,
+      refreshToken: result.refreshToken
+    });
+
   } catch (err) {
     console.error('Token refresh error:', err);
     res.status(500).json({ error: 'Token refresh failed' });
   }
 });
 
-// Get profile
+// ── Logout ────────────────────────────────────────────────────────────────────
+// Revokes the provided refresh token (client should discard the access token)
+router.post('/logout', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: true }); // Always succeed from the client's perspective
+  }
+});
+
+// ── Logout all devices ────────────────────────────────────────────────────────
+router.post('/logout-all', authenticateToken, async (req, res) => {
+  try {
+    await revokeAllUserRefreshTokens(req.user.id);
+    res.json({ success: true, message: 'All sessions revoked' });
+  } catch (err) {
+    console.error('Logout all error:', err);
+    res.status(500).json({ error: 'Failed to revoke sessions' });
+  }
+});
+
+// ── Get profile ───────────────────────────────────────────────────────────────
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -148,9 +221,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get subscription status
     const subscription = await getSubscriptionStatus(req.user.id);
-
     res.json({ user: { ...result.rows[0], subscription } });
 
   } catch (err) {
@@ -159,7 +230,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Update profile
+// ── Update profile ────────────────────────────────────────────────────────────
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
     const { name, zip_code, household_size, has_kids, kids_ages, allergen_alerts } = req.body;
@@ -175,7 +246,10 @@ router.put('/profile', authenticateToken, async (req, res) => {
            updated_at = NOW()
        WHERE id = $7
        RETURNING id, email, name, zip_code, household_size, has_kids, kids_ages, allergen_alerts`,
-      [name, zip_code, household_size, has_kids, kids_ages ? JSON.stringify(kids_ages) : null, allergen_alerts ? JSON.stringify(allergen_alerts) : null, req.user.id]
+      [name, zip_code, household_size, has_kids,
+       kids_ages ? JSON.stringify(kids_ages) : null,
+       allergen_alerts ? JSON.stringify(allergen_alerts) : null,
+       req.user.id]
     );
 
     res.json({ user: result.rows[0] });
@@ -186,7 +260,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Save push notification subscription
+// ── Push notification subscription ───────────────────────────────────────────
 router.post('/push-subscribe', authenticateToken, async (req, res) => {
   try {
     const { subscription } = req.body;
@@ -203,7 +277,7 @@ router.post('/push-subscribe', authenticateToken, async (req, res) => {
   }
 });
 
-// Bootstrap: promote to admin (only works if NO admins exist yet)
+// ── Bootstrap admin (only works when no admins exist yet) ─────────────────────
 router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
   try {
     const adminCheck = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = true');
@@ -214,7 +288,6 @@ router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
     await pool.query('UPDATE users SET is_admin = true WHERE id = $1', [req.user.id]);
     res.json({ promoted: true, message: 'You are now the first admin.' });
   } catch (err) {
-    // is_admin column may not exist yet
     res.status(500).json({ error: 'Failed. Run database migration first.' });
   }
 });

@@ -19,15 +19,16 @@ export { subscriptionEvents };
 class ApiClient {
   constructor() {
     this.token = localStorage.getItem('token');
+    this._refreshPromise = null; // deduplicate concurrent refresh attempts
   }
 
   setToken(token) {
     this.token = token;
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, _isRetry = false) {
     const url = `${API_URL}${endpoint}`;
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers
@@ -37,55 +38,109 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const config = {
-      ...options,
-      headers
-    };
-
+    let response;
     try {
-      const response = await fetch(url, config);
-      
-      const contentType = response.headers.get('content-type');
-      let data;
-      
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        data = await response.text();
-      }
-
-      if (!response.ok) {
-        const error = new Error(data.error || data || 'Request failed');
-        error.status = response.status;
-        error.data = data;
-
-        // Emit global events for subscription-related errors
-        if (response.status === 403 && data.subscription) {
-          subscriptionEvents.emit({
-            type: 'premium_required',
-            message: data.upgrade_message || 'Premium subscription required',
-            subscription: data.subscription
-          });
-        }
-        if (response.status === 429 && data.limit) {
-          subscriptionEvents.emit({
-            type: 'scan_limit',
-            scans_today: data.scans_today,
-            limit: data.limit,
-            subscription: data.subscription
-          });
-        }
-
-        throw error;
-      }
-
-      return data;
-    } catch (error) {
-      if (error.status) {
-        throw error;
-      }
+      response = await fetch(url, { ...options, headers });
+    } catch {
       throw new Error('Network error. Please check your connection.');
     }
+
+    const contentType = response.headers.get('content-type');
+    let data;
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    // Auto-refresh on expired access token (only retry once)
+    if (response.status === 401 && data?.code === 'TOKEN_EXPIRED' && !_isRetry) {
+      const refreshed = await this._refreshAccessToken();
+      if (refreshed) {
+        // Retry the original request with the new token
+        return this.request(endpoint, options, true);
+      }
+      // Refresh failed — force logout
+      this._handleAuthFailure();
+      const error = new Error('Session expired. Please log in again.');
+      error.status = 401;
+      throw error;
+    }
+
+    if (!response.ok) {
+      const error = new Error(data?.error || data || 'Request failed');
+      error.status = response.status;
+      error.data = data;
+
+      if (response.status === 401 && !_isRetry) {
+        this._handleAuthFailure();
+      }
+
+      if (response.status === 403 && data?.subscription) {
+        subscriptionEvents.emit({
+          type: 'premium_required',
+          message: data.upgrade_message || 'Premium subscription required',
+          subscription: data.subscription
+        });
+      }
+      if (response.status === 429 && data?.limit) {
+        subscriptionEvents.emit({
+          type: 'scan_limit',
+          scans_today: data.scans_today,
+          limit: data.limit,
+          subscription: data.subscription
+        });
+      }
+
+      throw error;
+    }
+
+    return data;
+  }
+
+  // Attempt to get a new access token using the stored refresh token.
+  // Deduplicates concurrent calls — only one refresh request in flight at a time.
+  async _refreshAccessToken() {
+    if (this._refreshPromise) return this._refreshPromise;
+
+    this._refreshPromise = (async () => {
+      try {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) return false;
+
+        const res = await fetch(`${API_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+
+        if (!res.ok) return false;
+
+        const data = await res.json();
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          this.token = data.token;
+        }
+        if (data.refreshToken) {
+          localStorage.setItem('refreshToken', data.refreshToken);
+        }
+        return true;
+      } catch {
+        return false;
+      } finally {
+        this._refreshPromise = null;
+      }
+    })();
+
+    return this._refreshPromise;
+  }
+
+  _handleAuthFailure() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    this.token = null;
+    // Dispatch a custom event so AuthContext can react without circular imports
+    window.dispatchEvent(new Event('auth:logout'));
   }
 
   get(endpoint, options = {}) {

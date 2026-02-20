@@ -17,7 +17,7 @@ services:
     region: ohio
     buildCommand: ./render-build.sh
     startCommand: cd backend && node src/index.js
-    healthCheckPath: /health
+    healthCheckPath: /api/products/meta/categories
     envVars:
       - key: NODE_VERSION
         value: 20
@@ -29,18 +29,16 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true  # Render auto-generates a random secret
+      - key: REFRESH_SECRET
+        generateValue: true  # Separate secret for refresh tokens
       - key: FRONTEND_URL
         value: https://ick.onrender.com
       - key: USDA_API_KEY
-        sync: false  # Get your FREE production key at https://fdc.nal.usda.gov/api-key-signup/ (1000 req/hr vs 30/hr on DEMO_KEY)
-      - key: FRONTEND_URL
-        value: https://ick.onrender.com  # ← Update this to your actual frontend URL
+        value: DEMO_KEY  # Get free key at https://fdc.nal.usda.gov/api-key-signup/
       - key: FATSECRET_CLIENT_ID
         sync: false  # Add manually — sign up at https://platform.fatsecret.com/
       - key: FATSECRET_CLIENT_SECRET
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false  # Required for receipt scanning — get key at https://platform.openai.com/api-keys
       # Stripe (add these manually in Render dashboard after setup)
       # - key: STRIPE_SECRET_KEY
       # - key: STRIPE_WEBHOOK_SECRET

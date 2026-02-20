@@ -24,6 +24,9 @@ import krogerRoutes from './routes/kroger.js';
 import sightingsRoutes from './routes/sightings.js';
 import adminRoutes from './routes/admin.js';
 import receiptRoutes from './routes/receipts.js';
+import familyRoutes from './routes/family.js';
+import kidRatingsRoutes from './routes/kidRatings.js';
+import contributionsRoutes from './routes/contributions.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -33,10 +36,33 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
+
+// CORS — whitelist FRONTEND_URL (required in production) + localhost variants for dev
+const ALLOWED_ORIGINS = new Set([
+  // Dev origins always allowed
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  // Production — must be set via FRONTEND_URL env var
+  ...( process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean)
+    : []
+  )
+]);
+
+if (!process.env.FRONTEND_URL && process.env.NODE_ENV === 'production') {
+  console.warn('⚠ FRONTEND_URL is not set — CORS will only allow localhost. Set FRONTEND_URL=https://your-domain.com in production.');
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production'
-    ? false  // Block all cross-origin requests if FRONTEND_URL not set in prod
-    : true), // Reflect origin in dev only
+  origin(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Capacitor native)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+    console.warn(`CORS blocked: ${origin}`);
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true
 }));
 
@@ -54,14 +80,6 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
-
-// Stricter rate limit for scan endpoint — each scan can trigger 3 external API calls
-const scanLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 150, // 150 scans per 15 min per IP
-  message: { error: 'Too many scans. Please wait a few minutes.' }
-});
-app.use('/api/products/scan', scanLimiter);
 
 // Body parsing
 // Stripe webhook needs raw body for signature verification — mount before json parser
@@ -91,6 +109,9 @@ app.use('/api/kroger', krogerRoutes);
 app.use('/api/sightings', sightingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/receipts', receiptRoutes);
+app.use('/api/products/family', familyRoutes);
+app.use('/api/products/kid-ratings', kidRatingsRoutes);
+app.use('/api/products/admin/contributions', contributionsRoutes);
 
 // Serve frontend in production
 import path from 'path';
