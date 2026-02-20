@@ -280,6 +280,12 @@ router.post('/push-subscribe', authenticateToken, async (req, res) => {
 // ── Bootstrap admin (only works when no admins exist yet) ─────────────────────
 router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
   try {
+    // Require a secret to prevent race condition on first deploy
+    const BOOTSTRAP_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET;
+    if (BOOTSTRAP_SECRET && req.body.secret !== BOOTSTRAP_SECRET) {
+      return res.status(403).json({ error: 'Invalid bootstrap secret.' });
+    }
+
     const adminCheck = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = true');
     if (parseInt(adminCheck.rows[0].count) > 0) {
       return res.status(403).json({ error: 'Admin already exists. Ask an existing admin to promote you.' });

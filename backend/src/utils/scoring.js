@@ -283,13 +283,6 @@ export async function scoreProduct(opts = {}) {
     additives_score: additivesScore,
     organic_bonus: organicBonus,
 
-    // Legacy columns (backward compat)
-    harmful_ingredients_score: additivesScore,
-    banned_elsewhere_score: nutritionScore,
-    transparency_score: organicBonus,
-    processing_score: nova_group ? ({ 1: 95, 2: 75, 3: 50, 4: 25 }[nova_group] ?? 50) : 50,
-    company_behavior_score: company?.behavior_score ?? 50,
-
     // Data
     harmful_ingredients_found: harmfulFound,
     nutrition_facts: nutritionFacts,

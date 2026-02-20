@@ -1,28 +1,29 @@
 import { useEffect, useState } from 'react';
 
+// Thresholds and labels match helpers.js getScoreRating() / getScoreLabel()
 const VERDICTS = {
-  excellent: { label: 'Excellent', emoji: '🟢', color: 'text-orange-400', ring: 'stroke-orange-500', bg: 'bg-orange-500/10' },
-  good:      { label: 'Good',      emoji: '🟢', color: 'text-green-400',   ring: 'stroke-green-500',   bg: 'bg-green-500/10' },
-  fair:      { label: 'Mediocre',  emoji: '🟡', color: 'text-amber-400',   ring: 'stroke-amber-400',   bg: 'bg-amber-500/10' },
-  poor:      { label: 'Poor',      emoji: '🟠', color: 'text-orange-400',  ring: 'stroke-orange-500',  bg: 'bg-orange-500/10' },
-  bad:       { label: 'Bad',       emoji: '🔴', color: 'text-red-400',     ring: 'stroke-red-500',     bg: 'bg-red-500/10' },
+  excellent: { label: 'Clean',   emoji: '🟢', color: 'text-green-400',  ring: 'stroke-green-400',  bg: 'bg-green-500/10' },
+  good:      { label: 'Decent',  emoji: '🟢', color: 'text-green-500',  ring: 'stroke-green-500',  bg: 'bg-green-500/10' },
+  fair:      { label: 'Meh',     emoji: '🟡', color: 'text-amber-400',  ring: 'stroke-amber-400',  bg: 'bg-amber-500/10' },
+  poor:      { label: 'Ick',     emoji: '🟠', color: 'text-orange-500', ring: 'stroke-orange-500', bg: 'bg-orange-500/10' },
+  bad:       { label: 'Avoid',   emoji: '🔴', color: 'text-red-500',    ring: 'stroke-red-500',    bg: 'bg-red-500/10' },
 };
 
 function getVerdict(score) {
-  if (score >= 80) return VERDICTS.excellent;
-  if (score >= 60) return VERDICTS.good;
-  if (score >= 40) return VERDICTS.fair;
-  if (score >= 20) return VERDICTS.poor;
+  if (score >= 86) return VERDICTS.excellent;
+  if (score >= 71) return VERDICTS.good;
+  if (score >= 51) return VERDICTS.fair;
+  if (score >= 31) return VERDICTS.poor;
   return VERDICTS.bad;
 }
 
 function getVerdictSentence(score, name) {
   const short = name?.split(' ').slice(0, 3).join(' ') || 'This product';
-  if (score >= 80) return `${short} has excellent nutritional quality.`;
-  if (score >= 60) return `${short} has good nutritional quality.`;
-  if (score >= 40) return `${short} has mediocre nutritional quality.`;
-  if (score >= 20) return `${short} has poor nutritional quality.`;
-  return `${short} has bad nutritional quality.`;
+  if (score >= 86) return `${short} is a clean choice. No ick here.`;
+  if (score >= 71) return `${short} is decent. Could be worse.`;
+  if (score >= 51) return `${short} is just okay. We'd keep looking.`;
+  if (score >= 31) return `We recommend you ick that ish. Better options exist.`;
+  return `Ick that ish. Put it back on the shelf.`;
 }
 
 export default function ScoreRing({ score, name, size = 140 }) {

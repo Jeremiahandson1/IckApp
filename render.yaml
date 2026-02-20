@@ -17,7 +17,7 @@ services:
     region: ohio
     buildCommand: ./render-build.sh
     startCommand: cd backend && node src/index.js
-    healthCheckPath: /api/products/meta/categories
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 20
@@ -32,9 +32,11 @@ services:
       - key: REFRESH_SECRET
         generateValue: true  # Separate secret for refresh tokens
       - key: FRONTEND_URL
-        value: https://ick.onrender.com
+        value: https://ick-0y07.onrender.com
       - key: USDA_API_KEY
-        value: DEMO_KEY  # Get free key at https://fdc.nal.usda.gov/api-key-signup/
+        sync: false  # Get free key at https://fdc.nal.usda.gov/api-key-signup/ (1000 req/hr vs 30/hr on DEMO_KEY)
+      - key: ADMIN_BOOTSTRAP_SECRET
+        sync: false  # Set this manually in Render dashboard before first deploy
       - key: FATSECRET_CLIENT_ID
         sync: false  # Add manually — sign up at https://platform.fatsecret.com/
       - key: FATSECRET_CLIENT_SECRET
