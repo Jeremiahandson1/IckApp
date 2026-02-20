@@ -90,7 +90,7 @@ export default function Scan() {
       
       const scanConfig = {
           fps: 15,
-          qrbox: { width: 280, height: 150 },
+          qrbox: { width: 320, height: 200 },
           aspectRatio: 1.0,
           formatsToSupport: [0, 1, 2, 3, 4, 5, 6],
           experimentalFeatures: { useBarCodeDetectorIfSupported: true },
@@ -283,27 +283,36 @@ export default function Scan() {
 
       {mode === 'camera' && !useNative && (
         <div className="relative h-screen">
+          {/* Suppress html5-qrcode's built-in UI — red diagonal, borders, buttons */}
+          <style>{`
+            #qr-reader__scan_region img { display: none !important; }
+            #qr-reader__scan_region > br { display: none !important; }
+            #qr-reader__dashboard { display: none !important; }
+            #qr-reader { border: none !important; background: #000 !important; }
+            #qr-reader video { object-fit: cover !important; }
+          `}</style>
           <div id="qr-reader" ref={scannerRef} className="w-full h-full" />
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-0 bg-black/50" />
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-40"
-              style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)', borderRadius: '16px' }}>
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-orange-500 rounded-tl-xl" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-orange-500 rounded-tr-xl" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-orange-500 rounded-bl-xl" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-orange-500 rounded-br-xl" />
+            <div className="absolute inset-0 bg-black/60" />
+            {/* Larger scan window — easier to aim in a store aisle */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-52"
+              style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', borderRadius: '16px' }}>
+              <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-orange-500 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-orange-500 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-orange-500 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-orange-500 rounded-br-xl" />
               {scanning && !loading && (
-                <div className="absolute inset-x-4 top-4 h-0.5 bg-orange-500/100 animate-scan-line" />
+                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-orange-500 opacity-80 animate-scan-line" />
               )}
             </div>
           </div>
           <div className="absolute left-0 right-0 bottom-32 text-center text-white">
             {loading ? (
               <div className="flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-gray-950/10 backdrop-blur flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-black/40 backdrop-blur flex items-center justify-center">
                   <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                 </div>
-                <p className="font-medium">Analyzing product...</p>
+                <p className="font-medium">Checking for ick...</p>
                 <div className="flex gap-1">
                   <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -311,7 +320,7 @@ export default function Scan() {
                 </div>
               </div>
             ) : (
-              <p className="font-medium">Point camera at barcode</p>
+              <p className="font-medium text-gray-200">Point at a barcode. We'll do the icking.</p>
             )}
           </div>
           <button onClick={toggleTorch}
