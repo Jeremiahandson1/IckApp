@@ -27,6 +27,7 @@ import Subscription from './pages/Subscription';
 import PremiumGate from './components/common/PremiumGate';
 import ReceiptScan from './pages/ReceiptScan';
 import Budget from './pages/Budget';
+import Admin from './pages/Admin';
 
 // Auth gate — only for features that truly need login
 function AuthGate({ children }) {
@@ -170,6 +171,7 @@ export default function App() {
         <Route path="/progress" element={<AuthGate><Progress /></AuthGate>} />
         <Route path="/profile" element={<AuthGate><Profile /></AuthGate>} />
         <Route path="/subscription" element={<AuthGate><Subscription /></AuthGate>} />
+        <Route path="/admin" element={<AuthGate><Admin /></AuthGate>} />
       </Route>
 
       {/* Fallback */}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
+import api, { account } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -19,6 +19,16 @@ export default function Profile() {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // Password change
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  // Account deletion
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -77,6 +87,43 @@ export default function Profile() {
         : [...current, allergen];
       return { ...prev, allergen_alerts: updated };
     });
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordForm.next !== passwordForm.confirm) {
+      showToast('New passwords do not match', 'error');
+      return;
+    }
+    if (passwordForm.next.length < 8) {
+      showToast('New password must be at least 8 characters', 'error');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await account.changePassword(passwordForm.current, passwordForm.next);
+      showToast('Password updated. All other sessions logged out.', 'success');
+      setShowPasswordForm(false);
+      setPasswordForm({ current: '', next: '', confirm: '' });
+    } catch (err) {
+      showToast(err.message || 'Failed to change password', 'error');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    setDeleting(true);
+    try {
+      await account.deleteAccount(deletePassword);
+      logout();
+      navigate('/');
+      showToast('Your account has been deleted.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to delete account', 'error');
+      setDeleting(false);
+    }
   };
 
   const handleLogout = () => {
@@ -299,6 +346,36 @@ export default function Profile() {
         </button>
       </div>
 
+      {/* Admin Panel Link (only for admins) */}
+      {user?.is_admin && (
+        <button
+          onClick={() => navigate('/admin')}
+          className="w-full py-3 bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded-2xl font-medium flex items-center justify-center gap-2"
+        >
+          <span>⚙️</span> Admin Panel
+        </button>
+      )}
+
+      {/* Account Security */}
+      <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
+        <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Account</h3>
+        <button
+          onClick={() => setShowPasswordForm(true)}
+          className="w-full py-3 bg-gray-800 text-gray-300 rounded-xl font-medium text-left px-4 flex items-center justify-between"
+        >
+          <span>Change Password</span>
+          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="w-full py-3 bg-gray-800 text-red-400 rounded-xl font-medium text-left px-4"
+        >
+          Delete Account
+        </button>
+      </div>
+
       {/* Logout */}
       <button
         onClick={handleLogout}
@@ -310,6 +387,105 @@ export default function Profile() {
       <p className="text-center text-xs text-gray-400 mt-4">
         Ick v2.0.0
       </p>
+
+      {/* Change Password Modal */}
+      {showPasswordForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold mb-4">Change Password</h2>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Current Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.current}
+                  onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.next}
+                  onChange={e => setPasswordForm(p => ({ ...p, next: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirm}
+                  onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowPasswordForm(false); setPasswordForm({ current: '', next: '', confirm: '' }); }}
+                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium disabled:opacity-50"
+                >
+                  {passwordSaving ? 'Saving...' : 'Update'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold text-red-400 mb-2">Delete Account</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              This permanently deletes your account, pantry, scan history, and all data. This cannot be undone.
+            </p>
+            <form onSubmit={handleDeleteAccount} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Enter your password to confirm</label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-900 border border-red-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Your password"
+                  required
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
+                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={deleting}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Forever'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editing && (

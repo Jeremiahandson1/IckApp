@@ -294,12 +294,24 @@ router.put('/profile', authenticateToken, async (req, res) => {
 router.post('/push-subscribe', authenticateToken, async (req, res) => {
   try {
     const { subscription } = req.body;
-    if (!subscription?.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+    if (!subscription) return res.status(400).json({ error: 'subscription required' });
 
-    await pool.query(
-      `UPDATE users SET push_subscription = $1, updated_at = NOW() WHERE id = $2`,
-      [JSON.stringify(subscription), req.user.id]
-    );
+    if (subscription.type === 'native') {
+      // Native FCM/APNs token from Capacitor
+      if (!subscription.token) return res.status(400).json({ error: 'Native token missing' });
+      await pool.query(
+        `UPDATE users SET native_push_token = $1, updated_at = NOW() WHERE id = $2`,
+        [subscription.token, req.user.id]
+      );
+    } else {
+      // Web Push VAPID subscription object
+      if (!subscription.endpoint) return res.status(400).json({ error: 'Invalid Web Push subscription' });
+      await pool.query(
+        `UPDATE users SET push_subscription = $1, updated_at = NOW() WHERE id = $2`,
+        [JSON.stringify(subscription), req.user.id]
+      );
+    }
+
     res.json({ subscribed: true });
   } catch (err) {
     console.error('Push subscribe error:', err);
@@ -330,6 +342,72 @@ router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
     res.json({ promoted: true, message: 'You are now the first admin.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed. Run database migration first.' });
+  }
+});
+
+// ── Change password ───────────────────────────────────────────────────────────
+router.put('/password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'current_password and new_password required' });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    // Verify current password
+    const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(current_password, userResult.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, req.user.id]);
+
+    // Revoke all refresh tokens so other devices are logged out
+    await revokeAllUserRefreshTokens(req.user.id);
+
+    res.json({ success: true, message: 'Password updated. All other sessions have been logged out.' });
+  } catch (err) {
+    console.error('Password change error:', err);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
+// ── Delete account ────────────────────────────────────────────────────────────
+router.delete('/account', authenticateToken, async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password required to confirm account deletion' });
+    }
+
+    // Verify password before deleting
+    const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(password, userResult.rows[0].password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Incorrect password' });
+    }
+
+    // Delete the user — cascades to all related data via FK constraints
+    await pool.query('DELETE FROM users WHERE id = $1', [req.user.id]);
+
+    res.json({ deleted: true, message: 'Your account and all data have been permanently deleted.' });
+  } catch (err) {
+    console.error('Account deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 

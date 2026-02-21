@@ -46,3 +46,7 @@ services:
       # - key: STRIPE_WEBHOOK_SECRET
       # - key: STRIPE_MONTHLY_PRICE_ID
       # - key: STRIPE_YEARLY_PRICE_ID
+      # Firebase Admin (for native FCM push — iOS/Android)
+      # Base64-encode your Firebase service account JSON:
+      #   base64 -i serviceAccountKey.json | tr -d '\n'
+      # - key: FIREBASE_SERVICE_ACCOUNT_BASE64

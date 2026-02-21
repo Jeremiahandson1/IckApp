@@ -90,14 +90,7 @@ export async function initDatabase() {
       subcategory VARCHAR(100),
       image_url TEXT,
       
-      -- OLD scoring components (kept for backward compat, no longer in total_score formula)
-      harmful_ingredients_score INT DEFAULT 50,
-      banned_elsewhere_score INT DEFAULT 50,
-      transparency_score INT DEFAULT 50,
-      processing_score INT DEFAULT 50,
-      company_behavior_score INT DEFAULT 50,
-      
-      -- NEW scoring model: Nutrition 60% + Additives 30% + Organic 10%
+      -- Scoring model: Nutrition 60% + Additives 30% + Organic 10%
       nutrition_score INT DEFAULT 50,
       additives_score INT DEFAULT 50,
       organic_bonus INT DEFAULT 0,
@@ -507,6 +500,7 @@ export async function initDatabase() {
       
       -- Push notification subscriptions
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS native_push_token TEXT;
 
       -- Admin role
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
@@ -606,6 +600,25 @@ export async function initDatabase() {
       // Recreate the index
       await pool.query('CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score)');
       console.log('  ✓ total_score migrated to new formula');
+    }
+
+    // Drop legacy score columns from old 5-column scoring model (no longer used)
+    const legacyCols = [
+      'harmful_ingredients_score',
+      'banned_elsewhere_score',
+      'transparency_score',
+      'processing_score',
+      'company_behavior_score',
+    ];
+    for (const col of legacyCols) {
+      const exists = await pool.query(`
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'products' AND column_name = $1
+      `, [col]);
+      if (exists.rows.length > 0) {
+        await pool.query(`ALTER TABLE products DROP COLUMN IF EXISTS ${col}`);
+        console.log(`  ✓ Dropped legacy column: ${col}`);
+      }
     }
 
     console.log('Database migrations complete');

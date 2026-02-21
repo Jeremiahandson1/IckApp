@@ -175,11 +175,18 @@ initDatabase()
     }
 
     // Start flyer crawler (30s delay, then daily at 3AM UTC)
+    // Skip if products table is empty — nothing to crawl on a fresh deploy
     setTimeout(async () => {
       try {
+        const countResult = await pool.query('SELECT COUNT(*) FROM products WHERE total_score IS NOT NULL');
+        const productCount = parseInt(countResult.rows[0].count);
+        if (productCount === 0) {
+          console.log('▸ Flyer crawler skipped — no scored products in DB yet');
+          return;
+        }
         const { startCrawlScheduler } = await import('./services/flyerCrawler.js');
         startCrawlScheduler();
-        console.log('▸ Flyer crawler scheduled');
+        console.log(`▸ Flyer crawler scheduled (${productCount} products to crawl)`);
       } catch (e) {
         console.warn('⚠ Flyer crawler start failed (non-fatal):', e.message);
       }

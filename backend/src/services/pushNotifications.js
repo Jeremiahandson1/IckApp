@@ -3,16 +3,23 @@
  *
  * Handles server-side push delivery for both:
  *   - Web Push (PWA): W3C Web Push Protocol via VAPID + web-push library
- *   - Native (iOS/Android): Capacitor FCM device tokens — stub for future Firebase integration
+ *   - Native (iOS/Android): Firebase Admin SDK via FCM device tokens
  *
  * Setup:
- *   1. npm install web-push
- *   2. Generate VAPID keys once: node -e "const wp=require('web-push'); console.log(JSON.stringify(wp.generateVAPIDKeys()))"
- *   3. Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL in Render env vars
+ *   Web Push:
+ *     1. npm install web-push
+ *     2. Generate VAPID keys: node -e "const wp=require('web-push'); console.log(JSON.stringify(wp.generateVAPIDKeys()))"
+ *     3. Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL in Render env vars
+ *
+ *   Native Push (FCM):
+ *     1. Create a Firebase project at console.firebase.google.com
+ *     2. Go to Project Settings → Service Accounts → Generate new private key
+ *     3. Base64-encode the JSON: base64 -i serviceAccountKey.json | tr -d '\n'
+ *     4. Set FIREBASE_SERVICE_ACCOUNT_BASE64 in Render env vars
  *
  * Usage:
- *   import { sendPush } from './services/pushNotifications.js';
- *   await sendPush(pushSubscriptionJson, { title: 'Ick Alert', body: '...' });
+ *   import { sendPushToUser } from './services/pushNotifications.js';
+ *   await sendPushToUser(userId, { title: 'Ick Alert', body: '...' });
  */
 
 import webpush from 'web-push';
@@ -23,11 +30,13 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:hello@ick.app';
 
 let vapidConfigured = false;
+let firebaseApp = null;
+let firebaseMessaging = null;
 
 function ensureVapid() {
   if (vapidConfigured) return true;
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn('[Push] VAPID keys not set — web push disabled. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY env vars.');
+    console.warn('[Push] VAPID keys not set — web push disabled.');
     return false;
   }
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -35,28 +44,41 @@ function ensureVapid() {
   return true;
 }
 
-/**
- * Send a push notification to a single subscription object.
- * Returns true on success, false on failure.
- *
- * @param {Object} subscription - The push_subscription stored in users table
- * @param {Object} payload - { title, body, icon, badge, url, tag, data }
- */
-export async function sendPush(subscription, payload) {
-  if (!subscription) return false;
+async function ensureFirebase() {
+  if (firebaseMessaging) return firebaseMessaging;
 
-  const sub = typeof subscription === 'string' ? JSON.parse(subscription) : subscription;
-
-  // Native push token (Capacitor FCM) — not yet implemented server-side
-  // Would require Firebase Admin SDK + FCM send API
-  if (sub.type === 'native') {
-    console.log('[Push] Native FCM push not yet implemented — token:', sub.token?.slice(0, 20) + '...');
-    return false;
+  const serviceAccountB64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (!serviceAccountB64) {
+    console.warn('[Push] FIREBASE_SERVICE_ACCOUNT_BASE64 not set — native push disabled.');
+    return null;
   }
 
-  // Web Push (PWA)
+  try {
+    const { default: admin } = await import('firebase-admin');
+
+    if (!firebaseApp) {
+      const serviceAccount = JSON.parse(Buffer.from(serviceAccountB64, 'base64').toString('utf8'));
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    firebaseMessaging = admin.messaging(firebaseApp);
+    console.log('[Push] Firebase Admin SDK initialized');
+    return firebaseMessaging;
+  } catch (err) {
+    console.error('[Push] Firebase init error:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Send a Web Push notification to a VAPID subscription object.
+ */
+async function sendWebPush(subscription, payload) {
   if (!ensureVapid()) return false;
-  if (!sub.endpoint) return false;
+  const sub = typeof subscription === 'string' ? JSON.parse(subscription) : subscription;
+  if (!sub?.endpoint) return false;
 
   try {
     await webpush.sendNotification(
@@ -70,48 +92,100 @@ export async function sendPush(subscription, payload) {
         url: payload.url || '/pantry',
         data: payload.data || {},
       }),
-      { TTL: 60 * 60 * 24 } // 24h TTL — if device is offline, retry for 24h
+      { TTL: 60 * 60 * 24 }
     );
     return true;
   } catch (err) {
-    if (err.statusCode === 410 || err.statusCode === 404) {
-      // Subscription expired — clean it up
-      console.log('[Push] Subscription expired, removing from DB');
+    if (err.statusCode === 410 || err.statusCode === 404) return 'expired';
+    console.error('[Push] Web push send error:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Send an FCM notification to a native device token.
+ */
+async function sendFCM(token, payload) {
+  const messaging = await ensureFirebase();
+  if (!messaging) return false;
+
+  try {
+    await messaging.send({
+      token,
+      notification: {
+        title: payload.title || 'Ick',
+        body: payload.body || '',
+      },
+      data: {
+        url: payload.url || '/pantry',
+        tag: payload.tag || 'ick-alert',
+        ...(payload.data ? Object.fromEntries(
+          Object.entries(payload.data).map(([k, v]) => [k, String(v)])
+        ) : {}),
+      },
+      android: {
+        notification: {
+          icon: 'ic_notification',
+          color: '#f97316', // Ick orange
+          sound: 'default',
+          channelId: 'ick-alerts',
+        },
+        priority: 'high',
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
+        },
+      },
+    });
+    return true;
+  } catch (err) {
+    // Token is invalid/unregistered — clean it up
+    if (err.code === 'messaging/registration-token-not-registered' ||
+        err.code === 'messaging/invalid-registration-token') {
       return 'expired';
     }
-    console.error('[Push] Send error:', err.message);
+    console.error('[Push] FCM send error:', err.message);
     return false;
   }
 }
 
 /**
  * Send push to a user by user ID.
- * Fetches their push_subscription from DB automatically.
- *
- * @param {string} userId
- * @param {Object} payload - { title, body, url, tag, data }
- * @returns {boolean|string} true=sent, false=failed, 'no_sub'=no subscription on file
+ * Tries native FCM first if available, falls back to web push.
  */
 export async function sendPushToUser(userId, payload) {
   try {
     const result = await pool.query(
-      'SELECT push_subscription FROM users WHERE id = $1',
+      'SELECT push_subscription, native_push_token FROM users WHERE id = $1',
       [userId]
     );
+    const row = result.rows[0];
+    if (!row) return 'no_sub';
 
-    if (!result.rows[0]?.push_subscription) return 'no_sub';
-
-    const outcome = await sendPush(result.rows[0].push_subscription, payload);
-
-    // Clean up expired subscriptions
-    if (outcome === 'expired') {
-      await pool.query(
-        'UPDATE users SET push_subscription = NULL WHERE id = $1',
-        [userId]
-      );
+    // Try native FCM first
+    if (row.native_push_token) {
+      const outcome = await sendFCM(row.native_push_token, payload);
+      if (outcome === 'expired') {
+        await pool.query('UPDATE users SET native_push_token = NULL WHERE id = $1', [userId]);
+      }
+      if (outcome === true) return true;
+      // fall through to web push if FCM failed non-fatally
     }
 
-    return outcome;
+    // Fall back to web push
+    if (row.push_subscription) {
+      const outcome = await sendWebPush(row.push_subscription, payload);
+      if (outcome === 'expired') {
+        await pool.query('UPDATE users SET push_subscription = NULL WHERE id = $1', [userId]);
+      }
+      return outcome;
+    }
+
+    return 'no_sub';
   } catch (err) {
     console.error('[Push] sendPushToUser error:', err);
     return false;
@@ -119,11 +193,17 @@ export async function sendPushToUser(userId, payload) {
 }
 
 /**
- * Broadcast push to multiple users.
- * Runs in parallel with concurrency limit to avoid overwhelming the push service.
- *
- * @param {Array<{id, push_subscription}>} users
- * @param {Object} payload
+ * Legacy single-subscription send (kept for backward compat).
+ */
+export async function sendPush(subscription, payload) {
+  if (!subscription) return false;
+  const sub = typeof subscription === 'string' ? JSON.parse(subscription) : subscription;
+  if (sub.type === 'native') return sendFCM(sub.token, payload);
+  return sendWebPush(sub, payload);
+}
+
+/**
+ * Broadcast push to multiple users (by user rows with id + push columns).
  */
 export async function broadcastPush(users, payload) {
   const CONCURRENCY = 10;
@@ -131,9 +211,7 @@ export async function broadcastPush(users, payload) {
 
   for (let i = 0; i < users.length; i += CONCURRENCY) {
     const batch = users.slice(i, i + CONCURRENCY);
-    const outcomes = await Promise.all(
-      batch.map(u => sendPush(u.push_subscription, payload))
-    );
+    const outcomes = await Promise.all(batch.map(u => sendPushToUser(u.id, payload)));
     outcomes.forEach(o => {
       if (o === true) results.sent++;
       else if (o === 'expired') results.expired++;
@@ -146,8 +224,7 @@ export async function broadcastPush(users, payload) {
 }
 
 /**
- * Return the VAPID public key for frontend subscription registration.
- * Frontend needs this to call pushManager.subscribe({ applicationServerKey: ... })
+ * Return the VAPID public key for frontend PWA subscription registration.
  */
 export function getVapidPublicKey() {
   return VAPID_PUBLIC_KEY || null;
