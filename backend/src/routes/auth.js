@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import pool from '../db/init.js';
 import {
   generateToken, generateRefreshToken,
@@ -9,6 +10,35 @@ import {
 import { startTrial, getSubscriptionStatus } from '../middleware/subscription.js';
 
 const router = express.Router();
+
+// ── Zod validation schemas ────────────────────────────────────────────────────
+const registerSchema = z.object({
+  email: z.string().email({ message: 'Invalid email address' }),
+  password: z.string().min(8, { message: 'Password must be at least 8 characters' }),
+  name: z.string().max(100).optional(),
+  zip_code: z.string().regex(/^\d{5}$/, { message: 'Invalid zip code' }).optional(),
+  household_size: z.number().int().min(1).max(20).optional(),
+  has_kids: z.boolean().optional(),
+  kids_ages: z.array(z.number().int().min(0).max(18)).optional(),
+  allergen_alerts: z.array(z.string().max(50)).optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().email({ message: 'Invalid email address' }),
+  password: z.string().min(1, { message: 'Password required' }),
+});
+
+function validate(schema) {
+  return (req, res, next) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      const errors = result.error.errors.map(e => e.message).join(', ');
+      return res.status(400).json({ error: errors });
+    }
+    req.body = result.data; // use parsed/coerced values
+    next();
+  };
+}
 
 // ── Per-email brute-force protection ────────────────────────────────────────
 // Tracks failed login attempts per email in DB. Locks for 15 min after 10 failures.
@@ -54,7 +84,7 @@ function userResponse(user, subscription) {
 }
 
 // ── Register ─────────────────────────────────────────────────────────────────
-router.post('/register', async (req, res) => {
+router.post('/register', validate(registerSchema), async (req, res) => {
   try {
     const { email, password, name, zip_code, household_size, has_kids, kids_ages, allergen_alerts } = req.body;
 
@@ -99,7 +129,7 @@ router.post('/register', async (req, res) => {
 });
 
 // ── Login ─────────────────────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', validate(loginSchema), async (req, res) => {
   const ip = getClientIp(req);
   try {
     const { email, password } = req.body;
@@ -280,12 +310,6 @@ router.post('/push-subscribe', authenticateToken, async (req, res) => {
 // ── Bootstrap admin (only works when no admins exist yet) ─────────────────────
 router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
   try {
-    // Require a secret to prevent race condition on first deploy
-    const BOOTSTRAP_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET;
-    if (BOOTSTRAP_SECRET && req.body.secret !== BOOTSTRAP_SECRET) {
-      return res.status(403).json({ error: 'Invalid bootstrap secret.' });
-    }
-
     const adminCheck = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = true');
     if (parseInt(adminCheck.rows[0].count) > 0) {
       return res.status(403).json({ error: 'Admin already exists. Ask an existing admin to promote you.' });

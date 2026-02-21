@@ -1,8 +1,30 @@
 import express from 'express';
+import { z } from 'zod';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+
+const kidRatingSchema = z.object({
+  upc: z.string().min(8).max(20),
+  kid_name: z.string().min(1).max(100),
+  kid_age: z.number().int().min(0).max(18).optional(),
+  rating: z.number().int().min(1).max(5),
+  would_eat_again: z.boolean().optional(),
+  notes: z.string().max(500).optional(),
+});
+
+function validate(schema) {
+  return (req, res, next) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      const errors = result.error.errors.map(e => e.message).join(', ');
+      return res.status(400).json({ error: errors });
+    }
+    req.body = result.data;
+    next();
+  };
+}
 
 // GET /api/products/kid-ratings/:upc — community + user ratings
 router.get('/:upc', optionalAuth, async (req, res) => {
@@ -44,15 +66,9 @@ router.get('/:upc', optionalAuth, async (req, res) => {
 });
 
 // POST /api/products/kid-ratings — add or update a rating
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, validate(kidRatingSchema), async (req, res) => {
   try {
     const { upc, kid_name, kid_age, rating, would_eat_again, notes } = req.body;
-    if (!upc || !kid_name || !rating) {
-      return res.status(400).json({ error: 'upc, kid_name, and rating required' });
-    }
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be 1–5' });
-    }
 
     const productResult = await pool.query('SELECT id FROM products WHERE upc = $1', [upc]);
     const productId = productResult.rows[0]?.id || null;

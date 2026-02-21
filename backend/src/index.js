@@ -91,6 +91,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// VAPID public key — frontend needs this to register for web push
+app.get('/api/push/vapid-public-key', (req, res) => {
+  const key = process.env.VAPID_PUBLIC_KEY;
+  if (!key) return res.status(503).json({ error: 'Push notifications not configured' });
+  res.json({ publicKey: key });
+});
+
 // API Routes
 // Free routes
 app.use('/api/auth', authRoutes);
@@ -172,6 +179,14 @@ initDatabase()
         console.warn('⚠ Flyer crawler start failed (non-fatal):', e.message);
       }
     }, 30000);
+
+    // Start velocity alert scheduler (5min delay, then daily)
+    try {
+      const { startVelocityAlertScheduler } = await import('./services/velocityAlerts.js');
+      startVelocityAlertScheduler();
+    } catch (e) {
+      console.warn('⚠ Velocity alert scheduler failed (non-fatal):', e.message);
+    }
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err);
