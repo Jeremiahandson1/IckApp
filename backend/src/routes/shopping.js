@@ -219,13 +219,23 @@ router.put('/lists/:id/complete', async (req, res) => {
       return res.status(404).json({ error: 'List not found' });
     }
 
-    // Add purchased items to pantry
+    // Add purchased items to pantry — skip any already present to avoid duplicates
     const items = await pool.query(
       `SELECT * FROM shopping_list_items WHERE list_id = $1 AND checked = true`,
       [id]
     );
 
     for (const item of items.rows) {
+      // Check if already in active pantry (by upc or product_id)
+      const existing = await pool.query(
+        `SELECT id FROM pantry_items 
+         WHERE user_id = $1 AND status = 'active'
+           AND (($2::varchar IS NOT NULL AND upc = $2) OR ($3::int IS NOT NULL AND product_id = $3))
+         LIMIT 1`,
+        [req.user.id, item.upc || null, item.product_id || null]
+      );
+      if (existing.rows.length > 0) continue; // already there, skip
+
       await pool.query(
         `INSERT INTO pantry_items (user_id, product_id, upc, custom_name, quantity)
          VALUES ($1, $2, $3, $4, $5)`,

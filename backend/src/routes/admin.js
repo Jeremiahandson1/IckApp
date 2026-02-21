@@ -93,7 +93,11 @@ router.get('/users', async (req, res) => {
     params.push(parseInt(limit), offset);
 
     const result = await pool.query(query, params);
-    const countResult = await pool.query('SELECT COUNT(*) FROM users');
+    // Count respects search filter for accurate pagination
+    const countQuery = search
+      ? `SELECT COUNT(*) FROM users WHERE email ILIKE $1 OR name ILIKE $1`
+      : `SELECT COUNT(*) FROM users`;
+    const countResult = await pool.query(countQuery, search ? [`%${search}%`] : []);
 
     res.json({
       users: result.rows,

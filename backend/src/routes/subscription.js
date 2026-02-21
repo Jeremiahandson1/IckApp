@@ -142,15 +142,39 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       const userId = session.metadata?.user_id;
       const plan = session.metadata?.plan || 'monthly';
       if (userId && session.subscription) {
-        const expiresAt = new Date(Date.now() + (plan === 'yearly' ? 365 : 30) * 86400000);
-        await pool.query(
-          `INSERT INTO subscriptions (user_id, plan, status, subscribed_at, expires_at, stripe_subscription_id)
-           VALUES ($1, $2, 'active', NOW(), $3, $4)
-           ON CONFLICT (user_id) DO UPDATE SET
-             plan=$2, status='active', subscribed_at=NOW(), expires_at=$3,
-             stripe_subscription_id=$4, updated_at=NOW()`,
-          [userId, plan, expiresAt.toISOString(), session.subscription]
-        );
+        try {
+          // Use Stripe's actual period_end — don't hardcode 30/365 days
+          const stripeSub = await stripe.subscriptions.retrieve(session.subscription);
+          const expiresAt = new Date(stripeSub.current_period_end * 1000);
+          await pool.query(
+            `INSERT INTO subscriptions (user_id, plan, status, subscribed_at, expires_at, stripe_subscription_id)
+             VALUES ($1, $2, 'active', NOW(), $3, $4)
+             ON CONFLICT (user_id) DO UPDATE SET
+               plan=$2, status='active', subscribed_at=NOW(), expires_at=$3,
+               stripe_subscription_id=$4, updated_at=NOW()`,
+            [userId, plan, expiresAt.toISOString(), session.subscription]
+          );
+        } catch (e) {
+          console.error('checkout.session.completed handler error:', e.message);
+        }
+      }
+      break;
+    }
+    case 'invoice.paid': {
+      // Fires on every successful recurring charge — extend the subscription expiry
+      const inv = event.data.object;
+      if (inv.subscription && inv.status === 'paid') {
+        try {
+          const stripeSub = await stripe.subscriptions.retrieve(inv.subscription);
+          const expiresAt = new Date(stripeSub.current_period_end * 1000);
+          await pool.query(
+            `UPDATE subscriptions SET status='active', expires_at=$1, updated_at=NOW()
+             WHERE stripe_subscription_id=$2`,
+            [expiresAt.toISOString(), inv.subscription]
+          );
+        } catch (e) {
+          console.error('invoice.paid handler error:', e.message);
+        }
       }
       break;
     }

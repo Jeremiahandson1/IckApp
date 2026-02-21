@@ -112,32 +112,43 @@ router.post('/bulk', async (req, res) => {
       return res.status(400).json({ error: 'Items array required' });
     }
 
-    const added = [];
-    
-    for (const item of items) {
-      const { upc, custom_name, quantity = 1 } = item;
+    const upcs = [...new Set(items.map(i => i.upc).filter(Boolean))];
 
-      // Get product ID
-      let productId = null;
+    // Single query to resolve all product IDs at once
+    const productMap = {};
+    if (upcs.length > 0) {
       const productResult = await pool.query(
-        'SELECT id FROM products WHERE upc = $1',
-        [upc]
+        'SELECT id, upc FROM products WHERE upc = ANY($1::text[])',
+        [upcs]
       );
-      if (productResult.rows.length > 0) {
-        productId = productResult.rows[0].id;
-      }
-
-      const result = await pool.query(
-        `INSERT INTO pantry_items (user_id, product_id, upc, custom_name, quantity)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [req.user.id, productId, upc, custom_name, quantity]
-      );
-
-      added.push(result.rows[0]);
+      productResult.rows.forEach(r => { productMap[r.upc] = r.id; });
     }
 
-    res.status(201).json({ added: added.length, items: added });
+    // Build multi-row INSERT values
+    const values = items.map(item => ({
+      user_id: req.user.id,
+      product_id: productMap[item.upc] || null,
+      upc: item.upc,
+      custom_name: item.custom_name || null,
+      quantity: item.quantity || 1,
+    }));
+
+    const placeholders = values.map((_, i) =>
+      `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
+    ).join(', ');
+
+    const params = values.flatMap(v =>
+      [v.user_id, v.product_id, v.upc, v.custom_name, v.quantity]
+    );
+
+    const result = await pool.query(
+      `INSERT INTO pantry_items (user_id, product_id, upc, custom_name, quantity)
+       VALUES ${placeholders}
+       RETURNING *`,
+      params
+    );
+
+    res.status(201).json({ added: result.rows.length, items: result.rows });
 
   } catch (err) {
     console.error('Bulk pantry add error:', err);

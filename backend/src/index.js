@@ -31,6 +31,9 @@ import contributionsRoutes from './routes/contributions.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust one level of proxy (Render load balancer) so rate limiter gets real client IPs
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -101,6 +104,11 @@ app.get('/api/push/vapid-public-key', (req, res) => {
 // API Routes
 // Free routes
 app.use('/api/auth', authRoutes);
+// Sub-routes of /api/products MUST be mounted BEFORE /api/products
+// because productRoutes has a catch-all GET /:id that would shadow them otherwise
+app.use('/api/products/family', familyRoutes);
+app.use('/api/products/kid-ratings', kidRatingsRoutes);
+app.use('/api/products/admin/contributions', contributionsRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 
@@ -116,9 +124,6 @@ app.use('/api/kroger', krogerRoutes);
 app.use('/api/sightings', sightingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/receipts', receiptRoutes);
-app.use('/api/products/family', familyRoutes);
-app.use('/api/products/kid-ratings', kidRatingsRoutes);
-app.use('/api/products/admin/contributions', contributionsRoutes);
 
 // Serve frontend in production
 import path from 'path';
@@ -187,6 +192,21 @@ initDatabase()
     } catch (e) {
       console.warn('⚠ Velocity alert scheduler failed (non-fatal):', e.message);
     }
+
+    // Daily maintenance cleanup — runs every 24 hours
+    setInterval(async () => {
+      try {
+        await pool.query(`
+          DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
+          DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
+          DELETE FROM refresh_tokens WHERE created_at < NOW() - INTERVAL '90 days';
+          DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '7 days';
+        `);
+        console.log('▸ Daily maintenance cleanup complete');
+      } catch (e) {
+        console.warn('⚠ Daily cleanup failed (non-fatal):', e.message);
+      }
+    }, 24 * 60 * 60 * 1000);
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err);

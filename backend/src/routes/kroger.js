@@ -42,10 +42,10 @@ router.get('/product/:upc', optionalAuth, async (req, res) => {
            merchant as store_name, price, price_text, sale_story,
            crawled_at, search_zip, region, 'flyer' as source
          FROM flyer_availability
-         WHERE (upc = $1 OR our_product_name ILIKE $2) AND expires_at > NOW()
+         WHERE upc = $1 AND expires_at > NOW()
          ORDER BY merchant, crawled_at DESC
          LIMIT 10`,
-        [upc, `%${upc}%`] // fallback to name match later
+        [upc]
       );
       results.flyer = flyerResult.rows.map(r => ({
         ...r,

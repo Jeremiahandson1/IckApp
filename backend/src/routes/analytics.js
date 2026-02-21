@@ -43,21 +43,31 @@ router.post('/batch', optionalAuth, async (req, res) => {
     const { events } = req.body;
     if (!Array.isArray(events)) return res.status(400).json({ error: 'events array required' });
 
-    for (const evt of events.slice(0, 50)) { // Max 50 per batch
-      await pool.query(
-        `INSERT INTO analytics_events (user_id, event_type, event_data, session_id, created_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          req.user?.id || null,
-          evt.event_type,
-          JSON.stringify(evt.event_data || {}),
-          evt.session_id || null,
-          evt.timestamp ? new Date(evt.timestamp) : new Date()
-        ]
-      );
-    }
+    const batch = events.slice(0, 50).map(evt => ({
+      user_id: req.user?.id || null,
+      event_type: evt.event_type,
+      event_data: JSON.stringify(evt.event_data || {}),
+      session_id: evt.session_id || null,
+      created_at: evt.timestamp ? new Date(evt.timestamp) : new Date(),
+    })).filter(e => e.event_type); // drop any events missing type
 
-    res.json({ tracked: events.length });
+    if (batch.length === 0) return res.json({ tracked: 0 });
+
+    const placeholders = batch.map((_, i) =>
+      `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
+    ).join(', ');
+
+    const params = batch.flatMap(e =>
+      [e.user_id, e.event_type, e.event_data, e.session_id, e.created_at]
+    );
+
+    await pool.query(
+      `INSERT INTO analytics_events (user_id, event_type, event_data, session_id, created_at)
+       VALUES ${placeholders}`,
+      params
+    );
+
+    res.json({ tracked: batch.length });
   } catch (err) {
     console.error('Batch analytics error:', err);
     res.json({ tracked: 0 });

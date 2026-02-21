@@ -66,7 +66,7 @@ router.get('/for/:upc', async (req, res) => {
     // Get recipes that replace this product or category
     const result = await pool.query(
       `SELECT * FROM recipes 
-       WHERE $1 = ANY(replaces_products) 
+       WHERE replaces_products @> to_jsonb($1::text)
        OR replaces_category = $2
        ORDER BY total_time_minutes ASC`,
       [upc, category]

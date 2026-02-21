@@ -268,7 +268,7 @@ export const shopping = {
 export const velocity = {
   all: () => api.get('/velocity'),
   forProduct: (upc) => api.get(`/velocity/product/${upc}`),
-  log: (upc) => api.post('/velocity/log', { upc }),
+  log: (upc, days_to_consume) => api.post('/velocity/log', { upc, days_to_consume }),
   runningLow: (days = 7) => api.get(`/velocity/running-low?days=${days}`),
   reset: (upc) => api.delete(`/velocity/product/${upc}`),
   restock: (upc) => api.post(`/velocity/restock/${upc}`),

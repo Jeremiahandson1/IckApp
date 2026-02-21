@@ -3,10 +3,15 @@ import crypto from 'crypto';
 import pool from '../db/init.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const REFRESH_SECRET = process.env.REFRESH_SECRET || JWT_SECRET + '_refresh';
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+
+if (!REFRESH_SECRET) {
+  console.error('FATAL: REFRESH_SECRET environment variable is required (must be independent of JWT_SECRET)');
   process.exit(1);
 }
 
@@ -40,9 +45,11 @@ export function optionalAuth(req, res, next) {
   if (token) {
     jwt.verify(token, JWT_SECRET, (err, user) => {
       if (!err) req.user = user;
+      next(); // always called inside callback to avoid race condition
     });
+  } else {
+    next();
   }
-  next();
 }
 
 // ── Token generation ─────────────────────────────────────────────────────────
@@ -127,4 +134,4 @@ export async function revokeAllUserRefreshTokens(userId) {
   ).catch(() => {});
 }
 
-export { JWT_SECRET, REFRESH_SECRET };
+export { JWT_SECRET };

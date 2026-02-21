@@ -310,6 +310,17 @@ router.post('/push-subscribe', authenticateToken, async (req, res) => {
 // ── Bootstrap admin (only works when no admins exist yet) ─────────────────────
 router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
   try {
+    // Require the bootstrap secret set in Render env vars
+    const { bootstrap_secret } = req.body;
+    const expectedSecret = process.env.ADMIN_BOOTSTRAP_SECRET;
+
+    if (!expectedSecret) {
+      return res.status(503).json({ error: 'ADMIN_BOOTSTRAP_SECRET not configured on server.' });
+    }
+    if (!bootstrap_secret || bootstrap_secret !== expectedSecret) {
+      return res.status(403).json({ error: 'Invalid bootstrap secret.' });
+    }
+
     const adminCheck = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = true');
     if (parseInt(adminCheck.rows[0].count) > 0) {
       return res.status(403).json({ error: 'Admin already exists. Ask an existing admin to promote you.' });

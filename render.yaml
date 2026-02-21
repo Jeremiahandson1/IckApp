@@ -44,5 +44,5 @@ services:
       # Stripe (add these manually in Render dashboard after setup)
       # - key: STRIPE_SECRET_KEY
       # - key: STRIPE_WEBHOOK_SECRET
-      # - key: STRIPE_PRICE_MONTHLY
-      # - key: STRIPE_PRICE_YEARLY
+      # - key: STRIPE_MONTHLY_PRICE_ID
+      # - key: STRIPE_YEARLY_PRICE_ID

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Scan, ShieldCheck, ArrowRightLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const INFO_SCREENS = [
   {
@@ -42,16 +43,23 @@ export default function Onboarding() {
   const [screen, setScreen] = useState(0);
   const [selectedAllergens, setSelectedAllergens] = useState([]);
   const navigate = useNavigate();
+  const { user, updateProfile } = useAuth();
 
   const totalScreens = INFO_SCREENS.length + 1; // +1 for allergen screen
   const isAllergenScreen = screen === INFO_SCREENS.length;
   const isLast = screen === totalScreens - 1;
 
-  const finish = () => {
+  const finish = async () => {
     localStorage.setItem('ick_onboarded', 'true');
-    // Save allergens to localStorage for anonymous users
+    // Always save to localStorage for anonymous/offline use
     if (selectedAllergens.length > 0) {
       localStorage.setItem('ick_allergens', JSON.stringify(selectedAllergens));
+    }
+    // If logged in, persist allergens to the account so they sync across devices
+    if (user && selectedAllergens.length > 0) {
+      try {
+        await updateProfile({ allergen_alerts: selectedAllergens });
+      } catch (e) { /* non-fatal — localStorage copy is the fallback */ }
     }
     navigate('/scan');
   };

@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { scoreProduct } from '../utils/scoring.js';
 
 const router = express.Router();
 
@@ -46,15 +47,36 @@ router.put('/:id/approve', async (req, res) => {
 
     const c = contrib.rows[0];
 
+    // Score the contributed product before inserting
+    const scores = await scoreProduct({
+      ingredients: c.ingredients_text || '',
+      brand: c.brand || '',
+    }).catch(() => null);
+
     await pool.query(
-      `INSERT INTO products (upc, name, brand, ingredients)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO products (upc, name, brand, ingredients,
+         nutrition_score, additives_score, organic_bonus,
+         harmful_ingredients_found, nutrition_facts, allergens_tags)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (upc) DO UPDATE SET
          name = COALESCE(EXCLUDED.name, products.name),
          brand = COALESCE(EXCLUDED.brand, products.brand),
          ingredients = COALESCE(EXCLUDED.ingredients, products.ingredients),
-         image_url = COALESCE($5, products.image_url)`,
-      [c.upc, c.name, c.brand, c.ingredients_text, c.image_url]
+         nutrition_score = COALESCE(EXCLUDED.nutrition_score, products.nutrition_score),
+         additives_score = COALESCE(EXCLUDED.additives_score, products.additives_score),
+         organic_bonus = COALESCE(EXCLUDED.organic_bonus, products.organic_bonus),
+         harmful_ingredients_found = COALESCE(EXCLUDED.harmful_ingredients_found, products.harmful_ingredients_found),
+         image_url = COALESCE($11, products.image_url)`,
+      [
+        c.upc, c.name, c.brand, c.ingredients_text,
+        scores?.nutrition_score ?? 50,
+        scores?.additives_score ?? 50,
+        scores?.organic_bonus ?? 0,
+        scores?.harmful_ingredients_found ? JSON.stringify(scores.harmful_ingredients_found) : '[]',
+        scores?.nutrition_facts ? JSON.stringify(scores.nutrition_facts) : '{}',
+        scores?.allergens_tags ? JSON.stringify(scores.allergens_tags) : '[]',
+        c.image_url || null
+      ]
     );
 
     await pool.query(

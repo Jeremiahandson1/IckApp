@@ -348,6 +348,9 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
     CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
     CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score);
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand);
+    CREATE INDEX IF NOT EXISTS idx_products_clean_alt ON products(is_clean_alternative) WHERE is_clean_alternative = true;
     CREATE INDEX IF NOT EXISTS idx_pantry_user ON pantry_items(user_id);
     CREATE INDEX IF NOT EXISTS idx_velocity_user ON consumption_velocity(user_id);
     CREATE INDEX IF NOT EXISTS idx_velocity_upc ON consumption_velocity(upc);
@@ -356,6 +359,9 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_harmful_name ON harmful_ingredients(name);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+    CREATE INDEX IF NOT EXISTS idx_swap_clicks_user ON swap_clicks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_shopping_list_items_list ON shopping_list_items(list_id);
+    CREATE INDEX IF NOT EXISTS idx_scan_logs_upc ON scan_logs(upc);
 
     -- Scan logs for rate limiting free users
     CREATE TABLE IF NOT EXISTS scan_logs (
@@ -558,19 +564,6 @@ export async function initDatabase() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
       CREATE INDEX IF NOT EXISTS idx_products_swap_type ON products(swap_discovery_type, total_score DESC);
 
-      -- Refresh tokens for JWT rotation (added Feb 2026)
-      CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        token_hash VARCHAR(64) UNIQUE NOT NULL,
-        revoked BOOLEAN DEFAULT false,
-        revoked_at TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
-      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
-
       -- Login attempt tracking for per-email brute-force protection
       CREATE TABLE IF NOT EXISTS login_attempts (
         id SERIAL PRIMARY KEY,
@@ -584,6 +577,10 @@ export async function initDatabase() {
       -- Periodic cleanup: remove old expired/revoked refresh tokens and login attempts
       DELETE FROM refresh_tokens WHERE created_at < NOW() - INTERVAL '90 days';
       DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '7 days';
+      -- Prune analytics events older than 90 days (unbounded growth prevention)
+      DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
+      -- Prune scan logs older than 1 year (keep recent history, drop ancient)
+      DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
     `);
 
     // Check if total_score still uses old formula (5 columns)

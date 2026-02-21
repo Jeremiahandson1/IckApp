@@ -182,6 +182,8 @@ export default function Scan() {
     try {
       const result = await products.scan(cleanUPC);
       track('scan', { upc: cleanUPC, score: result.total_score, source: result.source });
+      // Passively record community sighting — fire and forget, never blocks the scan
+      api.post('/sightings/auto', { upc: cleanUPC }).catch(() => {});
       navigate(`/product/${cleanUPC}`, { state: { product: result } });
     } catch (error) {
       if (error.status === 404) {

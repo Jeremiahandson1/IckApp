@@ -15,7 +15,7 @@ export default function PremiumGate({ feature, children }) {
 
   const checkPremiumStatus = async () => {
     try {
-      const token = localStorage.getItem('ick_token');
+      const token = localStorage.getItem('token');
       if (!token) {
         setLoading(false);
         return;
@@ -42,7 +42,7 @@ export default function PremiumGate({ feature, children }) {
 
   const handleStartTrial = async () => {
     try {
-      const token = localStorage.getItem('ick_token');
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/subscription/start-trial`, {
         method: 'POST',
         headers: { 
