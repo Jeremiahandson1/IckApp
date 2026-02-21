@@ -578,8 +578,6 @@ export async function initDatabase() {
       DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
       -- Prune scan logs older than 1 year (keep recent history, drop ancient)
       DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
-      -- Prune expired password reset tokens
-      DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '1 day';
     `);
 
     // Check if total_score still uses old formula (5 columns)
@@ -641,6 +639,9 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash);
       CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
     `);
+
+    // Prune expired reset tokens now that the table is guaranteed to exist
+    await pool.query(`DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '1 day'`);
 
     // Auto-seed on fresh deploy if core tables are empty
     try {

@@ -41,11 +41,23 @@ services:
         sync: false  # Add manually — sign up at https://platform.fatsecret.com/
       - key: FATSECRET_CLIENT_SECRET
         sync: false
-      # Stripe (add these manually in Render dashboard after setup)
+      # ── Stripe ──────────────────────────────────────────────────────────────
+      # Required for paid subscriptions. Setup:
+      #   1. Create account at stripe.com
+      #   2. Create two products (Monthly $4.99, Yearly $39.99) in Stripe dashboard
+      #   3. Copy the Price IDs (price_xxx) for each
+      #   4. Set up webhook endpoint: https://your-app.onrender.com/api/subscription/webhook
+      #      Events: checkout.session.completed, invoice.paid, customer.subscription.deleted, invoice.payment_failed
+      #   5. Paste all four values below in the Render dashboard (Environment → Add variable)
       # - key: STRIPE_SECRET_KEY
       # - key: STRIPE_WEBHOOK_SECRET
       # - key: STRIPE_MONTHLY_PRICE_ID
       # - key: STRIPE_YEARLY_PRICE_ID
+      # ── Premium gate ─────────────────────────────────────────────────────────
+      # Set to true AFTER Stripe is live and you're ready to charge real users.
+      # Leave false during beta / early growth — all features remain free.
+      # - key: PREMIUM_ENABLED
+      #   value: "true"
       # Firebase Admin (for native FCM push — iOS/Android)
       # Base64-encode your Firebase service account JSON:
       #   base64 -i serviceAccountKey.json | tr -d '\n'
