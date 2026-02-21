@@ -573,6 +573,8 @@ router.delete('/account', authenticateToken, async (req, res) => {
     }
 
     // Delete the user — cascades to all related data via FK constraints
+    // Also clean up password reset tokens (no FK cascade on that table)
+    await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [req.user.id]);
     await pool.query('DELETE FROM users WHERE id = $1', [req.user.id]);
 
     res.json({ deleted: true, message: 'Your account and all data have been permanently deleted.' });
