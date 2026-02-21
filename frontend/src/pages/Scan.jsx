@@ -86,11 +86,14 @@ export default function Scan() {
   const startWebScanner = async () => {
     if (html5QrCodeRef.current) return;
     try {
-      html5QrCodeRef.current = new Html5Qrcode('qr-reader');
+      // verbose: false suppresses all library logging
+      html5QrCodeRef.current = new Html5Qrcode('qr-reader', { verbose: false });
       
       const scanConfig = {
           fps: 15,
-          qrbox: { width: 320, height: 200 },
+          // NO qrbox — removing this is what kills the red diagonal.
+          // The library only renders its own scan region UI when qrbox is set.
+          // Our custom orange corner overlay handles the visual — library just does the decoding.
           aspectRatio: 1.0,
           formatsToSupport: [0, 1, 2, 3, 4, 5, 6],
           experimentalFeatures: { useBarCodeDetectorIfSupported: true },
@@ -283,14 +286,6 @@ export default function Scan() {
 
       {mode === 'camera' && !useNative && (
         <div className="relative h-screen">
-          {/* Suppress html5-qrcode's built-in UI — red diagonal, borders, buttons */}
-          <style>{`
-            #qr-reader__scan_region img { display: none !important; }
-            #qr-reader__scan_region > br { display: none !important; }
-            #qr-reader__dashboard { display: none !important; }
-            #qr-reader { border: none !important; background: #000 !important; }
-            #qr-reader video { object-fit: cover !important; }
-          `}</style>
           <div id="qr-reader" ref={scannerRef} className="w-full h-full" />
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute inset-0 bg-black/60" />
