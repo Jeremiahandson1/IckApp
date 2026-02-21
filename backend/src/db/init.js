@@ -627,18 +627,31 @@ export async function initDatabase() {
     console.log('Database migrations complete');
 
     // Tables with foreign keys that must be created after the migration block
+    // Tables with foreign keys created individually to avoid multi-statement FK resolution issues
     await pool.query(`
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
         id SERIAL PRIMARY KEY,
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL,
         token_hash VARCHAR(64) UNIQUE NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         used_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash);
-      CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
+      )
     `);
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'password_reset_tokens_user_id_fkey'
+        ) THEN
+          ALTER TABLE password_reset_tokens
+            ADD CONSTRAINT password_reset_tokens_user_id_fkey
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+        END IF;
+      END $$
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)`);
 
     // Prune expired reset tokens now that the table is guaranteed to exist
     await pool.query(`DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '1 day'`);
