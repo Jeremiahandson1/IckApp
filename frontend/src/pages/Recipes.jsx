@@ -1,3 +1,4 @@
+import { SkeletonRecipeCard } from '../components/common/Skeleton';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
@@ -133,8 +134,8 @@ export default function Recipes() {
 
       {/* Loading */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+        <div className="grid grid-cols-2 gap-3 p-4">
+          {[1,2,3,4].map(i => <SkeletonRecipeCard key={i} />)}
         </div>
       ) : (
         <>

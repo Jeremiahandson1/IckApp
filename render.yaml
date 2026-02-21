@@ -50,3 +50,16 @@ services:
       # Base64-encode your Firebase service account JSON:
       #   base64 -i serviceAccountKey.json | tr -d '\n'
       # - key: FIREBASE_SERVICE_ACCOUNT_BASE64
+      # Resend (transactional email — free tier: 3,000/month)
+      # Sign up at resend.com, add your domain, get the API key
+      # - key: RESEND_API_KEY
+      # - key: EMAIL_FROM
+      #   value: Ick <hello@ick.app>
+      # OpenAI (receipt scanning with GPT-4o vision)
+      # - key: OPENAI_API_KEY
+      # VAPID (Web Push for PWA notifications)
+      # Generate once: node -e "const wp=require('web-push'); console.log(JSON.stringify(wp.generateVAPIDKeys()))"
+      # - key: VAPID_PUBLIC_KEY
+      # - key: VAPID_PRIVATE_KEY
+      # - key: VAPID_EMAIL
+      #   value: mailto:hello@ick.app

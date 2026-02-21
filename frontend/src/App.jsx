@@ -5,12 +5,16 @@ import { isNative } from './utils/platform';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Pages
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Scan from './pages/Scan';
 import ProductResult from './pages/ProductResult';
 import Pantry from './pages/Pantry';
@@ -59,7 +63,16 @@ function PublicRoute({ children }) {
 
 // First-time visitor check
 function FirstVisitGate() {
+  const { user } = useAuth();
   const onboarded = localStorage.getItem('ick_onboarded');
+
+  // Already logged in + no onboarding flag = returning user on a new device
+  // Skip onboarding, go straight to scan
+  if (user) {
+    if (!onboarded) localStorage.setItem('ick_onboarded', 'true'); // mark for this device
+    return <Navigate to="/scan" replace />;
+  }
+
   if (!onboarded) return <Onboarding />;
   return <Navigate to="/scan" replace />;
 }
@@ -150,9 +163,12 @@ export default function App() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* Main app layout — scanning works without login */}
-      <Route element={<AppLayout />}>
+      <Route element={<ErrorBoundary><AppLayout /></ErrorBoundary>}>
         {/* FREE: Anyone can scan and view products */}
         <Route path="/scan" element={<Scan />} />
         <Route path="/product/:upc" element={<ProductResult />} />

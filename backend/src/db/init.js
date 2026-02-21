@@ -501,6 +501,9 @@ export async function initDatabase() {
       -- Push notification subscriptions
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS native_push_token TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(64);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at TIMESTAMP;
 
       -- Admin role
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
@@ -558,6 +561,18 @@ export async function initDatabase() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
       CREATE INDEX IF NOT EXISTS idx_products_swap_type ON products(swap_discovery_type, total_score DESC);
 
+      -- Password reset tokens
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
+
       -- Login attempt tracking for per-email brute-force protection
       CREATE TABLE IF NOT EXISTS login_attempts (
         id SERIAL PRIMARY KEY,
@@ -575,6 +590,8 @@ export async function initDatabase() {
       DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
       -- Prune scan logs older than 1 year (keep recent history, drop ancient)
       DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
+      -- Prune expired password reset tokens
+      DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '1 day';
     `);
 
     // Check if total_score still uses old formula (5 columns)
@@ -622,6 +639,22 @@ export async function initDatabase() {
     }
 
     console.log('Database migrations complete');
+
+    // Auto-seed on fresh deploy if core tables are empty
+    try {
+      const [hiCount, recipeCount] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM harmful_ingredients'),
+        pool.query('SELECT COUNT(*) FROM recipes'),
+      ]);
+      if (parseInt(hiCount.rows[0].count) === 0 || parseInt(recipeCount.rows[0].count) === 0) {
+        console.log('▸ Empty DB detected — running initial seed...');
+        const { seedDatabase } = await import('./seed.js');
+        await seedDatabase();
+        console.log('▸ Seed complete');
+      }
+    } catch (e) {
+      console.warn('⚠ Auto-seed failed (non-fatal):', e.message);
+    }
   } catch (err) {
     console.error('Error initializing database schema:', err);
     throw err;

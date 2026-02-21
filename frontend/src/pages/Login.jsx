@@ -110,7 +110,7 @@ export default function Login() {
 
         {/* Register link */}
         <p className="mt-6 text-center text-sm text-gray-500">
-          <button className="text-orange-400 font-medium" onClick={() => toast.info('Password reset coming soon. Contact hello@ickapp.com')}>
+          <button className="text-orange-400 font-medium" onClick={() => navigate('/forgot-password')}>
             Forgot your password?
           </button>
         </p>

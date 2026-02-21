@@ -1,3 +1,4 @@
+import { SkeletonList } from '../components/common/Skeleton';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowRightLeft, ChefHat } from 'lucide-react';
@@ -74,11 +75,7 @@ export default function Swaps() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
-      </div>
-    );
+    return <div className="p-4"><SkeletonList count={4} lines={3} /></div>;
   }
 
   return (

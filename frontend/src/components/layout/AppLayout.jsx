@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Scan, ArrowRightLeft, ChefHat, Package, User, Settings } from 'lucide-react';
+import { Scan, ArrowRightLeft, ChefHat, Package, User, Settings, WifiOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnline } from '../../hooks/useOnline';
 import TrialBanner from './TrialBanner';
 
 // Nav restructured for day-1 usefulness:
@@ -17,6 +18,7 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isOnline = useOnline();
   
   const hideNav = location.pathname.includes('/mode');
   const hideTopBar = location.pathname === '/scan' || location.pathname.startsWith('/product/');
@@ -24,6 +26,16 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-gray-900 pb-safe">
       <TrialBanner />
+
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-4 py-2 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-yellow-400 shrink-0" />
+          <p className="text-yellow-300 text-xs font-medium">
+            You're offline — previously scanned products are available from cache.
+          </p>
+        </div>
+      )}
 
       {/* Top bar with settings/login */}
       {!hideTopBar && !hideNav && (

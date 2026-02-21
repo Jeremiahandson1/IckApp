@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getSubscriptionStatus, startTrial } from '../middleware/subscription.js';
+import { sendSubscriptionConfirmationEmail } from '../services/email.js';
 
 const router = express.Router();
 
@@ -154,6 +155,16 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                stripe_subscription_id=$4, updated_at=NOW()`,
             [userId, plan, expiresAt.toISOString(), session.subscription]
           );
+          // Send confirmation email (non-blocking)
+          const userRow = await pool.query('SELECT email, name FROM users WHERE id = $1', [userId]);
+          if (userRow.rows[0]) {
+            sendSubscriptionConfirmationEmail({
+              to: userRow.rows[0].email,
+              name: userRow.rows[0].name,
+              plan,
+              expiresAt,
+            }).catch(() => {});
+          }
         } catch (e) {
           console.error('checkout.session.completed handler error:', e.message);
         }

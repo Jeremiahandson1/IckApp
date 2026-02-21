@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { z } from 'zod';
 import pool from '../db/init.js';
 import {
@@ -8,6 +9,11 @@ import {
   authenticateToken
 } from '../middleware/auth.js';
 import { startTrial, getSubscriptionStatus } from '../middleware/subscription.js';
+import {
+  sendWelcomeEmail,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from '../services/email.js';
 
 const router = express.Router();
 
@@ -110,6 +116,20 @@ router.post('/register', validate(registerSchema), async (req, res) => {
     const user = result.rows[0];
 
     await pool.query('INSERT INTO user_engagement (user_id) VALUES ($1)', [user.id]);
+
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    await pool.query(
+      `UPDATE users SET email_verification_token = $1, email_verification_sent_at = NOW() WHERE id = $2`,
+      [verificationTokenHash, user.id]
+    );
+
+    // Send welcome + verification emails (non-blocking — don't fail registration if email fails)
+    Promise.all([
+      sendWelcomeEmail({ to: user.email, name: user.name }),
+      sendVerificationEmail({ to: user.email, name: user.name, token: verificationToken }),
+    ]).catch(e => console.warn('[Email] Post-registration email failed (non-fatal):', e.message));
 
     const subscription = await getSubscriptionStatus(user.id);
     const accessToken = generateToken(user);
@@ -342,6 +362,157 @@ router.post('/bootstrap-admin', authenticateToken, async (req, res) => {
     res.json({ promoted: true, message: 'You are now the first admin.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed. Run database migration first.' });
+  }
+});
+
+// ── Forgot password ───────────────────────────────────────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  // Always return 200 even if email not found — prevents user enumeration
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const result = await pool.query(
+      'SELECT id, name, email FROM users WHERE email = LOWER($1)',
+      [email]
+    );
+
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+
+      // Invalidate any existing reset tokens for this user
+      await pool.query(
+        'DELETE FROM password_reset_tokens WHERE user_id = $1',
+        [user.id]
+      );
+
+      // Generate token
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await pool.query(
+        'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+        [user.id, tokenHash, expiresAt]
+      );
+
+      await sendPasswordResetEmail({ to: user.email, name: user.name, token });
+    }
+
+    res.json({ sent: true, message: 'If that email is registered, a reset link is on its way.' });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.json({ sent: true, message: 'If that email is registered, a reset link is on its way.' });
+  }
+});
+
+// ── Reset password ────────────────────────────────────────────────────────────
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, new_password } = req.body;
+
+    if (!token || !new_password) {
+      return res.status(400).json({ error: 'token and new_password required' });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const result = await pool.query(
+      `SELECT prt.id, prt.user_id, prt.expires_at, prt.used_at
+       FROM password_reset_tokens prt
+       WHERE prt.token_hash = $1`,
+      [tokenHash]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset link.' });
+    }
+
+    const resetRow = result.rows[0];
+
+    if (resetRow.used_at) {
+      return res.status(400).json({ error: 'This reset link has already been used.' });
+    }
+    if (new Date(resetRow.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10);
+
+    await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, resetRow.user_id]);
+    await pool.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [resetRow.id]);
+
+    // Log out all other sessions
+    await revokeAllUserRefreshTokens(resetRow.user_id);
+
+    res.json({ reset: true, message: 'Password reset successfully. Please log in.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// ── Email verification ────────────────────────────────────────────────────────
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const result = await pool.query(
+      `UPDATE users SET email_verified_at = NOW(), email_verification_token = NULL
+       WHERE email_verification_token = $1 AND email_verified_at IS NULL
+       RETURNING id`,
+      [tokenHash]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or already used verification link.' });
+    }
+
+    res.json({ verified: true, message: 'Email verified!' });
+  } catch (err) {
+    console.error('Email verification error:', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// ── Resend verification email ─────────────────────────────────────────────────
+router.post('/resend-verification', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT email, name, email_verified_at, email_verification_sent_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.email_verified_at) return res.status(400).json({ error: 'Email already verified' });
+
+    // Throttle: max once per 5 minutes
+    if (user.email_verification_sent_at) {
+      const msSince = Date.now() - new Date(user.email_verification_sent_at).getTime();
+      if (msSince < 5 * 60 * 1000) {
+        return res.status(429).json({ error: 'Please wait a few minutes before requesting another verification email.' });
+      }
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await pool.query(
+      'UPDATE users SET email_verification_token = $1, email_verification_sent_at = NOW() WHERE id = $2',
+      [tokenHash, req.user.id]
+    );
+
+    await sendVerificationEmail({ to: user.email, name: user.name, token });
+    res.json({ sent: true });
+  } catch (err) {
+    console.error('Resend verification error:', err);
+    res.status(500).json({ error: 'Failed to resend' });
   }
 });
 

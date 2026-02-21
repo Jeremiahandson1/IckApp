@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { getScoreColor, getScoreLabel, formatDate } from '../utils/helpers';
 import { useToast } from '../contexts/ToastContext';
+import { SkeletonList } from '../components/common/Skeleton';
 
 export default function Pantry() {
   const [pantryItems, setPantryItems] = useState([]);
@@ -72,11 +73,7 @@ export default function Pantry() {
     });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
-      </div>
-    );
+    return <div className="p-4"><SkeletonList count={5} /></div>;
   }
 
   return (
