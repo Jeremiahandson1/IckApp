@@ -561,18 +561,6 @@ export async function initDatabase() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
       CREATE INDEX IF NOT EXISTS idx_products_swap_type ON products(swap_discovery_type, total_score DESC);
 
-      -- Password reset tokens
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        token_hash VARCHAR(64) UNIQUE NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        used_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash);
-      CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
-
       -- Login attempt tracking for per-email brute-force protection
       CREATE TABLE IF NOT EXISTS login_attempts (
         id SERIAL PRIMARY KEY,
@@ -639,6 +627,20 @@ export async function initDatabase() {
     }
 
     console.log('Database migrations complete');
+
+    // Tables with foreign keys that must be created after the migration block
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
+    `);
 
     // Auto-seed on fresh deploy if core tables are empty
     try {
