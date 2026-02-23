@@ -116,12 +116,7 @@ async function main() {
   console.log('  ✓ DB connected');
   await loadHarmful();
 
-  const { rows: [{ c: toScore }] } = await pool.query(`
-    SELECT COUNT(*) as c FROM products
-    WHERE (ingredients IS NOT NULL AND LENGTH(ingredients) > 5)
-       OR nutriscore_grade IS NOT NULL
-       OR (nutrition_facts IS NOT NULL AND nutrition_facts != '{}')
-  `);
+  const { rows: [{ c: toScore }] } = await pool.query(`SELECT COUNT(*) as c FROM products`);
   const total = parseInt(toScore);
   console.log(`  Products to score: ${total.toLocaleString()}\n`);
 
@@ -130,9 +125,6 @@ async function main() {
     const { rows } = await pool.query(`
       SELECT upc, ingredients, nutriscore_grade, nova_group, nutrition_facts, is_organic
       FROM products
-      WHERE (ingredients IS NOT NULL AND LENGTH(ingredients) > 5)
-         OR nutriscore_grade IS NOT NULL
-         OR (nutrition_facts IS NOT NULL AND nutrition_facts != '{}')
       ORDER BY id
       LIMIT $1 OFFSET $2
     `, [BATCH_SIZE, offset]);
