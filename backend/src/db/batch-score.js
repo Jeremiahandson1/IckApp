@@ -1,64 +1,41 @@
 #!/usr/bin/env node
-// ============================================================
-// BATCH SCORING — Run the Ick scoring engine on all products
-// that haven't been properly scored yet.
-//
-// Run from Render shell:
-//   cd /opt/render/project/src/backend
-//   node src/db/batch-score.js
-//
-// What it does:
-//   - Reads products in batches of 200
-//   - Runs the full scoring engine (nutrition + additives + organic)
-//   - Updates nutrition_score, additives_score, organic_bonus
-//   - total_score is auto-computed by Postgres (generated column)
-//   - Skips products with no ingredients AND no nutriscore_grade
-//     (nothing to score — they keep the default 50)
-// ============================================================
+// BATCH SCORING v2 — Fast. Uses bulk unnest() updates + indexOf pre-filter.
+// Run: cd /opt/render/project/src/backend && node src/db/batch-score.js
 
 import pg from 'pg';
-
 const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('render.com')
-    ? { rejectUnauthorized: false }
-    : undefined,
-  max: 10,
+  ssl: process.env.DATABASE_URL?.includes('render.com') ? { rejectUnauthorized: false } : undefined,
+  max: 20,
 });
 
-const BATCH_SIZE = 200;
-const CONCURRENCY = 20; // score 20 products at once within each batch
-const REPORT_EVERY = 1000;
+const BATCH_SIZE = 1000;
+const WRITE_SIZE = 500;
+const REPORT_EVERY = 5000;
+const stats = { total: 0, start: Date.now() };
+let harmful = [];
 
-// ── STATS ──
-const stats = {
-  total: 0,
-  scored: 0,
-  skipped_no_data: 0,
-  errors: 0,
-  start_time: Date.now(),
-};
-
-// ── CACHE harmful ingredients (loaded once) ──
-let harmfulIngredients = null;
-
-async function loadHarmfulIngredients() {
-  const result = await pool.query('SELECT * FROM harmful_ingredients');
-  harmfulIngredients = result.rows;
-  console.log(`  ✓ Loaded ${harmfulIngredients.length} harmful ingredients`);
+async function loadHarmful() {
+  const { rows } = await pool.query('SELECT name, aliases, severity FROM harmful_ingredients');
+  harmful = rows.map(h => {
+    const aliases = h.aliases ? (typeof h.aliases === 'string' ? JSON.parse(h.aliases) : h.aliases) : [];
+    const names = [h.name, ...aliases].filter(Boolean);
+    const namesLower = names.map(n => n.toLowerCase());
+    const pattern = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`\\b(${pattern})\\b`, 'i');
+    return { name: h.name, severity: h.severity, namesLower, regex };
+  });
+  console.log(`  ✓ Loaded ${harmful.length} harmful ingredients`);
 }
 
-// ── SCORING FUNCTIONS (inline to avoid module resolution issues) ──
-
-function nutriscoreGradeToScore(grade) {
+function nutriscoreToScore(grade) {
   if (!grade) return null;
-  const map = { a: 95, b: 75, c: 50, d: 25, e: 10 };
-  return map[grade.toLowerCase()] ?? null;
+  return { a: 95, b: 75, c: 50, d: 25, e: 10 }[grade.toLowerCase()] ?? null;
 }
 
-function computeNutritionFromNutrients(n) {
+function scoreFromNutrients(n) {
   if (!n) return null;
   const energy = n.energy_kcal_100g ?? n['energy-kcal_100g'] ?? null;
   const sugars = n.sugars_100g ?? null;
@@ -66,258 +43,139 @@ function computeNutritionFromNutrients(n) {
   const sodium = n.sodium_100g ?? null;
   const fiber = n.fiber_100g ?? null;
   const protein = n.proteins_100g ?? null;
-
-  let dataPoints = 0;
-  if (energy !== null) dataPoints++;
-  if (sugars !== null) dataPoints++;
-  if (satFat !== null) dataPoints++;
-  if (sodium !== null) dataPoints++;
-  if (dataPoints < 2) return null;
-
-  const energyPts = energy !== null ? Math.min(10, Math.floor(energy / 335)) : 5;
-  const sugarPts = sugars !== null ? Math.min(10, Math.floor(sugars / 4.5)) : 5;
-  const satFatPts = satFat !== null ? Math.min(10, Math.floor(satFat / 1)) : 5;
-  const sodiumPts = sodium !== null ? Math.min(10, Math.floor((sodium * 1000) / 90)) : 5;
-  const fiberPts = fiber !== null ? Math.min(5, Math.floor(fiber / 0.9)) : 0;
-  const proteinPts = protein !== null ? Math.min(5, Math.floor(protein / 1.6)) : 0;
-
-  const rawScore = (energyPts + sugarPts + satFatPts + sodiumPts) - (fiberPts + proteinPts);
-  return Math.max(0, Math.min(100, Math.round(100 - (rawScore + 10) * 2)));
+  let pts = 0;
+  if (energy !== null) pts++; if (sugars !== null) pts++;
+  if (satFat !== null) pts++; if (sodium !== null) pts++;
+  if (pts < 2) return null;
+  const neg = Math.min(10, Math.floor((energy ?? 500) / 335))
+            + Math.min(10, Math.floor((sugars ?? 5) / 4.5))
+            + Math.min(10, Math.floor((satFat ?? 2) / 1))
+            + Math.min(10, Math.floor(((sodium ?? 0.3) * 1000) / 90));
+  const pos = Math.min(5, Math.floor((fiber ?? 0) / 0.9))
+            + Math.min(5, Math.floor((protein ?? 0) / 1.6));
+  return Math.max(0, Math.min(100, Math.round(100 - (neg - pos + 10) * 2)));
 }
 
-function adjustForNova(score, nova) {
-  if (!nova || score === null) return score;
-  const adj = { 1: 5, 2: 0, 3: -5, 4: -10 };
-  return Math.max(0, Math.min(100, score + (adj[nova] ?? 0)));
-}
-
-function computeAdditivesScore(ingredientsText) {
-  if (!ingredientsText || ingredientsText.length < 3) return { score: 75, found: [] };
-
+function additivesScore(ingredientsText) {
+  if (!ingredientsText || ingredientsText.length < 3) return 75;
   const lower = ingredientsText.toLowerCase();
   const found = [];
-
-  for (const h of harmfulIngredients) {
-    const names = [h.name];
-    if (h.aliases) {
-      const aliases = typeof h.aliases === 'string' ? JSON.parse(h.aliases) : h.aliases;
-      names.push(...(Array.isArray(aliases) ? aliases : []));
-    }
-    for (const name of names) {
-      if (!name) continue;
-      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (new RegExp(`\\b${escaped}\\b`, 'i').test(lower)) {
-        found.push({ name: h.name, severity: h.severity });
-        break;
-      }
-    }
+  for (const h of harmful) {
+    if (!h.namesLower.some(n => lower.includes(n))) continue;
+    if (h.regex.test(lower)) found.push(h.severity);
   }
-
-  if (found.length === 0) return { score: 100, found: [] };
-
-  const sorted = [...found].sort((a, b) => b.severity - a.severity);
+  if (found.length === 0) return 100;
+  found.sort((a, b) => b - a);
   let penalty = 0;
-  sorted.forEach((f, i) => {
-    penalty += f.severity * 4 * (1 / (1 + i * 0.3));
-  });
-
+  found.forEach((sev, i) => { penalty += sev * 4 * (1 / (1 + i * 0.3)); });
   let score = Math.max(0, Math.min(100, Math.round(100 - penalty)));
-  if (found.some(f => f.severity >= 8)) score = Math.min(score, 25);
-  else if (found.some(f => f.severity >= 6)) score = Math.min(score, 55);
-
-  return { score, found };
+  if (found[0] >= 8) score = Math.min(score, 25);
+  else if (found[0] >= 6) score = Math.min(score, 55);
+  return score;
 }
 
-function detectOrganic(isOrganic, allergenTags) {
-  if (isOrganic) return 100;
-  return 0;
-}
-
-// ── SCORE ONE PRODUCT ──
-function scoreProduct(product) {
-  // Nutrition score
-  let nutritionScore = nutriscoreGradeToScore(product.nutriscore_grade);
-  if (nutritionScore === null && product.nutrition_facts) {
-    const nf = typeof product.nutrition_facts === 'string'
-      ? JSON.parse(product.nutrition_facts)
-      : product.nutrition_facts;
-    nutritionScore = computeNutritionFromNutrients(nf);
+function scoreProduct(p) {
+  let nutrition = nutriscoreToScore(p.nutriscore_grade);
+  if (nutrition === null && p.nutrition_facts) {
+    const nf = typeof p.nutrition_facts === 'string' ? JSON.parse(p.nutrition_facts) : p.nutrition_facts;
+    nutrition = scoreFromNutrients(nf);
   }
-  if (nutritionScore === null) nutritionScore = 50;
-  nutritionScore = adjustForNova(nutritionScore, product.nova_group);
-
-  // Additives score
-  const { score: additivesScore, found } = computeAdditivesScore(product.ingredients || '');
-
-  // Organic bonus
-  const organicBonus = detectOrganic(product.is_organic);
-
+  if (nutrition === null) nutrition = 50;
+  if (p.nova_group) {
+    const adj = { 1: 5, 2: 0, 3: -5, 4: -10 }[p.nova_group] ?? 0;
+    nutrition = Math.max(0, Math.min(100, nutrition + adj));
+  }
   return {
-    nutrition_score: Math.round(nutritionScore),
-    additives_score: Math.round(additivesScore),
-    organic_bonus: Math.round(organicBonus),
-    harmful_ingredients_found: JSON.stringify(found),
+    upc: p.upc,
+    nutrition: Math.round(nutrition),
+    additives: Math.round(additivesScore(p.ingredients || '')),
+    organic: p.is_organic ? 100 : 0,
   };
 }
 
-// ── PROCESS A BATCH ──
-async function processBatch(products) {
-  // Run in chunks of CONCURRENCY
-  const chunks = [];
-  for (let i = 0; i < products.length; i += CONCURRENCY) {
-    chunks.push(products.slice(i, i + CONCURRENCY));
-  }
-
-  for (const chunk of chunks) {
-    await Promise.all(chunk.map(async (product) => {
-      try {
-        // Skip if truly no scoreable data
-        const hasIngredients = product.ingredients && product.ingredients.length > 5;
-        const hasNutriscore = product.nutriscore_grade;
-        const hasNutrition = product.nutrition_facts &&
-          typeof product.nutrition_facts === 'object' &&
-          Object.keys(product.nutrition_facts).length > 0;
-
-        if (!hasIngredients && !hasNutriscore && !hasNutrition) {
-          stats.skipped_no_data++;
-          return;
-        }
-
-        const scores = scoreProduct(product);
-
-        await pool.query(
-          `UPDATE products 
-           SET nutrition_score = $1,
-               additives_score = $2,
-               organic_bonus = $3,
-               harmful_ingredients_found = $4
-           WHERE upc = $5`,
-          [
-            scores.nutrition_score,
-            scores.additives_score,
-            scores.organic_bonus,
-            scores.harmful_ingredients_found,
-            product.upc,
-          ]
-        );
-
-        stats.scored++;
-      } catch (err) {
-        stats.errors++;
-      }
-    }));
-  }
+async function bulkUpdate(scores) {
+  if (!scores.length) return;
+  await pool.query(`
+    UPDATE products AS p SET
+      nutrition_score = v.nutrition,
+      additives_score = v.additives,
+      organic_bonus   = v.organic
+    FROM unnest($1::text[], $2::int[], $3::int[], $4::int[])
+      AS v(upc, nutrition, additives, organic)
+    WHERE p.upc = v.upc
+  `, [scores.map(s=>s.upc), scores.map(s=>s.nutrition), scores.map(s=>s.additives), scores.map(s=>s.organic)]);
 }
 
-// ── MAIN ──
 async function main() {
-  console.log('');
-  console.log('  ╔═══════════════════════════════════════════╗');
-  console.log('  ║     ICK — BATCH PRODUCT SCORING           ║');
-  console.log('  ╚═══════════════════════════════════════════╝');
-  console.log('');
+  console.log('\n  ╔══════════════════════════════════════════╗');
+  console.log('  ║  ICK — BATCH PRODUCT SCORING v2 (FAST)  ║');
+  console.log('  ╚══════════════════════════════════════════╝\n');
+  console.log(`  Fetch: ${BATCH_SIZE}/batch | Write: ${WRITE_SIZE}/SQL call`);
 
-  // Verify DB
-  try {
-    const r = await pool.query('SELECT COUNT(*) as c FROM products');
-    console.log(`  ✓ DB connected. Total products: ${r.rows[0].c}`);
-  } catch (err) {
-    console.error('  ✗ DB connection failed:', err.message);
-    process.exit(1);
-  }
+  await pool.query('SELECT 1');
+  console.log('  ✓ DB connected');
+  await loadHarmful();
 
-  // Load harmful ingredients once
-  await loadHarmfulIngredients();
-
-  // Count products to score (those with default scores OR unscored)
-  // We score ALL products — fast enough and ensures correctness
-  const countResult = await pool.query(`
+  const { rows: [{ c: toScore }] } = await pool.query(`
     SELECT COUNT(*) as c FROM products
     WHERE (ingredients IS NOT NULL AND LENGTH(ingredients) > 5)
        OR nutriscore_grade IS NOT NULL
        OR (nutrition_facts IS NOT NULL AND nutrition_facts != '{}')
   `);
-  const toScore = parseInt(countResult.rows[0].c);
-  console.log(`  Products to score: ${toScore.toLocaleString()}`);
-  console.log(`  Batch size: ${BATCH_SIZE} | Concurrency: ${CONCURRENCY}`);
-  console.log('');
+  const total = parseInt(toScore);
+  console.log(`  Products to score: ${total.toLocaleString()}\n`);
 
-  // Process in batches using cursor (offset-based)
   let offset = 0;
-  let hasMore = true;
+  while (true) {
+    const { rows } = await pool.query(`
+      SELECT upc, ingredients, nutriscore_grade, nova_group, nutrition_facts, is_organic
+      FROM products
+      WHERE (ingredients IS NOT NULL AND LENGTH(ingredients) > 5)
+         OR nutriscore_grade IS NOT NULL
+         OR (nutrition_facts IS NOT NULL AND nutrition_facts != '{}')
+      ORDER BY id
+      LIMIT $1 OFFSET $2
+    `, [BATCH_SIZE, offset]);
 
-  while (hasMore) {
-    const result = await pool.query(
-      `SELECT upc, ingredients, nutriscore_grade, nova_group, 
-              nutrition_facts, is_organic
-       FROM products
-       WHERE (ingredients IS NOT NULL AND LENGTH(ingredients) > 5)
-          OR nutriscore_grade IS NOT NULL
-          OR (nutrition_facts IS NOT NULL AND nutrition_facts != '{}')
-       ORDER BY id
-       LIMIT $1 OFFSET $2`,
-      [BATCH_SIZE, offset]
-    );
+    if (!rows.length) break;
 
-    if (result.rows.length === 0) {
-      hasMore = false;
-      break;
+    const scores = rows.map(scoreProduct);
+    for (let i = 0; i < scores.length; i += WRITE_SIZE) {
+      await bulkUpdate(scores.slice(i, i + WRITE_SIZE));
     }
 
-    await processBatch(result.rows);
+    stats.total += rows.length;
+    offset += rows.length;
 
-    stats.total += result.rows.length;
-    offset += result.rows.length;
-
-    if (stats.total % REPORT_EVERY === 0 || result.rows.length < BATCH_SIZE) {
-      const elapsed = ((Date.now() - stats.start_time) / 1000).toFixed(1);
-      const rate = Math.round(stats.total / parseFloat(elapsed));
-      process.stdout.write(
-        `\r  ${stats.total.toLocaleString()} processed | ` +
-        `${stats.scored.toLocaleString()} scored | ` +
-        `${stats.skipped_no_data.toLocaleString()} skipped | ` +
-        `${rate}/sec        `
-      );
+    if (stats.total % REPORT_EVERY === 0 || rows.length < BATCH_SIZE) {
+      const elapsed = (Date.now() - stats.start) / 1000;
+      const rate = Math.round(stats.total / elapsed);
+      const eta = rate > 0 ? Math.round((total - stats.total) / rate) : 0;
+      const etaStr = eta > 3600 ? `${Math.round(eta/3600)}h` : eta > 60 ? `${Math.round(eta/60)}m` : `${eta}s`;
+      process.stdout.write(`\r  ${stats.total.toLocaleString()} / ${total.toLocaleString()} | ${rate}/sec | ETA ${etaStr}        `);
     }
 
-    if (result.rows.length < BATCH_SIZE) hasMore = false;
+    if (rows.length < BATCH_SIZE) break;
   }
 
-  // Final report
-  const elapsed = ((Date.now() - stats.start_time) / 1000).toFixed(1);
-  console.log('\n');
-  console.log('  ╔═══════════════════════════════════════════╗');
-  console.log('  ║           SCORING COMPLETE                 ║');
-  console.log('  ╚═══════════════════════════════════════════╝');
-  console.log(`  Total processed:  ${stats.total.toLocaleString()}`);
-  console.log(`  Scored:           ${stats.scored.toLocaleString()}`);
-  console.log(`  Skipped (no data):${stats.skipped_no_data.toLocaleString()}`);
-  console.log(`  Errors:           ${stats.errors.toLocaleString()}`);
-  console.log(`  Time:             ${elapsed}s`);
+  const elapsed = ((Date.now() - stats.start) / 1000).toFixed(1);
+  console.log(`\n\n  ✓ Done. Scored ${stats.total.toLocaleString()} products in ${elapsed}s\n`);
 
-  // Show score distribution
-  const dist = await pool.query(`
-    SELECT 
+  const { rows: [d] } = await pool.query(`
+    SELECT
       COUNT(*) FILTER (WHERE total_score >= 75) as excellent,
       COUNT(*) FILTER (WHERE total_score >= 51 AND total_score < 75) as good,
       COUNT(*) FILTER (WHERE total_score >= 26 AND total_score < 51) as poor,
-      COUNT(*) FILTER (WHERE total_score < 26) as avoid,
-      COUNT(*) FILTER (WHERE total_score IS NULL) as unscored
-    FROM products
+      COUNT(*) FILTER (WHERE total_score < 26) as avoid
+    FROM products WHERE total_score IS NOT NULL
   `);
-  const d = dist.rows[0];
-  console.log('\n  Score distribution:');
+  console.log('  Score distribution:');
   console.log(`  🟢 Excellent (75+): ${parseInt(d.excellent).toLocaleString()}`);
   console.log(`  🟡 Good (51-74):    ${parseInt(d.good).toLocaleString()}`);
   console.log(`  🟠 Poor (26-50):    ${parseInt(d.poor).toLocaleString()}`);
   console.log(`  🔴 Avoid (0-25):    ${parseInt(d.avoid).toLocaleString()}`);
-  console.log(`  ⚪ Unscored:        ${parseInt(d.unscored).toLocaleString()}`);
 
   await pool.end();
-  console.log('\n  ✓ Done!\n');
 }
 
-main().catch(err => {
-  console.error('\nFatal:', err);
-  process.exit(1);
-});
+main().catch(err => { console.error('Fatal:', err); process.exit(1); });
