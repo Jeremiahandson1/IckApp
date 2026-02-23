@@ -116,8 +116,7 @@ async function main() {
   console.log('  ✓ DB connected');
   await loadHarmful();
 
-  const { rows: [{ c: toScore }] } = await pool.query(`SELECT COUNT(*) as c FROM products`);
-  const total = parseInt(toScore);
+  const total = 845477;
   console.log(`  Products to score: ${total.toLocaleString()}\n`);
 
   let lastId = 0;
