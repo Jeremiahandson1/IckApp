@@ -63,18 +63,21 @@ function PublicRoute({ children }) {
 
 // First-time visitor check
 function FirstVisitGate() {
-  const { user } = useAuth();
-  const onboarded = localStorage.getItem('ick_onboarded');
+  const { user, loading } = useAuth();
 
-  // Already logged in + no onboarding flag = returning user on a new device
-  // Skip onboarding, go straight to scan
-  if (user) {
-    if (!onboarded) localStorage.setItem('ick_onboarded', 'true'); // mark for this device
-    return <Navigate to="/scan" replace />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
+        <div className="animate-spin w-8 h-8 border-2 border-t-transparent rounded-full" style={{ borderColor: '#c8f135', borderTopColor: 'transparent' }} />
+      </div>
+    );
   }
 
-  if (!onboarded) return <Onboarding />;
-  return <Navigate to="/scan" replace />;
+  // Logged in → go scan
+  if (user) return <Navigate to="/scan" replace />;
+
+  // Not logged in → show landing page
+  return <Landing />;
 }
 
 // Native app lifecycle — handles back button, deep links, status bar
@@ -159,7 +162,6 @@ export default function App() {
       <Route path="/" element={<FirstVisitGate />} />
 
       {/* Auth pages */}
-      <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/onboarding" element={<Onboarding />} />
