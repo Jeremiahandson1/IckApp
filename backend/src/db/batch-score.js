@@ -120,14 +120,15 @@ async function main() {
   const total = parseInt(toScore);
   console.log(`  Products to score: ${total.toLocaleString()}\n`);
 
-  let offset = 0;
+  let lastId = 0;
   while (true) {
     const { rows } = await pool.query(`
-      SELECT upc, ingredients, nutriscore_grade, nova_group, nutrition_facts, is_organic
+      SELECT id, upc, ingredients, nutriscore_grade, nova_group, nutrition_facts, is_organic
       FROM products
+      WHERE id > $1
       ORDER BY id
-      LIMIT $1 OFFSET $2
-    `, [BATCH_SIZE, offset]);
+      LIMIT $2
+    `, [lastId, BATCH_SIZE]);
 
     if (!rows.length) break;
 
@@ -137,7 +138,7 @@ async function main() {
     }
 
     stats.total += rows.length;
-    offset += rows.length;
+    lastId = rows[rows.length - 1].id;
 
     if (stats.total % REPORT_EVERY === 0 || rows.length < BATCH_SIZE) {
       const elapsed = (Date.now() - stats.start) / 1000;
