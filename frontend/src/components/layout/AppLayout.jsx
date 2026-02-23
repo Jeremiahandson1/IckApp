@@ -4,8 +4,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useOnline } from '../../hooks/useOnline';
 import TrialBanner from './TrialBanner';
 
-// Nav restructured for day-1 usefulness:
-// Scan (always works) | Swaps (scan-history based) | Recipes (always has content) | Pantry (auth) | Profile
 const navItems = [
   { path: '/scan', icon: Scan, label: 'Scan' },
   { path: '/swaps', icon: ArrowRightLeft, label: 'Swaps' },
@@ -24,36 +22,41 @@ export default function AppLayout() {
   const hideTopBar = location.pathname === '/scan' || location.pathname.startsWith('/product/');
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-safe">
+    <div className="min-h-screen bg-[#0a0a0a] pb-safe">
       <TrialBanner />
 
       {/* Offline banner */}
       {!isOnline && (
-        <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-4 py-2 flex items-center gap-2">
+        <div className="border-b border-yellow-500/30 px-4 py-2 flex items-center gap-2"
+             style={{ background: 'rgba(255,214,10,0.06)' }}>
           <WifiOff className="w-4 h-4 text-yellow-400 shrink-0" />
-          <p className="text-yellow-300 text-xs font-medium">
-            You're offline — previously scanned products are available from cache.
+          <p className="text-yellow-300 text-xs" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px' }}>
+            OFFLINE — cached products still available
           </p>
         </div>
       )}
 
-      {/* Top bar with settings/login */}
+      {/* Top bar */}
       {!hideTopBar && !hideNav && (
-        <div className="flex items-center justify-end px-4 pt-3 pb-1">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '22px', letterSpacing: '2px', color: 'var(--ick-green)' }}>
+            ICKTHATISH
+          </div>
           {user ? (
             <button
               onClick={() => navigate('/profile')}
-              className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+              className="p-2 transition-colors"
               aria-label="Settings"
             >
-              <Settings className="w-5 h-5 text-gray-400" />
+              <Settings className="w-5 h-5" style={{ color: 'var(--muted)' }} />
             </button>
           ) : (
             <button
               onClick={() => navigate('/login')}
-              className="px-3 py-1.5 text-sm font-medium text-orange-500 bg-orange-500/100/10 rounded-lg"
+              className="px-3 py-1.5 text-xs border transition-colors"
+              style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', borderColor: 'var(--ick-green)', color: 'var(--ick-green)' }}
             >
-              Sign in
+              SIGN IN
             </button>
           )}
         </div>
@@ -66,25 +69,28 @@ export default function AppLayout() {
 
       {/* Bottom navigation */}
       {!hideNav && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-gray-950 border-t border-gray-700 pb-safe z-40">
+        <nav className="fixed bottom-0 left-0 right-0 pb-safe z-40"
+             style={{ background: '#0d0d0d', borderTop: '1px solid var(--border)' }}>
           <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
             {navItems.map(({ path, icon: Icon, label }) => (
               <NavLink
                 key={path}
                 to={path}
-                className={({ isActive }) => `
-                  flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[56px]
-                  transition-colors
-                  ${isActive ? 'text-orange-500' : 'text-gray-400'}
-                `}
+                className="flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[56px] transition-colors"
+                style={({ isActive }) => ({
+                  color: isActive ? 'var(--ick-green)' : 'var(--muted)',
+                })}
               >
                 {({ isActive }) => (
                   <>
-                    <Icon 
-                      className="w-6 h-6" 
-                      strokeWidth={isActive ? 2.5 : 2} 
-                    />
-                    <span className={`text-[10px] font-medium ${isActive ? 'font-semibold' : ''}`}>
+                    <Icon className="w-6 h-6" strokeWidth={isActive ? 2.5 : 1.5} />
+                    <span style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '9px',
+                      letterSpacing: '1.5px',
+                      textTransform: 'uppercase',
+                      fontWeight: isActive ? 700 : 400,
+                    }}>
                       {label}
                     </span>
                   </>

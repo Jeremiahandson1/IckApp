@@ -130,8 +130,9 @@ export default function ProductResult() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
+        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
+             style={{ borderColor: 'var(--ick-green)', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -149,16 +150,17 @@ export default function ProductResult() {
   const hasNutrition = Object.keys(nutritionFacts).length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-24">
+    <div className="min-h-screen pb-24" style={{ background: '#0a0a0a' }}>
       {/* Header */}
-      <div className="bg-gray-950 pt-safe">
-        <div className="px-4 py-4 flex items-center justify-between">
+      <div style={{ background: '#0d0d0d', borderBottom: '1px solid var(--border)' }}>
+        <div className="px-4 py-4 flex items-center justify-between pt-safe">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-300"
+            className="flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--muted)' }}
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Back</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>Back</span>
           </button>
           <div className="flex items-center gap-1">
             <button
@@ -176,34 +178,36 @@ export default function ProductResult() {
               }}
               className="p-2 rounded-full active:scale-90 transition-transform"
             >
-              <Share2 className="w-5 h-5 text-gray-400" />
+              <Share2 className="w-5 h-5" style={{ color: 'var(--muted)' }} />
             </button>
             <button
               onClick={toggleFavorite}
               className="p-2 rounded-full active:scale-90 transition-transform"
             >
-              <Heart className={`w-6 h-6 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+              <Heart className={`w-6 h-6 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-[#888]'}`} />
             </button>
           </div>
         </div>
 
         {/* Product Image + Name */}
-        <div className="px-6 pb-4 flex items-start gap-4">
+        <div className="px-4 pb-4 flex items-start gap-4">
           {product.image_url ? (
             <img 
               src={product.image_url} 
               alt={product.name}
-              className="w-24 h-24 rounded-xl object-cover bg-gray-800 flex-shrink-0 shadow-sm"
+              className="w-20 h-20 object-cover flex-shrink-0"
+              style={{ background: '#1e1e1e', border: '1px solid var(--border)' }}
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : (
-            <div className="w-24 h-24 rounded-xl bg-gray-800 flex items-center justify-center flex-shrink-0">
-              <Apple className="w-10 h-10 text-gray-300" />
+            <div className="w-20 h-20 flex items-center justify-center flex-shrink-0"
+                 style={{ background: '#1e1e1e', border: '1px solid var(--border)' }}>
+              <Apple className="w-8 h-8" style={{ color: 'var(--muted)' }} />
             </div>
           )}
           <div className="flex-1 min-w-0 pt-1">
-            <h1 className="text-xl font-bold text-gray-100 leading-tight">{product.name}</h1>
-            <p className="text-gray-500 text-sm mt-1">{product.brand}</p>
+            <h1 className="text-[#f4f4f0] leading-tight" style={{ fontFamily: 'var(--font-display)', fontSize: '28px', letterSpacing: '1px', textTransform: 'uppercase' }}>{product.name}</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '11px', letterSpacing: '1px' }}>{product.brand}</p>
             {/* Nutri-Score + NOVA badges */}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {product.nutriscore_grade && (
@@ -213,7 +217,8 @@ export default function ProductResult() {
                 <NovaBadge group={product.nova_group} />
               )}
               {product.is_organic && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-700 text-xs font-semibold rounded-full">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs"
+                      style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e', fontFamily: 'var(--font-mono)', letterSpacing: '1px', fontSize: '9px', textTransform: 'uppercase' }}>
                   <Leaf className="w-3 h-3" /> Organic
                 </span>
               )}
@@ -230,10 +235,10 @@ export default function ProductResult() {
       {/* Inline Swap Preview — show immediately, don't bury */}
       {!isClean && swapOptions.length > 0 && (
         <div className="px-4 mt-3">
-          <div className="bg-gray-950 rounded-2xl p-4 shadow-sm border border-orange-100">
+          <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm border border-orange-100">
             <div className="flex items-center gap-2 mb-3">
-              <ArrowRightLeft className="w-4 h-4 text-orange-500" />
-              <span className="text-sm font-semibold text-gray-300">Better Alternative</span>
+              <ArrowRightLeft className="w-4 h-4 text-[#c8f135]" />
+              <span className="text-sm font-semibold text-[#ccc]">Better Alternative</span>
             </div>
             {(() => {
               const best = swapOptions[0];
@@ -241,25 +246,25 @@ export default function ProductResult() {
               return (
                 <button
                   onClick={() => handleSwapClick(best)}
-                  className="w-full flex items-center gap-3 text-left active:bg-gray-900 rounded-xl transition-colors"
+                  className="w-full flex items-center gap-3 text-left active:bg-[#0a0a0a] rounded-sm transition-colors"
                 >
                   {best.image_url ? (
-                    <img src={best.image_url} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-800"
+                    <img src={best.image_url} alt="" className="w-12 h-12 rounded-sm object-cover bg-[#1e1e1e]"
                       onError={(e) => { e.target.style.display = 'none'; }} />
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                      <ArrowRightLeft className="w-5 h-5 text-orange-400" />
+                    <div className="w-12 h-12 rounded-sm bg-[rgba(200,241,53,0.06)] flex items-center justify-center">
+                      <ArrowRightLeft className="w-5 h-5 text-[#c8f135]" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-100 truncate">{best.name}</p>
-                    <p className="text-xs text-gray-500">{best.brand}</p>
+                    <p className="font-medium text-[#f4f4f0] truncate">{best.name}</p>
+                    <p className="text-xs text-[#666]">{best.brand}</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-bold text-orange-400">
+                    <div className="text-lg font-bold text-[#c8f135]">
                       +{improvement}
                     </div>
-                    <div className="text-[10px] text-orange-500 font-medium">points</div>
+                    <div className="text-[10px] text-[#c8f135] font-medium">points</div>
                   </div>
                 </button>
               );
@@ -267,7 +272,7 @@ export default function ProductResult() {
             {swapOptions.length > 1 && (
               <button
                 onClick={() => document.getElementById('swaps-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="mt-3 w-full text-center text-xs text-orange-400 font-medium"
+                className="mt-3 w-full text-center text-xs text-[#c8f135] font-medium"
               >
                 +{swapOptions.length - 1} more alternatives ↓
               </button>
@@ -283,10 +288,10 @@ export default function ProductResult() {
             <button
               onClick={handleAddToPantry}
               disabled={addedToPantry}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-sm font-semibold transition-colors ${
                 addedToPantry 
-                  ? 'bg-orange-500/20 text-orange-400' 
-                  : 'bg-gray-800 text-gray-300 active:bg-gray-700'
+                  ? 'bg-[rgba(200,241,53,0.1)] text-[#c8f135]' 
+                  : 'bg-[#1e1e1e] text-[#ccc] active:bg-[#2a2a2a]'
               }`}
             >
               {addedToPantry ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
@@ -295,7 +300,7 @@ export default function ProductResult() {
           ) : (
             <button
               onClick={() => navigate('/register')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold bg-gray-800 text-gray-400 active:bg-gray-700"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-sm font-semibold bg-[#1e1e1e] text-[#888] active:bg-[#2a2a2a]"
             >
               <Plus className="w-5 h-5" />
               Sign up to save
@@ -324,7 +329,7 @@ export default function ProductResult() {
             <div className="px-4 space-y-3">
             {/* Personal allergen alert — red, prominent */}
             {hasPersonalMatch && (
-              <div className="bg-red-500/10 border-2 border-red-500/30 rounded-xl p-4">
+              <div className="bg-red-500/10 border-2 border-red-500/30 rounded-sm p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="w-5 h-5 text-red-400" />
                   <span className="font-bold text-red-300">⚠️ Contains YOUR Allergens</span>
@@ -340,7 +345,7 @@ export default function ProductResult() {
             )}
 
             {/* General allergen list */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-sm p-4">
               <div className="flex items-center gap-2 mb-2">
                 <ShieldAlert className="w-5 h-5 text-amber-400" />
                 <span className="font-semibold text-amber-300">Contains Allergens</span>
@@ -365,7 +370,7 @@ export default function ProductResult() {
       {/* Score Breakdown — the 3 real dimensions */}
       <div className="px-4 mt-6">
         <div className="card p-4">
-          <h2 className="font-semibold text-gray-100 mb-4">Score Breakdown</h2>
+          <h2 className="mb-4" style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--muted)' }}>Score Breakdown</h2>
           <div className="space-y-4">
             <ScoreItem 
               icon={Apple} 
@@ -439,7 +444,7 @@ export default function ProductResult() {
           <CollapsibleSection
             title={`Additives of Concern (${harmfulIngredients.length})`}
             icon={AlertTriangle}
-            iconColor="text-orange-500"
+            iconColor="text-[#c8f135]"
             expanded={expandedSection === 'ingredients'}
             onToggle={() => setExpandedSection(expandedSection === 'ingredients' ? null : 'ingredients')}
           >
@@ -458,7 +463,7 @@ export default function ProductResult() {
           <CollapsibleSection
             title={`Better Alternatives (${swapOptions.length})`}
             icon={ArrowRightLeft}
-            iconColor="text-orange-500"
+            iconColor="text-[#c8f135]"
             expanded={expandedSection === 'swaps'}
             onToggle={() => setExpandedSection(expandedSection === 'swaps' ? null : 'swaps')}
           >
@@ -505,11 +510,11 @@ export default function ProductResult() {
           <CollapsibleSection
             title="Full Ingredients"
             icon={Info}
-            iconColor="text-gray-500"
+            iconColor="text-[#666]"
             expanded={expandedSection === 'full'}
             onToggle={() => setExpandedSection(expandedSection === 'full' ? null : 'full')}
           >
-            <p className="text-sm text-gray-400 leading-relaxed">
+            <p className="text-sm text-[#888] leading-relaxed">
               {product.ingredients}
             </p>
           </CollapsibleSection>
@@ -526,16 +531,16 @@ export default function ProductResult() {
 function NutriScoreBadge({ grade }) {
   const colors = {
     a: 'bg-green-600', b: 'bg-lime-500', c: 'bg-yellow-400',
-    d: 'bg-orange-500/100', e: 'bg-red-500/100',
+    d: 'bg-[rgba(200,241,53,0.06)]', e: 'bg-red-500/100',
   };
   const textColors = {
-    a: 'text-white', b: 'text-white', c: 'text-gray-100',
+    a: 'text-white', b: 'text-white', c: 'text-[#f4f4f0]',
     d: 'text-white', e: 'text-white',
   };
   const g = grade.toLowerCase();
   return (
     <div className="flex items-center gap-1">
-      <span className="text-xs text-gray-500 font-medium">Nutri-Score</span>
+      <span className="text-xs text-[#666] font-medium">Nutri-Score</span>
       <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${colors[g] || 'bg-gray-400'} ${textColors[g] || 'text-white'}`}>
         {g.toUpperCase()}
       </span>
@@ -545,23 +550,23 @@ function NutriScoreBadge({ grade }) {
 
 function NovaBadge({ group }) {
   const labels = { 1: 'Unprocessed', 2: 'Processed ingredients', 3: 'Processed', 4: 'Ultra-processed' };
-  const colors = { 1: 'text-green-700 bg-green-500/20', 2: 'text-lime-700 bg-lime-100', 3: 'text-orange-700 bg-orange-500/20', 4: 'text-red-700 bg-red-500/20' };
+  const colors = { 1: 'text-green-700 bg-green-500/20', 2: 'text-lime-700 bg-lime-100', 3: 'text-[#7a8e00] bg-[rgba(200,241,53,0.1)]', 4: 'text-red-700 bg-red-500/20' };
   return (
-    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${colors[group] || 'text-gray-300 bg-gray-800'}`}>
+    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${colors[group] || 'text-[#ccc] bg-[#1e1e1e]'}`}>
       NOVA {group}
     </span>
   );
 }
 
 function NutrientRow({ label, value, unit, warn, good, highlight }) {
-  const valueColor = warn ? 'text-red-400' : good ? 'text-orange-400' : 'text-gray-100';
+  const valueColor = warn ? 'text-red-400' : good ? 'text-[#c8f135]' : 'text-[#f4f4f0]';
   return (
-    <div className={`flex justify-between items-center py-2 px-3 rounded-lg ${highlight ? 'bg-gray-800' : ''}`}>
-      <span className="text-sm text-gray-400">{label}</span>
+    <div className={`flex justify-between items-center py-2 px-3 rounded-sm ${highlight ? 'bg-[#1e1e1e]' : ''}`}>
+      <span className="text-sm text-[#888]">{label}</span>
       <span className={`text-sm font-semibold ${valueColor}`}>
         {value}{unit}
         {warn && <span className="ml-1 text-red-400">●</span>}
-        {good && <span className="ml-1 text-orange-400">●</span>}
+        {good && <span className="ml-1 text-[#c8f135]">●</span>}
       </span>
     </div>
   );
@@ -570,13 +575,13 @@ function NutrientRow({ label, value, unit, warn, good, highlight }) {
 function ScoreItem({ icon: Icon, label, score, weight, detail }) {
   return (
     <div className="flex items-center gap-3">
-      <Icon className="w-5 h-5 text-gray-400 flex-shrink-0" />
+      <Icon className="w-5 h-5 text-[#888] flex-shrink-0" />
       <div className="flex-1">
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-300">{label}</span>
+          <span className="text-[#ccc]">{label}</span>
           <div className="flex items-center gap-2">
-            {detail && <span className="text-gray-400 text-xs">{detail}</span>}
-            <span className="text-gray-400 text-xs">{weight}</span>
+            {detail && <span className="text-[#888] text-xs">{detail}</span>}
+            <span className="text-[#888] text-xs">{weight}</span>
           </div>
         </div>
         <ScoreBar score={score} />
@@ -592,40 +597,43 @@ function CollapsibleSection({ title, subtitle, icon: Icon, iconColor, expanded, 
         <div className="flex items-center gap-3">
           <Icon className={`w-5 h-5 ${iconColor}`} />
           <div className="text-left">
-            <span className="font-semibold text-gray-100">{title}</span>
-            {subtitle && <span className="text-xs text-gray-400 ml-2">{subtitle}</span>}
+            <span className="font-semibold text-[#f4f4f0]">{title}</span>
+            {subtitle && <span className="text-xs text-[#888] ml-2">{subtitle}</span>}
           </div>
         </div>
-        {expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+        {expanded ? <ChevronUp className="w-5 h-5 text-[#888]" /> : <ChevronDown className="w-5 h-5 text-[#888]" />}
       </button>
       {expanded && (
-        <div className="px-4 pb-4 border-t border-gray-800 pt-4">{children}</div>
+        <div className="px-4 pb-4 border-t border-[#2a2a2a] pt-4">{children}</div>
       )}
     </div>
   );
 }
 
 function IngredientCard({ ingredient }) {
-  const severityClass = getSeverityColor(ingredient.severity);
   return (
-    <div className="p-4 bg-gray-900 rounded-xl">
+    <div className="p-4" style={{ background: '#111', border: '1px solid rgba(255,59,48,0.15)' }}>
       <div className="flex items-start justify-between mb-2">
-        <h4 className="font-semibold text-gray-100">{ingredient.name}</h4>
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${severityClass}`}>
-          Risk {ingredient.severity}/10
+        <h4 className="font-semibold text-[#f4f4f0]" style={{ fontFamily: 'var(--font-display)', fontSize: '20px', letterSpacing: '1px', textTransform: 'uppercase' }}>{ingredient.name}</h4>
+        <span className="text-xs px-2 py-0.5" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', color: 'var(--red)' }}>
+          RISK {ingredient.severity}/10
         </span>
       </div>
       {ingredient.health_effects && (
-        <p className="text-sm text-gray-400 mb-2">{ingredient.health_effects}</p>
+        <p className="text-sm text-[#888] mb-2" style={{ fontWeight: 300 }}>{ingredient.health_effects}</p>
       )}
       {ingredient.banned_in && ingredient.banned_in.length > 0 && (
-        <p className="text-xs text-red-400 font-medium mb-1">
-          Banned in: {ingredient.banned_in.join(', ')}
-        </p>
+        <div className="flex flex-wrap gap-1 mb-2">
+          {ingredient.banned_in.map((country, i) => (
+            <span key={i} className="text-xs px-2 py-0.5" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', background: 'rgba(255,59,48,0.08)', border: '1px solid rgba(255,59,48,0.2)', color: 'var(--red)' }}>
+              BANNED: {country.toUpperCase()}
+            </span>
+          ))}
+        </div>
       )}
       {ingredient.why_used && (
-        <p className="text-xs text-gray-500 mb-1">
-          <strong>Why used:</strong> {ingredient.why_used}
+        <p className="text-xs text-[#666] mb-1" style={{ fontStyle: 'italic' }}>
+          Why it's in there: {ingredient.why_used}
         </p>
       )}
       {ingredient.source_url && (
@@ -633,9 +641,10 @@ function IngredientCard({ ingredient }) {
           href={ingredient.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline mt-1"
+          className="inline-flex items-center gap-1 hover:underline mt-1"
+          style={{ color: 'var(--ick-green)', fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '1px' }}
         >
-          <ExternalLink className="w-3 h-3" /> Scientific source
+          <ExternalLink className="w-3 h-3" /> SOURCE ↗
         </a>
       )}
     </div>
@@ -648,27 +657,27 @@ function SwapCard({ swap, currentScore, onClick }) {
   const links = swap.online_links || [];
   
   return (
-    <div className="p-4 bg-orange-500/10 rounded-xl">
+    <div className="p-4 bg-[rgba(200,241,53,0.06)] rounded-sm">
       <button onClick={onClick} className="w-full text-left card-pressed">
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-gray-100 truncate">{swap.name}</h4>
-            <p className="text-sm text-gray-400">{swap.brand}</p>
+            <h4 className="font-semibold text-[#f4f4f0] truncate">{swap.name}</h4>
+            <p className="text-sm text-[#888]">{swap.brand}</p>
           </div>
           <div className="text-right ml-3">
-            <span className="text-2xl font-bold text-orange-400">{Math.round(swap.total_score)}</span>
-            <p className="text-xs text-orange-400 font-medium">+{improvement} pts</p>
+            <span className="text-2xl font-bold text-[#c8f135]">{Math.round(swap.total_score)}</span>
+            <p className="text-xs text-[#c8f135] font-medium">+{improvement} pts</p>
           </div>
         </div>
       </button>
       
       {/* Where to Buy — stores */}
       {stores.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-700/50">
-          <p className="text-xs font-medium text-gray-400 mb-1.5">Available at</p>
+        <div className="mt-3 pt-3 border-t border-[#333]/50">
+          <p className="text-xs font-medium text-[#888] mb-1.5">Available at</p>
           <div className="flex flex-wrap gap-1.5">
             {stores.map((s, i) => (
-              <span key={i} className="text-xs px-2 py-0.5 bg-gray-700/60 text-gray-300 rounded-full">
+              <span key={i} className="text-xs px-2 py-0.5 bg-[#2a2a2a]/60 text-[#ccc] rounded-full">
                 {s.store_name}{s.price ? ` · $${Number(s.price).toFixed(2)}` : ''}
               </span>
             ))}
@@ -678,8 +687,8 @@ function SwapCard({ swap, currentScore, onClick }) {
       
       {/* Online purchase links */}
       {links.length > 0 && (
-        <div className={`${stores.length > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-gray-700/50'}`}>
-          {stores.length === 0 && <p className="text-xs font-medium text-gray-400 mb-1.5">Buy online</p>}
+        <div className={`${stores.length > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-[#333]/50'}`}>
+          {stores.length === 0 && <p className="text-xs font-medium text-[#888] mb-1.5">Buy online</p>}
           <div className="flex flex-wrap gap-1.5">
             {links.map((link, i) => (
               <a
@@ -688,7 +697,7 @@ function SwapCard({ swap, currentScore, onClick }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-300 rounded-full hover:bg-orange-500/30 transition-colors"
+                className="text-xs px-2 py-0.5 bg-[rgba(200,241,53,0.1)] text-[#c8f135] rounded-full hover:bg-[rgba(200,241,53,0.15)] transition-colors"
               >
                 {link.name} ↗
               </a>
@@ -702,11 +711,11 @@ function SwapCard({ swap, currentScore, onClick }) {
 
 function RecipeCard({ recipe, onClick }) {
   return (
-    <button onClick={onClick} className="w-full p-4 bg-violet-50 rounded-xl text-left card-pressed">
+    <button onClick={onClick} className="w-full p-4 bg-violet-50 rounded-sm text-left card-pressed">
       <div className="flex items-center justify-between">
         <div>
-          <h4 className="font-semibold text-gray-100">{recipe.name}</h4>
-          <p className="text-sm text-gray-400">
+          <h4 className="font-semibold text-[#f4f4f0]">{recipe.name}</h4>
+          <p className="text-sm text-[#888]">
             {recipe.prep_time_minutes} min prep • {recipe.difficulty}
           </p>
         </div>

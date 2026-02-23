@@ -5,16 +5,16 @@
 
 function Pulse({ className = '' }) {
   return (
-    <div className={`animate-pulse bg-gray-800 rounded-xl ${className}`} />
+    <div className={`animate-pulse bg-[#1e1e1e] rounded-sm ${className}`} />
   );
 }
 
 /** Single card skeleton — matches pantry/swap card height */
 export function SkeletonCard({ lines = 2 }) {
   return (
-    <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
+    <div className="bg-[#111] rounded-sm p-4 space-y-3">
       <div className="flex items-center gap-3">
-        <Pulse className="w-14 h-14 rounded-xl shrink-0" />
+        <Pulse className="w-14 h-14 rounded-sm shrink-0" />
         <div className="flex-1 space-y-2">
           <Pulse className="h-4 w-3/4" />
           {lines >= 2 && <Pulse className="h-3 w-1/2" />}
@@ -40,7 +40,7 @@ export function SkeletonList({ count = 4, lines = 2 }) {
 /** Recipe card skeleton */
 export function SkeletonRecipeCard() {
   return (
-    <div className="bg-gray-900 rounded-2xl overflow-hidden">
+    <div className="bg-[#111] rounded-sm overflow-hidden">
       <Pulse className="h-36 rounded-none rounded-t-2xl" />
       <div className="p-4 space-y-2">
         <Pulse className="h-4 w-2/3" />
@@ -68,7 +68,7 @@ export function SkeletonProduct() {
         <Pulse className="h-4 w-1/2 mx-auto" />
       </div>
       {/* Score breakdown */}
-      <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
+      <div className="bg-[#111] rounded-sm p-4 space-y-3">
         {[1,2,3].map(i => (
           <div key={i} className="flex justify-between items-center">
             <Pulse className="h-4 w-1/3" />
@@ -92,7 +92,7 @@ export function SkeletonProfile() {
         </div>
       </div>
       {[1,2,3].map(i => (
-        <Pulse key={i} className="h-16 rounded-2xl" />
+        <Pulse key={i} className="h-16 rounded-sm" />
       ))}
     </div>
   );

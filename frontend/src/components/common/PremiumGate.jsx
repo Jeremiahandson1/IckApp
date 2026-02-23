@@ -68,7 +68,7 @@ export default function PremiumGate({ feature, children }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#c8f135]" />
       </div>
     );
   }
@@ -80,17 +80,17 @@ export default function PremiumGate({ feature, children }) {
   // Not premium — show gate
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
-      <div className="bg-gray-800/50 rounded-2xl p-3 mb-4">
-        <Lock className="w-8 h-8 text-gray-400" />
+      <div className="bg-[#1e1e1e]/50 rounded-sm p-3 mb-4">
+        <Lock className="w-8 h-8 text-[#888]" />
       </div>
-      <h2 className="text-xl font-bold text-gray-100 mb-2">Premium Feature</h2>
-      <p className="text-gray-400 text-center mb-6 max-w-sm">
+      <h2 className="text-xl font-bold text-[#f4f4f0] mb-2">Premium Feature</h2>
+      <p className="text-[#888] text-center mb-6 max-w-sm">
         {feature} requires a premium subscription.
         <br />Start your free 30-day trial to unlock everything.
       </p>
       <button
         onClick={handleStartTrial}
-        className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors w-full max-w-xs justify-center"
+        className="flex items-center gap-2 bg-[#c8f135] hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-sm transition-colors w-full max-w-xs justify-center"
       >
         <Crown className="w-5 h-5" />
         Start Free Trial

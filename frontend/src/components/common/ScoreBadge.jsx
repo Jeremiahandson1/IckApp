@@ -49,14 +49,14 @@ export function ScoreBar({ score, showValue = true }) {
   
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
         <div 
           className={`h-full ${bgClass} transition-all duration-500`}
           style={{ width: `${score}%` }}
         />
       </div>
       {showValue && (
-        <span className="text-sm font-medium text-gray-400 w-8">
+        <span className="text-sm font-medium text-[#888] w-8">
           {Math.round(score)}
         </span>
       )}

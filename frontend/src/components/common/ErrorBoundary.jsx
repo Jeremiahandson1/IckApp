@@ -20,7 +20,7 @@ export default class ErrorBoundary extends Component {
         <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
           <div className="text-5xl mb-4">🥦</div>
           <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
-          <p className="text-gray-400 text-sm mb-6 max-w-xs">
+          <p className="text-[#888] text-sm mb-6 max-w-xs">
             {this.props.message || "This section ran into an unexpected error. Your data is safe."}
           </p>
           <button
@@ -28,12 +28,12 @@ export default class ErrorBoundary extends Component {
               this.setState({ hasError: false, error: null });
               if (this.props.onReset) this.props.onReset();
             }}
-            className="px-6 py-3 bg-orange-500 text-white rounded-xl font-medium"
+            className="px-6 py-3 bg-[#c8f135] text-white rounded-sm font-medium"
           >
             Try Again
           </button>
           {this.props.showHome !== false && (
-            <a href="/scan" className="mt-3 text-gray-400 text-sm hover:text-gray-300">
+            <a href="/scan" className="mt-3 text-[#888] text-sm hover:text-[#bbb]">
               ← Back to scan
             </a>
           )}

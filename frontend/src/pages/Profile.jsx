@@ -134,7 +134,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -143,56 +143,56 @@ export default function Profile() {
 
   return (
     <div className="pb-4">
-      <h1 className="text-xl font-bold text-gray-100 mb-4">Profile</h1>
+      <h1 className="text-xl font-bold text-[#f4f4f0] mb-4">Profile</h1>
 
       {/* Profile Card */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-[rgba(200,241,53,0.1)] flex items-center justify-center">
             <span className="text-2xl">👤</span>
           </div>
           <div>
-            <h2 className="font-semibold text-gray-100">{profile?.name || 'User'}</h2>
-            <p className="text-sm text-gray-500">{profile?.email}</p>
+            <h2 className="font-semibold text-[#f4f4f0]">{profile?.name || 'User'}</h2>
+            <p className="text-sm text-[#666]">{profile?.email}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 py-4 border-t border-b border-gray-800">
+        <div className="grid grid-cols-3 gap-4 py-4 border-t border-b border-[#2a2a2a]">
           <div className="text-center">
-            <div className="text-xl font-bold text-gray-100">
+            <div className="text-xl font-bold text-[#f4f4f0]">
               {profile?.total_products_scanned || 0}
             </div>
-            <div className="text-xs text-gray-500">Scans</div>
+            <div className="text-xs text-[#666]">Scans</div>
           </div>
           <div className="text-center">
-            <div className="text-xl font-bold text-orange-500">
+            <div className="text-xl font-bold text-[#c8f135]">
               {profile?.total_swaps_clicked || 0}
             </div>
-            <div className="text-xs text-gray-500">Swaps</div>
+            <div className="text-xs text-[#666]">Swaps</div>
           </div>
           <div className="text-center">
             <div className="text-xl font-bold text-amber-500">
               {profile?.total_recipes_viewed || 0}
             </div>
-            <div className="text-xs text-gray-500">Recipes</div>
+            <div className="text-xs text-[#666]">Recipes</div>
           </div>
         </div>
 
         <button
           onClick={() => setEditing(true)}
-          className="w-full mt-4 py-2 text-orange-400 font-medium"
+          className="w-full mt-4 py-2 text-[#c8f135] font-medium"
         >
           Edit Profile
         </button>
       </div>
 
       {/* Allergen Alerts */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-100">Allergen Alerts</h3>
+          <h3 className="font-semibold text-[#f4f4f0]">Allergen Alerts</h3>
           <button
             onClick={() => setEditing(true)}
-            className="text-xs text-orange-400 font-medium"
+            className="text-xs text-[#c8f135] font-medium"
           >
             Edit
           </button>
@@ -206,27 +206,27 @@ export default function Profile() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[#666]">
             No allergens set. Tap Edit to add allergen alerts so we can warn you when scanning products.
           </p>
         )}
       </div>
 
       {/* Household Settings */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-        <h3 className="font-semibold text-gray-100 mb-3">Household Info</h3>
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h3 className="font-semibold text-[#f4f4f0] mb-3">Household Info</h3>
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">Location</span>
-            <span className="text-gray-100">{profile?.zip_code || 'Not set'}</span>
+            <span className="text-[#666]">Location</span>
+            <span className="text-[#f4f4f0]">{profile?.zip_code || 'Not set'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Household Size</span>
-            <span className="text-gray-100">{profile?.household_size || 2} people</span>
+            <span className="text-[#666]">Household Size</span>
+            <span className="text-[#f4f4f0]">{profile?.household_size || 2} people</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Kids</span>
-            <span className="text-gray-100">
+            <span className="text-[#666]">Kids</span>
+            <span className="text-[#f4f4f0]">
               {profile?.has_kids 
                 ? profile?.kids_ages?.length 
                   ? `Ages: ${profile.kids_ages.join(', ')}`
@@ -238,14 +238,14 @@ export default function Profile() {
       </div>
 
       {/* Subscription */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4"
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4"
         onClick={() => navigate('/subscription')}
         role="button"
       >
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-gray-100">Subscription</h3>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h3 className="font-semibold text-[#f4f4f0]">Subscription</h3>
+            <p className="text-sm text-[#666] mt-0.5">
               {profile?.subscription?.isPremium 
                 ? profile.subscription.isTrialing 
                   ? `Trial — ${profile.subscription.daysLeft} days left`
@@ -253,50 +253,50 @@ export default function Profile() {
                 : 'Free plan'}
             </p>
           </div>
-          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </div>
       </div>
 
       {/* App Settings */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-        <h3 className="font-semibold text-gray-100 mb-3">App Settings</h3>
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h3 className="font-semibold text-[#f4f4f0] mb-3">App Settings</h3>
         <div className="space-y-4">
           <div className="flex items-center justify-between opacity-60">
             <div>
-              <p className="font-medium text-gray-100">Push Notifications</p>
-              <p className="text-xs text-gray-500">Coming soon</p>
+              <p className="font-medium text-[#f4f4f0]">Push Notifications</p>
+              <p className="text-xs text-[#666]">Coming soon</p>
             </div>
             <div className="w-12 h-6 bg-gray-300 rounded-full relative">
-              <div className="absolute left-1 top-1 w-4 h-4 bg-gray-950 rounded-full" />
+              <div className="absolute left-1 top-1 w-4 h-4 bg-[#0d0d0d] rounded-full" />
             </div>
           </div>
           <div className="flex items-center justify-between opacity-60">
             <div>
-              <p className="font-medium text-gray-100">Velocity Tracking</p>
-              <p className="text-xs text-gray-500">Coming soon</p>
+              <p className="font-medium text-[#f4f4f0]">Velocity Tracking</p>
+              <p className="text-xs text-[#666]">Coming soon</p>
             </div>
             <div className="w-12 h-6 bg-gray-300 rounded-full relative">
-              <div className="absolute left-1 top-1 w-4 h-4 bg-gray-950 rounded-full" />
+              <div className="absolute left-1 top-1 w-4 h-4 bg-[#0d0d0d] rounded-full" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Data & Privacy */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-        <h3 className="font-semibold text-gray-100 mb-3">Data & Privacy</h3>
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h3 className="font-semibold text-[#f4f4f0] mb-3">Data & Privacy</h3>
         <div className="space-y-3">
-          <button className="w-full text-left py-2 text-gray-300 flex items-center justify-between">
+          <button className="w-full text-left py-2 text-[#bbb] flex items-center justify-between">
             <span>Export My Data</span>
-            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
-          <button className="w-full text-left py-2 text-gray-300 flex items-center justify-between">
+          <button className="w-full text-left py-2 text-[#bbb] flex items-center justify-between">
             <span>Privacy Policy</span>
-            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
@@ -310,7 +310,7 @@ export default function Profile() {
       </div>
 
       {/* Notifications */}
-      <div className="bg-gray-950 rounded-2xl p-4 mb-4">
+      <div className="bg-[#0d0d0d] rounded-sm p-4 mb-4">
         <button
           onClick={async () => {
             if (!('Notification' in window)) {
@@ -337,10 +337,10 @@ export default function Profile() {
           className="w-full flex items-center justify-between py-2"
         >
           <div>
-            <p className="font-medium text-gray-100">Push Notifications</p>
-            <p className="text-xs text-gray-500">Get alerts for score changes and new swaps</p>
+            <p className="font-medium text-[#f4f4f0]">Push Notifications</p>
+            <p className="text-xs text-[#666]">Get alerts for score changes and new swaps</p>
           </div>
-          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
         </button>
@@ -350,27 +350,27 @@ export default function Profile() {
       {user?.is_admin && (
         <button
           onClick={() => navigate('/admin')}
-          className="w-full py-3 bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded-2xl font-medium flex items-center justify-center gap-2"
+          className="w-full py-3 bg-[rgba(200,241,53,0.06)] border border-[#c8f135]/30 text-[#c8f135] rounded-sm font-medium flex items-center justify-center gap-2"
         >
           <span>⚙️</span> Admin Panel
         </button>
       )}
 
       {/* Account Security */}
-      <div className="bg-gray-900 rounded-2xl p-4 space-y-3">
-        <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Account</h3>
+      <div className="bg-[#111] rounded-sm p-4 space-y-3">
+        <h3 className="text-sm font-medium text-[#888] uppercase tracking-wide">Account</h3>
         <button
           onClick={() => setShowPasswordForm(true)}
-          className="w-full py-3 bg-gray-800 text-gray-300 rounded-xl font-medium text-left px-4 flex items-center justify-between"
+          className="w-full py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium text-left px-4 flex items-center justify-between"
         >
           <span>Change Password</span>
-          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 text-[#666]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
         <button
           onClick={() => setShowDeleteConfirm(true)}
-          className="w-full py-3 bg-gray-800 text-red-400 rounded-xl font-medium text-left px-4"
+          className="w-full py-3 bg-[#1e1e1e] text-red-400 rounded-sm font-medium text-left px-4"
         >
           Delete Account
         </button>
@@ -379,49 +379,49 @@ export default function Profile() {
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="w-full py-3 bg-gray-800 text-gray-300 rounded-xl font-medium"
+        className="w-full py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium"
       >
         Log Out
       </button>
 
-      <p className="text-center text-xs text-gray-400 mt-4">
+      <p className="text-center text-xs text-[#888] mt-4">
         Ick v2.0.0
       </p>
 
       {/* Change Password Modal */}
       {showPasswordForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold mb-4">Change Password</h2>
             <form onSubmit={handlePasswordChange} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Current Password</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">Current Password</label>
                 <input
                   type="password"
                   value={passwordForm.current}
                   onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 bg-[#111] border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">New Password</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">New Password</label>
                 <input
                   type="password"
                   value={passwordForm.next}
                   onChange={e => setPasswordForm(p => ({ ...p, next: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 bg-[#111] border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   required
                   minLength={8}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Confirm New Password</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">Confirm New Password</label>
                 <input
                   type="password"
                   value={passwordForm.confirm}
                   onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 bg-[#111] border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   required
                 />
               </div>
@@ -429,14 +429,14 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => { setShowPasswordForm(false); setPasswordForm({ current: '', next: '', confirm: '' }); }}
-                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                  className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={passwordSaving}
-                  className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium disabled:opacity-50"
+                  className="flex-1 py-3 bg-[#c8f135] text-white rounded-sm font-medium disabled:opacity-50"
                 >
                   {passwordSaving ? 'Saving...' : 'Update'}
                 </button>
@@ -449,19 +449,19 @@ export default function Profile() {
       {/* Delete Account Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-red-400 mb-2">Delete Account</h2>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-[#888] mb-4">
               This permanently deletes your account, pantry, scan history, and all data. This cannot be undone.
             </p>
             <form onSubmit={handleDeleteAccount} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Enter your password to confirm</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">Enter your password to confirm</label>
                 <input
                   type="password"
                   value={deletePassword}
                   onChange={e => setDeletePassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-red-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full px-4 py-3 bg-[#111] border border-red-800 rounded-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   placeholder="Your password"
                   required
                 />
@@ -470,14 +470,14 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
-                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                  className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={deleting}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium disabled:opacity-50"
+                  className="flex-1 py-3 bg-red-600 text-white rounded-sm font-medium disabled:opacity-50"
                 >
                   {deleting ? 'Deleting...' : 'Delete Forever'}
                 </button>
@@ -490,37 +490,37 @@ export default function Profile() {
       {/* Edit Modal */}
       {editing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm max-h-[90vh] overflow-auto">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm max-h-[90vh] overflow-auto">
             <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">ZIP Code</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">ZIP Code</label>
                 <input
                   type="text"
                   value={formData.zip_code}
                   onChange={(e) => setFormData(prev => ({ ...prev, zip_code: e.target.value }))}
                   maxLength={5}
-                  className="w-full px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Household Size</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">Household Size</label>
                 <select
                   value={formData.household_size}
                   onChange={(e) => setFormData(prev => ({ ...prev, household_size: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
                     <option key={n} value={n}>{n} {n === 1 ? 'person' : 'people'}</option>
@@ -534,14 +534,14 @@ export default function Profile() {
                   id="hasKids"
                   checked={formData.has_kids}
                   onChange={(e) => setFormData(prev => ({ ...prev, has_kids: e.target.checked }))}
-                  className="w-5 h-5 rounded border-gray-600 text-orange-500 focus:ring-orange-500"
+                  className="w-5 h-5 rounded border-[#444] text-[#c8f135] focus:ring-[#c8f135]"
                 />
-                <label htmlFor="hasKids" className="text-gray-300">I have kids</label>
+                <label htmlFor="hasKids" className="text-[#bbb]">I have kids</label>
               </div>
 
               {formData.has_kids && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-[#bbb] mb-1">
                     Kids' Ages (comma-separated)
                   </label>
                   <input
@@ -549,17 +549,17 @@ export default function Profile() {
                     value={formData.kids_ages}
                     onChange={(e) => setFormData(prev => ({ ...prev, kids_ages: e.target.value }))}
                     placeholder="e.g., 3, 7, 12"
-                    className="w-full px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   />
                 </div>
               )}
 
               {/* Allergen Alerts */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#bbb] mb-2">
                   Allergen Alerts
                 </label>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-[#666] mb-3">
                   We'll warn you when scanned products contain these allergens.
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -573,7 +573,7 @@ export default function Profile() {
                         className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                           isSelected
                             ? 'bg-red-500/100 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            : 'bg-[#1e1e1e] text-[#888] hover:bg-[#2a2a2a]'
                         }`}
                       >
                         {isSelected ? '✓ ' : ''}{allergen}
@@ -587,14 +587,14 @@ export default function Profile() {
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
-                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                  className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 py-3 bg-orange-500/100 text-white rounded-xl font-medium disabled:opacity-50"
+                  className="flex-1 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : 'Save'}
                 </button>

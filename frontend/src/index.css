@@ -2,10 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&family=Space+Mono:wght@400;700&display=swap');
+
 /* ═══════════════════════════════════════
-   ICK — Matte Black + Orange
-   Warning label aesthetic
+   ICK — Near-Black + Toxic Green
+   ickthatish.com · a Twomiah product
    ═══════════════════════════════════════ */
+
+:root {
+  --ick-green: #c8f135;
+  --ick-green-dim: #a8cc20;
+  --ick-green-glow: rgba(200, 241, 53, 0.15);
+  --black: #0a0a0a;
+  --near-black: #111111;
+  --card: #161616;
+  --border: #2a2a2a;
+  --muted: #888880;
+  --white: #f4f4f0;
+  --red: #ff3b30;
+  --orange-warn: #ff6b2b;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
 
 @layer base {
   html {
@@ -14,8 +33,8 @@
   }
   
   body {
-    @apply bg-[#0a0a0a] text-gray-100;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-[#0a0a0a] text-[#f4f4f0];
+    font-family: var(--font-body);
   }
   
   .hide-scrollbar {
@@ -41,44 +60,65 @@
   
   /* Cards — dark surface */
   .card {
-    @apply bg-[#141414] rounded-2xl shadow-sm border border-gray-800/50;
+    @apply bg-[#161616] shadow-sm border border-[#2a2a2a];
+  }
+
+  .card-rounded {
+    @apply bg-[#161616] rounded-sm shadow-sm border border-[#2a2a2a];
   }
   
   .card-pressed {
     @apply active:scale-[0.98] transition-transform;
   }
   
-  /* Buttons — orange is the action color */
+  /* Buttons — ick-green is the action color */
   .btn-primary {
-    @apply bg-orange-500 text-black font-bold py-3 px-6 rounded-xl 
-           active:bg-orange-400 transition-colors disabled:opacity-50;
+    background: var(--ick-green);
+    @apply text-black font-bold py-3 px-6 
+           transition-all disabled:opacity-40 active:scale-[0.97];
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
   
   .btn-secondary {
-    @apply bg-gray-800 text-gray-200 font-semibold py-3 px-6 rounded-xl 
-           active:bg-gray-700 transition-colors;
+    @apply bg-[#1e1e1e] text-[#f4f4f0] font-medium py-3 px-6
+           border border-[#2a2a2a] transition-all active:scale-[0.97];
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
   
   .btn-ghost {
-    @apply text-orange-500 font-semibold py-2 px-4 rounded-lg 
-           active:bg-orange-500/10 transition-colors;
+    color: var(--ick-green);
+    @apply font-semibold py-2 px-4 transition-colors;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
   
   /* Input fields — dark */
   .input-field {
-    @apply w-full px-4 py-3 rounded-xl border border-gray-700 bg-gray-900
-           text-gray-100 placeholder:text-gray-500
-           focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 
+    @apply w-full px-4 py-3 border border-[#2a2a2a] bg-[#161616]
+           text-[#f4f4f0] placeholder:text-[#888880]
            outline-none transition-all;
+    font-family: var(--font-body);
+  }
+  .input-field:focus {
+    border-color: var(--ick-green);
+    box-shadow: 0 0 0 2px var(--ick-green-glow);
   }
   
   /* Navigation */
   .nav-item {
-    @apply flex flex-col items-center gap-1 py-2 px-4 text-gray-500 
+    @apply flex flex-col items-center gap-1 py-2 px-4 text-[#555550]
            transition-colors;
   }
   .nav-item.active {
-    @apply text-orange-500;
+    color: var(--ick-green);
   }
   
   /* Scanner */
@@ -86,20 +126,62 @@
     @apply absolute inset-0 pointer-events-none;
   }
   .scan-corner {
-    @apply absolute w-8 h-8 border-orange-500;
+    border-color: var(--ick-green);
+    @apply absolute w-8 h-8;
   }
   
   .pull-indicator {
-    @apply absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full py-4 text-gray-500;
+    @apply absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full py-4 text-[#555550];
   }
   
   /* Skeleton — dark */
   .skeleton {
-    @apply bg-gray-800 animate-pulse rounded;
+    @apply bg-[#1e1e1e] animate-pulse;
   }
   
   .tab-bar-padding {
     @apply pb-20;
+  }
+
+  /* Display font utility */
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+  }
+
+  .font-mono-ick {
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
+  }
+
+  /* Section labels */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--ick-green);
+  }
+
+  /* Ick flag pill */
+  .ick-pill-red {
+    @apply text-[10px] px-2 py-0.5 border;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.3);
+    color: var(--red);
+  }
+
+  .ick-pill-green {
+    @apply text-[10px] px-2 py-0.5 border;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(200, 241, 53, 0.08);
+    border-color: rgba(200, 241, 53, 0.25);
+    color: var(--ick-green);
   }
 }
 
@@ -108,29 +190,42 @@
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
   
   .gradient-brand {
-    @apply bg-gradient-to-br from-orange-500 to-orange-600;
+    background: var(--ick-green);
   }
   .gradient-danger {
     @apply bg-gradient-to-br from-red-500 to-red-600;
   }
   
-  /* Ick text gradient — orange to red */
+  /* Ick text — green */
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-red-500;
+    background: var(--ick-green);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
+
+  .text-ick-green { color: var(--ick-green); }
+  .bg-ick-green { background: var(--ick-green); }
+  .border-ick-green { border-color: var(--ick-green); }
 }
 
 /* Scanner video */
 #qr-reader { width: 100% !important; border: none !important; }
-#qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; border-radius: 1rem; }
+#qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; border-radius: 0; }
 #qr-reader__scan_region { min-height: 300px !important; }
 #qr-reader__dashboard { display: none !important; }
 
 @keyframes scan-line {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(120px); }
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(120px); opacity: 0.7; }
 }
 .animate-scan-line { animation: scan-line 2s ease-in-out infinite; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fadeUp 0.5s ease forwards; }
 
 /* ── Native ── */
 body.barcode-scanning-active { background: transparent !important; }
@@ -145,3 +240,7 @@ html.native-app { -webkit-user-select: none; user-select: none; overscroll-behav
 html.native-app input, html.native-app textarea { -webkit-user-select: text; user-select: text; }
 html.native-app body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
 html.native-app #root { width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* Hide scrollbars */
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }

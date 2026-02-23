@@ -18,7 +18,7 @@ export default function TrialBanner() {
         className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium cursor-pointer transition-colors ${
           urgent
             ? 'bg-amber-500/10 text-amber-700 hover:bg-amber-500/20'
-            : 'bg-orange-500/10 text-orange-700 hover:bg-orange-500/20'
+            : 'bg-[rgba(200,241,53,0.06)] text-[#7a8e00] hover:bg-[rgba(200,241,53,0.1)]'
         }`}
       >
         <Clock className="w-3.5 h-3.5" />
@@ -48,7 +48,7 @@ export default function TrialBanner() {
     return (
       <div
         onClick={() => navigate('/subscription')}
-        className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium cursor-pointer bg-orange-500/10 text-orange-700 hover:bg-orange-500/20 transition-colors"
+        className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium cursor-pointer bg-[rgba(200,241,53,0.06)] text-[#7a8e00] hover:bg-[rgba(200,241,53,0.1)] transition-colors"
       >
         <Crown className="w-3.5 h-3.5" />
         <span>Try Premium free for 30 days — unlock pantry tracking, recipes, and more</span>

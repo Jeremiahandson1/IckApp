@@ -21,22 +21,22 @@ export default function Admin() {
   if (!user?.is_admin) return null;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white pb-20">
+    <div className="min-h-screen bg-[#0d0d0d] text-white pb-20">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-4 py-4">
+      <div className="bg-[#111] border-b border-[#2a2a2a] px-4 py-4">
         <h1 className="text-xl font-bold">Admin</h1>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-800 bg-gray-900 overflow-x-auto">
+      <div className="flex border-b border-[#2a2a2a] bg-[#111] overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               tab === t
-                ? 'border-orange-500 text-orange-400'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
+                ? 'border-[#c8f135] text-[#c8f135]'
+                : 'border-transparent text-[#888] hover:text-[#ddd]'
             }`}
           >
             {t}
@@ -68,7 +68,7 @@ function DashboardTab({ showToast }) {
   }, []);
 
   if (loading) return <Spinner />;
-  if (!health)  return <p className="text-gray-400">No data.</p>;
+  if (!health)  return <p className="text-[#888]">No data.</p>;
 
   const cards = [
     { label: 'Total Users',       value: health.users?.total,          sub: `+${health.users?.new_7d} this week` },
@@ -86,28 +86,28 @@ function DashboardTab({ showToast }) {
   return (
     <div className="space-y-6">
       {pending > 0 && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 text-orange-300 text-sm">
+        <div className="bg-[rgba(200,241,53,0.06)] border border-[#c8f135]/30 rounded-sm p-4 text-[#a8cc20] text-sm">
           ⚠️ {pending} product contribution{pending !== 1 ? 's' : ''} pending review
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-3">
         {cards.map(c => (
-          <div key={c.label} className="bg-gray-900 rounded-xl p-4">
+          <div key={c.label} className="bg-[#111] rounded-sm p-4">
             <p className="text-2xl font-bold">{c.value ?? '—'}</p>
-            <p className="text-sm text-gray-400 mt-1">{c.label}</p>
-            {c.sub && <p className="text-xs text-gray-500 mt-0.5">{c.sub}</p>}
+            <p className="text-sm text-[#888] mt-1">{c.label}</p>
+            {c.sub && <p className="text-xs text-[#666] mt-0.5">{c.sub}</p>}
           </div>
         ))}
       </div>
 
       {health.subscriptions?.length > 0 && (
-        <div className="bg-gray-900 rounded-xl p-4">
+        <div className="bg-[#111] rounded-sm p-4">
           <h3 className="font-semibold mb-3">Subscriptions</h3>
           <div className="space-y-2">
             {health.subscriptions.map((s, i) => (
               <div key={i} className="flex justify-between text-sm">
-                <span className="text-gray-400 capitalize">{s.plan} / {s.status}</span>
+                <span className="text-[#888] capitalize">{s.plan} / {s.status}</span>
                 <span className="font-medium">{s.count}</span>
               </div>
             ))}
@@ -184,26 +184,26 @@ function UsersTab({ showToast }) {
           value={searchInput}
           onChange={e => setSearchInput(e.target.value)}
           placeholder="Search by email or name..."
-          className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="flex-1 px-4 py-2 bg-[#111] border border-[#333] rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
         />
         <button
           type="submit"
-          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium"
+          className="px-4 py-2 bg-[#c8f135] text-white rounded-sm text-sm font-medium"
         >
           Search
         </button>
       </form>
 
-      <p className="text-sm text-gray-400">{total} users{search ? ` matching "${search}"` : ''}</p>
+      <p className="text-sm text-[#888]">{total} users{search ? ` matching "${search}"` : ''}</p>
 
       {loading ? <Spinner /> : (
         <div className="space-y-2">
           {users.map(u => (
-            <div key={u.id} className="bg-gray-900 rounded-xl p-4">
+            <div key={u.id} className="bg-[#111] rounded-sm p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{u.name || '(no name)'}</p>
-                  <p className="text-sm text-gray-400 truncate">{u.email}</p>
+                  <p className="text-sm text-[#888] truncate">{u.email}</p>
                   <div className="flex gap-2 mt-1 flex-wrap">
                     {u.is_admin && <Badge color="orange">Admin</Badge>}
                     {u.sub_status === 'active' && <Badge color="green">{u.plan}</Badge>}
@@ -214,7 +214,7 @@ function UsersTab({ showToast }) {
                 <div className="flex gap-2 shrink-0">
                   <button
                     onClick={() => setActionUser(u)}
-                    className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded-lg text-xs font-medium"
+                    className="px-3 py-1.5 bg-[#1e1e1e] text-[#bbb] rounded-sm text-xs font-medium"
                   >
                     Actions
                   </button>
@@ -228,9 +228,9 @@ function UsersTab({ showToast }) {
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex gap-2 justify-center">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 bg-gray-800 rounded-lg text-sm disabled:opacity-40">← Prev</button>
-          <span className="px-3 py-1.5 text-sm text-gray-400">{page} / {pages}</span>
-          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 bg-gray-800 rounded-lg text-sm disabled:opacity-40">Next →</button>
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm disabled:opacity-40">← Prev</button>
+          <span className="px-3 py-1.5 text-sm text-[#888]">{page} / {pages}</span>
+          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm disabled:opacity-40">Next →</button>
         </div>
       )}
 
@@ -240,16 +240,16 @@ function UsersTab({ showToast }) {
           <div className="space-y-3">
             <button
               onClick={() => { toggleAdmin(actionUser); setActionUser(null); }}
-              className="w-full py-3 bg-gray-800 rounded-xl text-sm font-medium text-left px-4"
+              className="w-full py-3 bg-[#1e1e1e] rounded-sm text-sm font-medium text-left px-4"
             >
               {actionUser.is_admin ? '🔴 Remove Admin' : '🟢 Make Admin'}
             </button>
-            <div className="text-xs text-gray-500 px-1">Grant free trial</div>
+            <div className="text-xs text-[#666] px-1">Grant free trial</div>
             {[7, 14, 30, 90].map(d => (
               <button
                 key={d}
                 onClick={() => grantTrial(actionUser, d)}
-                className="w-full py-3 bg-gray-800 rounded-xl text-sm font-medium text-left px-4"
+                className="w-full py-3 bg-[#1e1e1e] rounded-sm text-sm font-medium text-left px-4"
               >
                 🎁 Grant {d}-day trial
               </button>
@@ -309,8 +309,8 @@ function ContributionsTab({ showToast }) {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium capitalize transition-colors ${
-              filter === f ? 'bg-orange-500 text-white' : 'bg-gray-800 text-gray-400'
+            className={`px-4 py-2 rounded-sm text-sm font-medium capitalize transition-colors ${
+              filter === f ? 'bg-[#c8f135] text-white' : 'bg-[#1e1e1e] text-[#888]'
             }`}
           >
             {f}
@@ -319,15 +319,15 @@ function ContributionsTab({ showToast }) {
       </div>
 
       {loading ? <Spinner /> : contribs.length === 0 ? (
-        <p className="text-gray-400 text-sm py-8 text-center">No {filter} contributions.</p>
+        <p className="text-[#888] text-sm py-8 text-center">No {filter} contributions.</p>
       ) : (
         <div className="space-y-4">
           {contribs.map(c => (
-            <div key={c.id} className="bg-gray-900 rounded-xl p-4 space-y-3">
+            <div key={c.id} className="bg-[#111] rounded-sm p-4 space-y-3">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-semibold">{c.name}</p>
-                  <p className="text-sm text-gray-400">{c.brand} · UPC: {c.upc}</p>
+                  <p className="text-sm text-[#888]">{c.brand} · UPC: {c.upc}</p>
                 </div>
                 <Badge color={c.status === 'pending' ? 'orange' : c.status === 'approved' ? 'green' : 'red'}>
                   {c.status}
@@ -335,27 +335,27 @@ function ContributionsTab({ showToast }) {
               </div>
               {c.ingredients_text && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Ingredients</p>
-                  <p className="text-sm text-gray-300 line-clamp-3">{c.ingredients_text}</p>
+                  <p className="text-xs text-[#666] mb-1">Ingredients</p>
+                  <p className="text-sm text-[#bbb] line-clamp-3">{c.ingredients_text}</p>
                 </div>
               )}
               {c.image_url && (
-                <img src={c.image_url} alt={c.name} className="w-16 h-16 object-cover rounded-lg" />
+                <img src={c.image_url} alt={c.name} className="w-16 h-16 object-cover rounded-sm" />
               )}
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-[#666]">
                 Submitted by {c.submitter_email || 'anonymous'} · {new Date(c.created_at).toLocaleDateString()}
               </p>
               {c.status === 'pending' && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => approve(c.id)}
-                    className="flex-1 py-2 bg-green-600 text-white rounded-xl text-sm font-medium"
+                    className="flex-1 py-2 bg-green-600 text-white rounded-sm text-sm font-medium"
                   >
                     ✓ Approve
                   </button>
                   <button
                     onClick={() => reject(c.id, 'Rejected by admin')}
-                    className="flex-1 py-2 bg-red-700 text-white rounded-xl text-sm font-medium"
+                    className="flex-1 py-2 bg-red-700 text-white rounded-sm text-sm font-medium"
                   >
                     ✕ Reject
                   </button>
@@ -403,7 +403,7 @@ function ProductsTab({ showToast }) {
     <div className="space-y-6">
       {/* Data gaps */}
       {gaps && (
-        <div className="bg-gray-900 rounded-xl p-4 space-y-3">
+        <div className="bg-[#111] rounded-sm p-4 space-y-3">
           <h3 className="font-semibold">Data Gaps</h3>
           <div className="grid grid-cols-3 gap-3">
             <GapStat label="Missing Score" value={gaps.no_score} color="red" />
@@ -413,13 +413,13 @@ function ProductsTab({ showToast }) {
 
           {gaps.samples?.length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 mb-2">Recent products with gaps</p>
+              <p className="text-xs text-[#666] mb-2">Recent products with gaps</p>
               <div className="space-y-2">
                 {gaps.samples.map(p => (
                   <div key={p.upc} className="flex justify-between items-center text-sm">
                     <div className="min-w-0">
                       <p className="truncate">{p.name || '(unnamed)'}</p>
-                      <p className="text-xs text-gray-500">{p.upc}</p>
+                      <p className="text-xs text-[#666]">{p.upc}</p>
                     </div>
                     <div className="flex gap-2 shrink-0 ml-2">
                       {p.total_score == null && <Badge color="red">no score</Badge>}
@@ -435,32 +435,32 @@ function ProductsTab({ showToast }) {
       )}
 
       {/* Auto-flag clean alternatives */}
-      <div className="bg-gray-900 rounded-xl p-4 space-y-4">
+      <div className="bg-[#111] rounded-sm p-4 space-y-4">
         <h3 className="font-semibold">Auto-Flag Clean Alternatives</h3>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-[#888]">
           Mark all products above a score threshold as clean alternatives, making them available as swap suggestions.
         </p>
         <div className="flex gap-3 items-center">
-          <label className="text-sm text-gray-300">Min score</label>
+          <label className="text-sm text-[#bbb]">Min score</label>
           <input
             type="number"
             value={minScore}
             onChange={e => setMinScore(parseInt(e.target.value))}
             min={0}
             max={100}
-            className="w-20 px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-20 px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
           />
           <button
             onClick={autoFlag}
             disabled={flagging}
-            className="px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium disabled:opacity-50"
+            className="px-4 py-2 bg-[#c8f135] text-white rounded-sm text-sm font-medium disabled:opacity-50"
           >
             {flagging ? 'Running...' : 'Run'}
           </button>
         </div>
 
         {flagResult && (
-          <div className="bg-green-900/30 border border-green-800 rounded-xl p-3 text-sm text-green-300">
+          <div className="bg-green-900/30 border border-green-800 rounded-sm p-3 text-sm text-green-300">
             ✓ Flagged {flagResult.flagged} products
             {flagResult.products?.length > 0 && (
               <ul className="mt-2 space-y-1 text-xs text-green-400 max-h-40 overflow-auto">
@@ -480,18 +480,18 @@ function ProductsTab({ showToast }) {
 function Spinner() {
   return (
     <div className="flex justify-center py-12">
-      <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+      <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
     </div>
   );
 }
 
 function Badge({ color, children }) {
   const colors = {
-    orange: 'bg-orange-500/20 text-orange-300',
+    orange: 'bg-[rgba(200,241,53,0.1)] text-[#a8cc20]',
     green:  'bg-green-500/20 text-green-300',
     red:    'bg-red-500/20 text-red-300',
     yellow: 'bg-yellow-500/20 text-yellow-300',
-    gray:   'bg-gray-700 text-gray-400',
+    gray:   'bg-[#2a2a2a] text-[#888]',
   };
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[color] || colors.gray}`}>
@@ -501,11 +501,11 @@ function Badge({ color, children }) {
 }
 
 function GapStat({ label, value, color }) {
-  const colors = { red: 'text-red-400', yellow: 'text-yellow-400', orange: 'text-orange-400' };
+  const colors = { red: 'text-red-400', yellow: 'text-yellow-400', orange: 'text-[#c8f135]' };
   return (
-    <div className="bg-gray-800 rounded-xl p-3 text-center">
+    <div className="bg-[#1e1e1e] rounded-sm p-3 text-center">
       <p className={`text-2xl font-bold ${colors[color]}`}>{value ?? '—'}</p>
-      <p className="text-xs text-gray-500 mt-1">{label}</p>
+      <p className="text-xs text-[#666] mt-1">{label}</p>
     </div>
   );
 }
@@ -513,13 +513,13 @@ function GapStat({ label, value, color }) {
 function Modal({ onClose, title, children }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4">
-      <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm space-y-4">
+      <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold truncate">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-[#888] text-lg leading-none">✕</button>
         </div>
         {children}
-        <button onClick={onClose} className="w-full py-3 bg-gray-800 text-gray-400 rounded-xl text-sm">Cancel</button>
+        <button onClick={onClose} className="w-full py-3 bg-[#1e1e1e] text-[#888] rounded-sm text-sm">Cancel</button>
       </div>
     </div>
   );

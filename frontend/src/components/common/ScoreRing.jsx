@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 
-// Thresholds and labels match helpers.js getScoreRating() / getScoreLabel()
 const VERDICTS = {
-  excellent: { label: 'Clean',   emoji: '🟢', color: 'text-green-400',  ring: 'stroke-green-400',  bg: 'bg-green-500/10' },
-  good:      { label: 'Decent',  emoji: '🟢', color: 'text-green-500',  ring: 'stroke-green-500',  bg: 'bg-green-500/10' },
-  fair:      { label: 'Meh',     emoji: '🟡', color: 'text-amber-400',  ring: 'stroke-amber-400',  bg: 'bg-amber-500/10' },
-  poor:      { label: 'Ick',     emoji: '🟠', color: 'text-orange-500', ring: 'stroke-orange-500', bg: 'bg-orange-500/10' },
-  bad:       { label: 'Avoid',   emoji: '🔴', color: 'text-red-500',    ring: 'stroke-red-500',    bg: 'bg-red-500/10' },
+  excellent: { label: 'Clean',   color: '#22c55e', ring: '#22c55e',  bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.2)' },
+  good:      { label: 'Decent',  color: '#86efac', ring: '#86efac',  bg: 'rgba(134,239,172,0.08)', border: 'rgba(134,239,172,0.2)' },
+  fair:      { label: 'Meh',     color: '#fbbf24', ring: '#fbbf24',  bg: 'rgba(251,191,36,0.08)',  border: 'rgba(251,191,36,0.2)' },
+  poor:      { label: 'Ick It',  color: '#f97316', ring: '#f97316',  bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.2)' },
+  bad:       { label: 'Avoid',   color: '#ff3b30', ring: '#ff3b30',  bg: 'rgba(255,59,48,0.08)',   border: 'rgba(255,59,48,0.25)' },
 };
 
 function getVerdict(score) {
@@ -35,13 +34,11 @@ export default function ScoreRing({ score, name, size = 140 }) {
   const verdict = getVerdict(score);
 
   useEffect(() => {
-    // Animate from 0 to score
-    const duration = 800;
+    const duration = 900;
     const start = performance.now();
     const animate = (now) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setAnimatedScore(Math.round(eased * score));
       setAnimatedPct(eased * (score / 100));
@@ -53,42 +50,69 @@ export default function ScoreRing({ score, name, size = 140 }) {
   const dashOffset = circumference * (1 - animatedPct);
 
   return (
-    <div className={`flex flex-col items-center py-6 px-4 rounded-2xl ${verdict.bg}`}>
+    <div
+      className="flex flex-col items-center py-6 px-4"
+      style={{ background: verdict.bg, border: `1px solid ${verdict.border}` }}
+    >
       {/* Ring */}
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
-          {/* Background track */}
           <circle
             cx={size / 2} cy={size / 2} r={radius}
-            fill="none" strokeWidth={10}
-            className="stroke-gray-200/50"
+            fill="none" strokeWidth={8}
+            stroke="rgba(255,255,255,0.06)"
           />
-          {/* Colored progress */}
           <circle
             cx={size / 2} cy={size / 2} r={radius}
-            fill="none" strokeWidth={10}
+            fill="none" strokeWidth={8}
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
-            className={`${verdict.ring} transition-all duration-100`}
+            stroke={verdict.ring}
+            style={{ transition: 'stroke-dashoffset 0.1s' }}
           />
         </svg>
-        {/* Score number in center */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-bold ${verdict.color}`}>
+          <span style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: size * 0.3,
+            lineHeight: 1,
+            color: verdict.color,
+          }}>
             {animatedScore}
           </span>
-          <span className="text-xs text-gray-400 font-medium">/100</span>
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '10px',
+            letterSpacing: '2px',
+            color: 'var(--muted)',
+          }}>/100</span>
         </div>
       </div>
 
-      {/* Verdict */}
-      <div className={`mt-3 px-4 py-1.5 rounded-full font-bold text-sm uppercase tracking-wider ${verdict.color} ${verdict.bg}`}>
+      {/* Verdict pill */}
+      <div
+        className="mt-3 px-4 py-1"
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '20px',
+          letterSpacing: '3px',
+          color: verdict.color,
+          textTransform: 'uppercase',
+        }}
+      >
         {verdict.label}
       </div>
 
-      {/* One-sentence verdict */}
-      <p className="mt-2 text-sm text-gray-400 text-center max-w-xs">
+      {/* Sentence */}
+      <p style={{
+        marginTop: '6px',
+        fontSize: '13px',
+        color: 'var(--muted)',
+        textAlign: 'center',
+        maxWidth: '240px',
+        fontWeight: 300,
+      }}>
         {getVerdictSentence(score, name)}
       </p>
     </div>

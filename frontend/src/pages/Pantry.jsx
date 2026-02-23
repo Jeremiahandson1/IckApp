@@ -80,10 +80,10 @@ export default function Pantry() {
     <div className="pb-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-100">My Pantry</h1>
+        <h1 className="text-xl font-bold text-[#f4f4f0]">My Pantry</h1>
         <Link
           to="/pantry/audit"
-          className="px-4 py-2 bg-orange-500/100 text-white rounded-lg text-sm font-medium"
+          className="px-4 py-2 bg-[rgba(200,241,53,0.06)] text-white rounded-sm text-sm font-medium"
         >
           + Add Items
         </Link>
@@ -91,24 +91,24 @@ export default function Pantry() {
 
       {/* Damage Report Summary */}
       {audit && pantryItems.length > 0 && (
-        <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-          <h2 className="font-semibold text-gray-100 mb-3">Pantry Health Report</h2>
+        <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+          <h2 className="font-semibold text-[#f4f4f0] mb-3">Pantry Health Report</h2>
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="text-center">
               <div className={`text-2xl font-bold ${getScoreColor(audit.average_score)}`}>
                 {Math.round(audit.average_score)}
               </div>
-              <div className="text-xs text-gray-500">Avg Score</div>
+              <div className="text-xs text-[#666]">Avg Score</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-100">{audit.total_items}</div>
-              <div className="text-xs text-gray-500">Items</div>
+              <div className="text-2xl font-bold text-[#f4f4f0]">{audit.total_items}</div>
+              <div className="text-xs text-[#666]">Items</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-red-500">
                 {audit.breakdown?.avoid || 0}
               </div>
-              <div className="text-xs text-gray-500">To Swap</div>
+              <div className="text-xs text-[#666]">To Swap</div>
             </div>
           </div>
           
@@ -116,7 +116,7 @@ export default function Pantry() {
           <div className="flex gap-1 h-4 rounded-full overflow-hidden">
             {audit.breakdown?.excellent > 0 && (
               <div 
-                className="bg-orange-500/100" 
+                className="bg-[rgba(200,241,53,0.06)]" 
                 style={{ width: `${(audit.breakdown.excellent / audit.total_items) * 100}%` }} 
               />
             )}
@@ -145,7 +145,7 @@ export default function Pantry() {
               />
             )}
           </div>
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <div className="flex justify-between text-xs text-[#666] mt-1">
             <span>🌟 {audit.breakdown?.excellent || 0}</span>
             <span>🟢 {audit.breakdown?.good || 0}</span>
             <span>🟡 {audit.breakdown?.okay || 0}</span>
@@ -155,8 +155,8 @@ export default function Pantry() {
 
           {/* Top Harmful Ingredients */}
           {audit.top_harmful_ingredients?.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-800">
-              <h3 className="text-sm font-medium text-gray-300 mb-2">Top Harmful Ingredients</h3>
+            <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+              <h3 className="text-sm font-medium text-[#bbb] mb-2">Top Harmful Ingredients</h3>
               <div className="flex flex-wrap gap-2">
                 {audit.top_harmful_ingredients.slice(0, 5).map((ing, i) => (
                   <span key={i} className="px-2 py-1 bg-red-500/10 text-red-700 text-xs rounded-full">
@@ -183,8 +183,8 @@ export default function Pantry() {
               onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
                 filter === f.key
-                  ? 'bg-orange-500/100 text-white'
-                  : 'bg-gray-800 text-gray-400'
+                  ? 'bg-[rgba(200,241,53,0.06)] text-white'
+                  : 'bg-[#1e1e1e] text-[#888]'
               }`}
             >
               {f.label}
@@ -197,20 +197,20 @@ export default function Pantry() {
       {pantryItems.length === 0 && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📦</div>
-          <h2 className="text-xl font-semibold text-gray-100 mb-2">Your pantry is empty</h2>
-          <p className="text-gray-500 mb-6">
+          <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">Your pantry is empty</h2>
+          <p className="text-[#666] mb-6">
             Start by scanning products or doing a full pantry audit
           </p>
           <div className="flex flex-col gap-3">
             <Link
               to="/scan"
-              className="mx-auto px-6 py-3 bg-orange-500/100 text-white rounded-xl font-medium"
+              className="mx-auto px-6 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium"
             >
               Scan a Product
             </Link>
             <Link
               to="/pantry/audit"
-              className="mx-auto px-6 py-3 bg-gray-800 text-gray-300 rounded-xl font-medium"
+              className="mx-auto px-6 py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium"
             >
               Full Pantry Audit
             </Link>
@@ -221,28 +221,28 @@ export default function Pantry() {
       {/* Items List */}
       <div className="space-y-3">
         {filteredItems.map(item => (
-          <div key={item.id} className="bg-gray-950 rounded-xl p-4 shadow-sm">
+          <div key={item.id} className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm">
             <div className="flex items-start gap-3">
               {/* Score Badge */}
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold ${
-                item.total_score >= 86 ? 'bg-orange-500/100' :
+              <div className={`w-12 h-12 rounded-sm flex items-center justify-center text-white font-bold ${
+                item.total_score >= 86 ? 'bg-[rgba(200,241,53,0.06)]' :
                 item.total_score >= 71 ? 'bg-green-400' :
                 item.total_score >= 51 ? 'bg-yellow-400' :
-                item.total_score >= 31 ? 'bg-orange-400' : 'bg-red-500/100'
+                item.total_score >= 31 ? 'bg-[#c8f135]' : 'bg-red-500/100'
               }`}>
                 {Math.round(item.total_score)}
               </div>
               
               {/* Product Info */}
               <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-gray-100 truncate">{item.name}</h3>
-                <p className="text-sm text-gray-500">{item.brand}</p>
+                <h3 className="font-medium text-[#f4f4f0] truncate">{item.name}</h3>
+                <p className="text-sm text-[#666]">{item.brand}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-xs font-medium ${getScoreColor(item.total_score)}`}>
                     {getScoreLabel(item.total_score)}
                   </span>
                   {item.quantity > 1 && (
-                    <span className="text-xs text-gray-400">×{item.quantity}</span>
+                    <span className="text-xs text-[#888]">×{item.quantity}</span>
                   )}
                 </div>
               </div>
@@ -251,7 +251,7 @@ export default function Pantry() {
               <div className="flex flex-col gap-1">
                 <button
                   onClick={() => navigate(`/product/${item.upc}`)}
-                  className="p-2 text-gray-400 hover:text-orange-500"
+                  className="p-2 text-[#888] hover:text-[#c8f135]"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -262,7 +262,7 @@ export default function Pantry() {
 
             {/* Harmful Ingredients Preview */}
             {item.harmful_ingredients_found?.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-800">
+              <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
                 <div className="flex flex-wrap gap-1">
                   {item.harmful_ingredients_found.slice(0, 3).map((ing, i) => (
                     <span key={i} className="px-2 py-0.5 bg-red-500/10 text-red-400 text-xs rounded">
@@ -270,7 +270,7 @@ export default function Pantry() {
                     </span>
                   ))}
                   {item.harmful_ingredients_found.length > 3 && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[#888]">
                       +{item.harmful_ingredients_found.length - 3} more
                     </span>
                   )}
@@ -279,18 +279,18 @@ export default function Pantry() {
             )}
 
             {/* Actions Row */}
-            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-800">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-[#2a2a2a]">
               {item.total_score < 70 && (
                 <button
                   onClick={() => navigate(`/product/${item.upc}?tab=swaps`)}
-                  className="flex-1 py-2 bg-orange-500/10 text-orange-400 rounded-lg text-sm font-medium"
+                  className="flex-1 py-2 bg-[rgba(200,241,53,0.06)] text-[#c8f135] rounded-sm text-sm font-medium"
                 >
                   Find Swaps
                 </button>
               )}
               <button
                 onClick={() => markFinished(item.id)}
-                className="flex-1 py-2 bg-gray-800 text-gray-400 rounded-lg text-sm font-medium"
+                className="flex-1 py-2 bg-[#1e1e1e] text-[#888] rounded-sm text-sm font-medium"
               >
                 Finished
               </button>
@@ -310,7 +310,7 @@ export default function Pantry() {
         <div className="fixed bottom-20 left-4 right-4">
           <Link
             to="/swaps"
-            className="flex items-center justify-center gap-2 w-full py-4 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-semibold shadow-lg"
+            className="flex items-center justify-center gap-2 w-full py-4 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-sm font-semibold shadow-lg"
           >
             <span>🔄</span>
             <span>Fix {audit.breakdown.avoid} Problem Items</span>

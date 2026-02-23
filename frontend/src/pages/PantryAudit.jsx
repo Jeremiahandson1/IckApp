@@ -154,19 +154,19 @@ export default function PantryAudit() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-100">Pantry Audit</h1>
-          <p className="text-sm text-gray-500">Scan all your pantry items</p>
+          <h1 className="text-xl font-bold text-[#f4f4f0]">Pantry Audit</h1>
+          <p className="text-sm text-[#666]">Scan all your pantry items</p>
         </div>
         <button
           onClick={() => navigate('/pantry')}
-          className="text-gray-500"
+          className="text-[#666]"
         >
           Cancel
         </button>
       </div>
 
       {/* Scanner */}
-      <div className="bg-black rounded-xl overflow-hidden mb-4 relative">
+      <div className="bg-black rounded-sm overflow-hidden mb-4 relative">
         {scanning ? (
           <>
             <video
@@ -175,7 +175,7 @@ export default function PantryAudit() {
             />
             {/* Scanning overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-64 h-32 border-2 border-white rounded-lg opacity-50" />
+              <div className="w-64 h-32 border-2 border-white rounded-sm opacity-50" />
             </div>
             {processing && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -190,11 +190,11 @@ export default function PantryAudit() {
             </button>
           </>
         ) : (
-          <div className="aspect-[4/3] flex flex-col items-center justify-center bg-gray-900">
+          <div className="aspect-[4/3] flex flex-col items-center justify-center bg-[#111]">
             <div className="text-4xl mb-4">📷</div>
             <button
               onClick={startScanning}
-              className="px-6 py-3 bg-orange-500/100 text-white rounded-xl font-medium"
+              className="px-6 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium"
             >
               Start Scanning
             </button>
@@ -209,12 +209,12 @@ export default function PantryAudit() {
           value={manualUpc}
           onChange={(e) => setManualUpc(e.target.value)}
           placeholder="Enter UPC manually"
-          className="flex-1 px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="flex-1 px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
         />
         <button
           type="submit"
           disabled={!manualUpc.trim() || processing}
-          className="px-4 py-3 bg-gray-800 text-gray-300 rounded-xl font-medium disabled:opacity-50"
+          className="px-4 py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium disabled:opacity-50"
         >
           Add
         </button>
@@ -222,19 +222,19 @@ export default function PantryAudit() {
 
       {/* Stats */}
       {scannedItems.length > 0 && (
-        <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
+        <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-2xl font-bold text-gray-100">{scannedItems.length}</div>
-              <div className="text-xs text-gray-500">Items Scanned</div>
+              <div className="text-2xl font-bold text-[#f4f4f0]">{scannedItems.length}</div>
+              <div className="text-xs text-[#666]">Items Scanned</div>
             </div>
             <div>
               <div className={`text-2xl font-bold ${getScoreColor(totalScore)}`}>{totalScore}</div>
-              <div className="text-xs text-gray-500">Avg Score</div>
+              <div className="text-xs text-[#666]">Avg Score</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-red-500">{problemCount}</div>
-              <div className="text-xs text-gray-500">To Swap</div>
+              <div className="text-xs text-[#666]">To Swap</div>
             </div>
           </div>
         </div>
@@ -243,35 +243,35 @@ export default function PantryAudit() {
       {/* Scanned Items */}
       <div className="space-y-2">
         {scannedItems.map((item, index) => (
-          <div key={item.upc} className="bg-gray-950 rounded-xl p-3 shadow-sm flex items-center gap-3">
+          <div key={item.upc} className="bg-[#0d0d0d] rounded-sm p-3 shadow-sm flex items-center gap-3">
             {/* Score */}
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
-              item.total_score >= 86 ? 'bg-orange-500/100' :
+            <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${
+              item.total_score >= 86 ? 'bg-[rgba(200,241,53,0.06)]' :
               item.total_score >= 71 ? 'bg-green-400' :
               item.total_score >= 51 ? 'bg-yellow-400' :
-              item.total_score >= 31 ? 'bg-orange-400' : 'bg-red-500/100'
+              item.total_score >= 31 ? 'bg-[#c8f135]' : 'bg-red-500/100'
             }`}>
               {Math.round(item.total_score)}
             </div>
             
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-gray-100 truncate text-sm">{item.name}</h3>
-              <p className="text-xs text-gray-500">{item.brand}</p>
+              <h3 className="font-medium text-[#f4f4f0] truncate text-sm">{item.name}</h3>
+              <p className="text-xs text-[#666]">{item.brand}</p>
             </div>
 
             {/* Quantity */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => updateQuantity(index, -1)}
-                className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center"
+                className="w-8 h-8 rounded-full bg-[#1e1e1e] flex items-center justify-center"
               >
                 -
               </button>
               <span className="w-6 text-center font-medium">{item.quantity}</span>
               <button
                 onClick={() => updateQuantity(index, 1)}
-                className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center"
+                className="w-8 h-8 rounded-full bg-[#1e1e1e] flex items-center justify-center"
               >
                 +
               </button>
@@ -292,7 +292,7 @@ export default function PantryAudit() {
 
       {/* Empty State */}
       {scannedItems.length === 0 && !scanning && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-[#666]">
           <p>Scan products to add them to your pantry audit</p>
         </div>
       )}
@@ -303,7 +303,7 @@ export default function PantryAudit() {
           <button
             onClick={saveToPantry}
             disabled={saving}
-            className="w-full py-4 bg-orange-500/100 text-white rounded-xl font-semibold shadow-lg disabled:opacity-50"
+            className="w-full py-4 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-semibold shadow-lg disabled:opacity-50"
           >
             {saving ? 'Saving...' : `Save ${scannedItems.length} Items to Pantry`}
           </button>

@@ -25,10 +25,10 @@ export default function ProductCard({ product, onClick, showSwapArrow = false, c
       >
         <ScoreBadgeMini score={product.total_score} />
         <div className="flex-1 text-left">
-          <p className="font-medium text-gray-100">{truncate(product.name, 30)}</p>
-          <p className="text-sm text-gray-500">{product.brand}</p>
+          <p className="font-medium text-[#f4f4f0]">{truncate(product.name, 30)}</p>
+          <p className="text-sm text-[#666]">{product.brand}</p>
         </div>
-        {showSwapArrow && <ChevronRight className="w-5 h-5 text-gray-400" />}
+        {showSwapArrow && <ChevronRight className="w-5 h-5 text-[#888]" />}
       </button>
     );
   }
@@ -40,19 +40,19 @@ export default function ProductCard({ product, onClick, showSwapArrow = false, c
     >
       <div className="flex items-start gap-4">
         {/* Score */}
-        <div className={`${bgClass} rounded-xl p-3`}>
+        <div className={`${bgClass} rounded-sm p-3`}>
           <ScoreBadgeMini score={product.total_score} />
         </div>
 
         {/* Product info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-100 line-clamp-1">{product.name}</h3>
-          <p className="text-sm text-gray-500">{product.brand}</p>
+          <h3 className="font-semibold text-[#f4f4f0] line-clamp-1">{product.name}</h3>
+          <p className="text-sm text-[#666]">{product.brand}</p>
           
           {harmfulCount > 0 && (
             <div className="mt-2 flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-orange-500" />
-              <span className="text-xs text-orange-400 font-medium">
+              <AlertTriangle className="w-4 h-4 text-[#c8f135]" />
+              <span className="text-xs text-[#c8f135] font-medium">
                 {harmfulCount} harmful ingredient{harmfulCount > 1 ? 's' : ''}
               </span>
             </div>
@@ -60,7 +60,7 @@ export default function ProductCard({ product, onClick, showSwapArrow = false, c
         </div>
 
         {showSwapArrow && (
-          <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          <ChevronRight className="w-5 h-5 text-[#888] flex-shrink-0" />
         )}
       </div>
     </button>
@@ -81,15 +81,15 @@ export function SwapComparisonCard({ fromProduct, toProduct, onSelect }) {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <ScoreBadgeMini score={toProduct.total_score} />
-            <span className="text-orange-500 text-sm font-semibold">
+            <span className="text-[#c8f135] text-sm font-semibold">
               +{improvement} pts
             </span>
           </div>
-          <h3 className="font-semibold text-gray-100 mt-2 line-clamp-1">{toProduct.name}</h3>
-          <p className="text-sm text-gray-500">{toProduct.brand}</p>
+          <h3 className="font-semibold text-[#f4f4f0] mt-2 line-clamp-1">{toProduct.name}</h3>
+          <p className="text-sm text-[#666]">{toProduct.brand}</p>
         </div>
 
-        <ChevronRight className="w-5 h-5 text-gray-400" />
+        <ChevronRight className="w-5 h-5 text-[#888]" />
       </div>
     </button>
   );
@@ -100,7 +100,7 @@ export function ProductCardSkeleton() {
   return (
     <div className="card p-4">
       <div className="flex items-start gap-4">
-        <div className="skeleton w-12 h-12 rounded-xl" />
+        <div className="skeleton w-12 h-12 rounded-sm" />
         <div className="flex-1">
           <div className="skeleton h-5 w-3/4 mb-2" />
           <div className="skeleton h-4 w-1/2" />

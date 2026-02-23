@@ -75,35 +75,37 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 px-6 pt-safe">
+    <div className="min-h-screen bg-[#0a0a0a] px-6 pt-safe">
       {/* Header */}
-      <div className="py-4">
+      <div className="py-4 flex items-center justify-between">
         <button
           onClick={() => step === 1 ? navigate('/') : setStep(1)}
-          className="inline-flex items-center gap-2 text-gray-400"
+          className="inline-flex items-center gap-2"
+          style={{ color: 'var(--muted)' }}
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Back</span>
         </button>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', letterSpacing: '2px', color: 'var(--ick-green)' }}>ICKTHATISH</span>
       </div>
 
       {/* Progress */}
       <div className="flex gap-2 mb-8">
-        <div className={`h-1 flex-1 rounded-full ${step >= 1 ? 'bg-orange-500/100' : 'bg-gray-700'}`} />
-        <div className={`h-1 flex-1 rounded-full ${step >= 2 ? 'bg-orange-500/100' : 'bg-gray-700'}`} />
+        <div className="h-px flex-1" style={{ background: step >= 1 ? 'var(--ick-green)' : 'var(--border)' }} />
+        <div className="h-px flex-1" style={{ background: step >= 2 ? 'var(--ick-green)' : 'var(--border)' }} />
       </div>
 
       {step === 1 ? (
         /* Step 1: Account */
         <div className="pt-4">
-          <h1 className="text-3xl font-bold text-gray-100 mb-2">Create account</h1>
-          <p className="text-gray-400 mb-8">Start your journey to healthier food</p>
+          <h1 className="mb-2" style={{ fontFamily: 'var(--font-display)', fontSize: '52px', letterSpacing: '2px', lineHeight: '1', color: '#f4f4f0' }}>CREATE<br/><span style={{ color: 'var(--ick-green)' }}>ACCOUNT.</span></h1>
+          <p className="mb-8" style={{ color: 'var(--muted)', fontWeight: 300, fontSize: '15px' }}>Start seeing what's actually in your food</p>
 
           <form onSubmit={handleStep1} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">Email</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
                 <input
                   type="email"
                   value={formData.email}
@@ -117,9 +119,9 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
@@ -131,7 +133,7 @@ export default function Register() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888]"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -143,22 +145,22 @@ export default function Register() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-gray-400">
+          <p className="mt-8 text-center text-[#888]">
             Already have an account?{' '}
-            <Link to="/login" className="text-orange-400 font-semibold">Sign in</Link>
+            <Link to="/login" className="text-[#c8f135] font-semibold">Sign in</Link>
           </p>
         </div>
       ) : (
         /* Step 2: Profile */
         <div className="pt-4">
-          <h1 className="text-3xl font-bold text-gray-100 mb-2">Tell us about you</h1>
-          <p className="text-gray-400 mb-8">Help us personalize your experience</p>
+          <h1 className="mb-2" style={{ fontFamily: 'var(--font-display)', fontSize: '52px', letterSpacing: '2px', lineHeight: '1', color: '#f4f4f0' }}>ABOUT<br/><span style={{ color: 'var(--ick-green)' }}>YOU.</span></h1>
+          <p className="mb-8" style={{ color: 'var(--muted)', fontWeight: 300, fontSize: '15px' }}>Help us flag what matters most to you</p>
 
           <form onSubmit={handleStep2} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Your name</label>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">Your name</label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
                 <input
                   type="text"
                   value={formData.name}
@@ -171,9 +173,9 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">ZIP code</label>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">ZIP code</label>
               <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
                 <input
                   type="text"
                   value={formData.zip_code}
@@ -187,9 +189,9 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Household size</label>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">Household size</label>
               <div className="relative">
-                <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
                 <select
                   value={formData.household_size}
                   onChange={(e) => updateField('household_size', parseInt(e.target.value))}
@@ -203,20 +205,20 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="flex items-center gap-3 p-4 rounded-xl border border-gray-700">
+              <label className="flex items-center gap-3 p-4 rounded-sm border border-[#333]">
                 <input
                   type="checkbox"
                   checked={formData.has_kids}
                   onChange={(e) => updateField('has_kids', e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-600 text-orange-500 focus:ring-orange-500"
+                  className="w-5 h-5 rounded border-[#444] text-[#c8f135] focus:ring-[#c8f135]"
                 />
-                <span className="font-medium text-gray-300">I have kids under 18</span>
+                <span className="font-medium text-[#bbb]">I have kids under 18</span>
               </label>
             </div>
 
             {formData.has_kids && (
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Kids' ages</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-2">Kids' ages</label>
                 <input
                   type="text"
                   value={formData.kids_ages.join(', ')}
@@ -227,14 +229,14 @@ export default function Register() {
                   placeholder="e.g., 3, 7, 12"
                   className="input-field"
                 />
-                <p className="text-xs text-gray-500 mt-1">Separate ages with commas</p>
+                <p className="text-xs text-[#666] mt-1">Separate ages with commas</p>
               </div>
             )}
 
             {/* Allergen Alerts */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Any food allergies?</label>
-              <p className="text-xs text-gray-500 mb-3">We'll alert you when scanning products with these allergens.</p>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">Any food allergies?</label>
+              <p className="text-xs text-[#666] mb-3">We'll alert you when scanning products with these allergens.</p>
               <div className="flex flex-wrap gap-2">
                 {COMMON_ALLERGENS.map(allergen => {
                   const isSelected = formData.allergen_alerts.includes(allergen);
@@ -246,7 +248,7 @@ export default function Register() {
                       className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                         isSelected
                           ? 'bg-red-500/100 text-white'
-                          : 'bg-gray-800 text-gray-400'
+                          : 'bg-[#1e1e1e] text-[#888]'
                       }`}
                     >
                       {isSelected ? '✓ ' : ''}{allergen}
@@ -269,7 +271,7 @@ export default function Register() {
             </button>
           </form>
 
-          <p className="mt-4 text-center text-sm text-gray-500">
+          <p className="mt-4 text-center text-sm text-[#666]">
             You can skip optional fields and update them later
           </p>
         </div>

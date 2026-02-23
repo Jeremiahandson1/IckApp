@@ -30,36 +30,36 @@ export default function Landing() {
       {/* Hero — dark with orange accent */}
       <div className="pt-16 pb-12 px-6 text-center">
         <div className="mb-6">
-          <div className="w-24 h-24 bg-orange-500/100 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_40px_rgba(249,115,22,0.3)]">
+          <div className="w-24 h-24 bg-[rgba(200,241,53,0.06)] rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_40px_rgba(249,115,22,0.3)]">
             <span className="text-4xl font-black text-black tracking-tighter">ICK</span>
           </div>
         </div>
         
         <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
-          Ick that <span className="text-orange-500">sh—</span>
+          Ick that <span className="text-[#c8f135]">sh—</span>
         </h1>
-        <p className="text-lg text-gray-400 mb-8 max-w-xs mx-auto">
+        <p className="text-lg text-[#888] mb-8 max-w-xs mx-auto">
           Scan any food product. See what's really in it.<br />
           Then put it back on the shelf.
         </p>
 
         <Link
           to="/scan"
-          className="inline-flex items-center gap-2 bg-orange-500/100 text-black font-bold py-4 px-8 rounded-2xl shadow-[0_0_20px_rgba(249,115,22,0.3)] active:scale-95 transition-transform text-lg"
+          className="inline-flex items-center gap-2 bg-[rgba(200,241,53,0.06)] text-black font-bold py-4 px-8 rounded-sm shadow-[0_0_20px_rgba(249,115,22,0.3)] active:scale-95 transition-transform text-lg"
         >
           Start Scanning
           <ChevronRight className="w-5 h-5" />
         </Link>
 
-        <p className="mt-4 text-gray-500 text-sm">
+        <p className="mt-4 text-[#666] text-sm">
           Free. No account required.{' '}
-          <Link to="/login" className="text-orange-500 underline">Sign in</Link>
+          <Link to="/login" className="text-[#c8f135] underline">Sign in</Link>
         </p>
       </div>
 
       {/* Features */}
       <div className="bg-[#111] rounded-t-3xl pt-8 pb-12 px-6">
-        <h2 className="text-xl font-bold text-gray-200 mb-6 text-center">
+        <h2 className="text-xl font-bold text-[#ddd] mb-6 text-center">
           Know what you're feeding your family.
         </h2>
 
@@ -67,14 +67,14 @@ export default function Landing() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="flex items-start gap-4 p-4 rounded-2xl bg-[#1a1a1a] border border-gray-800/50"
+              className="flex items-start gap-4 p-4 rounded-sm bg-[#1a1a1a] border border-[#2a2a2a]/50"
             >
-              <div className="bg-orange-500/100/10 rounded-xl p-3">
-                <feature.icon className="w-6 h-6 text-orange-500" />
+              <div className="bg-[rgba(200,241,53,0.06)]/10 rounded-sm p-3">
+                <feature.icon className="w-6 h-6 text-[#c8f135]" />
               </div>
               <div>
                 <h3 className="font-bold text-white">{feature.title}</h3>
-                <p className="text-sm text-gray-400 mt-1">{feature.description}</p>
+                <p className="text-sm text-[#888] mt-1">{feature.description}</p>
               </div>
             </div>
           ))}
@@ -83,22 +83,22 @@ export default function Landing() {
         {/* Stats */}
         <div className="mt-10 grid grid-cols-3 gap-4 text-center max-w-md mx-auto">
           <div>
-            <p className="text-2xl font-black text-orange-500">2M+</p>
-            <p className="text-xs text-gray-500">Products scanned</p>
+            <p className="text-2xl font-black text-[#c8f135]">2M+</p>
+            <p className="text-xs text-[#666]">Products scanned</p>
           </div>
           <div>
-            <p className="text-2xl font-black text-orange-500">56</p>
-            <p className="text-xs text-gray-500">Recipes to replace the junk</p>
+            <p className="text-2xl font-black text-[#c8f135]">56</p>
+            <p className="text-xs text-[#666]">Recipes to replace the junk</p>
           </div>
           <div>
-            <p className="text-2xl font-black text-orange-500">48</p>
-            <p className="text-xs text-gray-500">Harmful additives flagged</p>
+            <p className="text-2xl font-black text-[#c8f135]">48</p>
+            <p className="text-xs text-[#666]">Harmful additives flagged</p>
           </div>
         </div>
 
         {/* The pitch */}
         <div className="mt-10 max-w-md mx-auto text-center">
-          <p className="text-gray-400 text-sm leading-relaxed">
+          <p className="text-[#888] text-sm leading-relaxed">
             Ick scores every product on nutrition (60%), additives (30%), and organic status (10%). 
             No opinions. No ads. No brand deals. 
             Just science and the ingredient list they hope you won't read.
@@ -109,7 +109,7 @@ export default function Landing() {
         <div className="mt-8 text-center">
           <Link
             to="/scan"
-            className="inline-flex items-center gap-2 bg-orange-500/100 text-black font-bold py-3 px-6 rounded-xl active:scale-95 transition-transform"
+            className="inline-flex items-center gap-2 bg-[rgba(200,241,53,0.06)] text-black font-bold py-3 px-6 rounded-sm active:scale-95 transition-transform"
           >
             Scan Something
             <ChevronRight className="w-5 h-5" />

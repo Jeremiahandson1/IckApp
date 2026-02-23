@@ -40,7 +40,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <span className="text-5xl">🥦</span>
@@ -48,27 +48,27 @@ export default function ResetPassword() {
         </div>
 
         {done ? (
-          <div className="bg-gray-900 rounded-2xl p-6 text-center space-y-4">
+          <div className="bg-[#111] rounded-sm p-6 text-center space-y-4">
             <div className="text-4xl">✅</div>
             <h2 className="text-xl font-bold text-white">Password reset!</h2>
-            <p className="text-gray-400 text-sm">You're being redirected to login…</p>
-            <Link to="/login" className="block w-full py-3 bg-orange-500 text-white rounded-xl font-semibold">
+            <p className="text-[#888] text-sm">You're being redirected to login…</p>
+            <Link to="/login" className="block w-full py-3 bg-[#c8f135] text-white rounded-sm font-semibold">
               Go to Login
             </Link>
           </div>
         ) : (
-          <div className="bg-gray-900 rounded-2xl p-6 space-y-5">
+          <div className="bg-[#111] rounded-sm p-6 space-y-5">
             <div>
               <h2 className="text-xl font-bold text-white">Set new password</h2>
-              <p className="text-gray-400 text-sm mt-1">Choose a strong password for your account.</p>
+              <p className="text-[#888] text-sm mt-1">Choose a strong password for your account.</p>
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 text-red-400 text-sm">
                 {error}
                 {error.includes('expired') && (
                   <div className="mt-2">
-                    <Link to="/forgot-password" className="text-orange-400 underline">Request a new link →</Link>
+                    <Link to="/forgot-password" className="text-[#c8f135] underline">Request a new link →</Link>
                   </div>
                 )}
               </div>
@@ -76,12 +76,12 @@ export default function ResetPassword() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">New Password</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">New Password</label>
                 <input
                   type="password"
                   value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333] rounded-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   placeholder="At least 8 characters"
                   minLength={8}
                   required
@@ -90,12 +90,12 @@ export default function ResetPassword() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Confirm Password</label>
+                <label className="block text-sm font-medium text-[#bbb] mb-1">Confirm Password</label>
                 <input
                   type="password"
                   value={form.confirm}
                   onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333] rounded-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   placeholder="Same password again"
                   required
                   disabled={!token}
@@ -105,14 +105,14 @@ export default function ResetPassword() {
               <button
                 type="submit"
                 disabled={loading || !token || !form.password || !form.confirm}
-                className="w-full py-3 bg-orange-500 text-white rounded-xl font-semibold text-lg disabled:opacity-50"
+                className="w-full py-3 bg-[#c8f135] text-white rounded-sm font-semibold text-lg disabled:opacity-50"
               >
                 {loading ? 'Resetting…' : 'Reset Password'}
               </button>
             </form>
 
             <div className="text-center">
-              <Link to="/login" className="text-gray-400 text-sm hover:text-gray-300">← Back to Login</Link>
+              <Link to="/login" className="text-[#888] text-sm hover:text-[#bbb]">← Back to Login</Link>
             </div>
           </div>
         )}

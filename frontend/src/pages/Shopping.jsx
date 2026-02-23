@@ -84,7 +84,7 @@ export default function Shopping() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -93,10 +93,10 @@ export default function Shopping() {
     <div className="pb-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-100">Shopping</h1>
+        <h1 className="text-xl font-bold text-[#f4f4f0]">Shopping</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-orange-500/100 text-white rounded-lg text-sm font-medium"
+          className="px-4 py-2 bg-[rgba(200,241,53,0.06)] text-white rounded-sm text-sm font-medium"
         >
           + New List
         </button>
@@ -104,7 +104,7 @@ export default function Shopping() {
 
       {/* Running Low Alert */}
       {runningLow.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4">
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-sm p-4 mb-4">
           <div className="flex items-start gap-3">
             <span className="text-2xl">⚠️</span>
             <div className="flex-1">
@@ -127,7 +127,7 @@ export default function Shopping() {
           <button
             onClick={generateSmartList}
             disabled={generating}
-            className="mt-3 w-full py-2 bg-amber-500/100 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+            className="mt-3 w-full py-2 bg-amber-500/100 text-white rounded-sm text-sm font-medium disabled:opacity-50"
           >
             {generating ? 'Generating...' : 'Generate Smart List'}
           </button>
@@ -139,7 +139,7 @@ export default function Shopping() {
         <button
           onClick={generateSmartList}
           disabled={generating}
-          className="p-4 bg-gradient-to-br from-orange-500 to-green-600 text-white rounded-xl text-left disabled:opacity-50"
+          className="p-4 bg-gradient-to-br from-[#c8f135] to-green-600 text-white rounded-sm text-left disabled:opacity-50"
         >
           <span className="text-2xl block mb-2">🤖</span>
           <span className="font-semibold block">Smart List</span>
@@ -147,11 +147,11 @@ export default function Shopping() {
         </button>
         <button
           onClick={() => setShowCreate(true)}
-          className="p-4 bg-gray-950 border-2 border-dashed border-gray-700 rounded-xl text-left"
+          className="p-4 bg-[#0d0d0d] border-2 border-dashed border-[#333] rounded-sm text-left"
         >
           <span className="text-2xl block mb-2">📝</span>
-          <span className="font-semibold text-gray-300 block">Manual List</span>
-          <span className="text-xs text-gray-500">Create from scratch</span>
+          <span className="font-semibold text-[#bbb] block">Manual List</span>
+          <span className="text-xs text-[#666]">Create from scratch</span>
         </button>
       </div>
 
@@ -160,24 +160,24 @@ export default function Shopping() {
         {lists.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🛒</div>
-            <h2 className="text-xl font-semibold text-gray-100 mb-2">No shopping lists</h2>
-            <p className="text-gray-500 mb-6">
+            <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">No shopping lists</h2>
+            <p className="text-[#666] mb-6">
               Create a list or let us generate one based on your consumption patterns
             </p>
           </div>
         ) : (
           <>
-            <h2 className="font-semibold text-gray-100">Your Lists</h2>
+            <h2 className="font-semibold text-[#f4f4f0]">Your Lists</h2>
             {lists.map(list => (
               <Link
                 key={list.id}
                 to={`/shopping/${list.id}`}
-                className="block bg-gray-950 rounded-xl p-4 shadow-sm"
+                className="block bg-[#0d0d0d] rounded-sm p-4 shadow-sm"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-100">{list.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <h3 className="font-medium text-[#f4f4f0]">{list.name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-[#666]">
                       {list.store && <span>🏪 {list.store}</span>}
                       <span>{list.item_count || 0} items</span>
                       <span>•</span>
@@ -188,7 +188,7 @@ export default function Shopping() {
                   {/* Status Badge */}
                   <div className="flex items-center gap-2">
                     {list.status === 'completed' ? (
-                      <span className="px-2 py-1 bg-orange-500/20 text-orange-700 text-xs rounded-full">
+                      <span className="px-2 py-1 bg-[rgba(200,241,53,0.1)] text-[#7a8e00] text-xs rounded-full">
                         ✓ Done
                       </span>
                     ) : list.status === 'shopping' ? (
@@ -200,7 +200,7 @@ export default function Shopping() {
                     {/* Delete */}
                     <button
                       onClick={(e) => deleteList(list.id, e)}
-                      className="p-2 text-gray-400 hover:text-red-500"
+                      className="p-2 text-[#888] hover:text-red-500"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -211,14 +211,14 @@ export default function Shopping() {
                 
                 {/* Progress if shopping */}
                 {list.status === 'shopping' && list.item_count > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-800">
-                    <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                  <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                    <div className="flex items-center justify-between text-xs text-[#666] mb-1">
                       <span>Progress</span>
                       <span>{list.checked_count || 0} of {list.item_count}</span>
                     </div>
-                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-orange-500/100"
+                        className="h-full bg-[rgba(200,241,53,0.06)]"
                         style={{ width: `${((list.checked_count || 0) / list.item_count) * 100}%` }}
                       />
                     </div>
@@ -233,12 +233,12 @@ export default function Shopping() {
       {/* Create List Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold mb-4">New Shopping List</h2>
             
             <form onSubmit={createList}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-[#bbb] mb-1">
                   List Name
                 </label>
                 <input
@@ -246,13 +246,13 @@ export default function Shopping() {
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
                   placeholder="e.g., Weekly Groceries"
-                  className="w-full px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                   autoFocus
                 />
               </div>
               
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-[#bbb] mb-1">
                   Store (optional)
                 </label>
                 <input
@@ -260,7 +260,7 @@ export default function Shopping() {
                   value={newListStore}
                   onChange={(e) => setNewListStore(e.target.value)}
                   placeholder="e.g., Whole Foods"
-                  className="w-full px-4 py-3 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-3 border border-[#333] rounded-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                 />
               </div>
 
@@ -268,14 +268,14 @@ export default function Shopping() {
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
-                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                  className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newListName.trim()}
-                  className="flex-1 py-3 bg-orange-500/100 text-white rounded-xl font-medium disabled:opacity-50"
+                  className="flex-1 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium disabled:opacity-50"
                 >
                   Create
                 </button>

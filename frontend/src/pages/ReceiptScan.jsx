@@ -155,16 +155,16 @@ export default function ReceiptScan() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-100 flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-orange-400" />
+          <h1 className="text-xl font-bold text-[#f4f4f0] flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-[#c8f135]" />
             Receipt Scanner
           </h1>
-          <p className="text-sm text-gray-500">Snap a receipt to track spending & stock your pantry</p>
+          <p className="text-sm text-[#666]">Snap a receipt to track spending & stock your pantry</p>
         </div>
         {budgetData && budgetData.receipt_count > 0 && (
           <button
             onClick={() => setShowBudget(!showBudget)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium"
+            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-sm text-sm font-medium"
           >
             <DollarSign className="w-4 h-4" />
             Budget
@@ -175,26 +175,26 @@ export default function ReceiptScan() {
 
       {/* Budget Summary (collapsible) */}
       {showBudget && budgetData && (
-        <div className="bg-gray-950 rounded-xl p-4 mb-4 space-y-3">
+        <div className="bg-[#0d0d0d] rounded-sm p-4 mb-4 space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <p className="text-lg font-bold text-emerald-400">${budgetData.total_spent?.toFixed(2)}</p>
-              <p className="text-xs text-gray-500">Last 30 days</p>
+              <p className="text-xs text-[#666]">Last 30 days</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-gray-100">${budgetData.avg_per_trip?.toFixed(2)}</p>
-              <p className="text-xs text-gray-500">Avg per trip</p>
+              <p className="text-lg font-bold text-[#f4f4f0]">${budgetData.avg_per_trip?.toFixed(2)}</p>
+              <p className="text-xs text-[#666]">Avg per trip</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-gray-100">{budgetData.receipt_count}</p>
-              <p className="text-xs text-gray-500">Receipts</p>
+              <p className="text-lg font-bold text-[#f4f4f0]">{budgetData.receipt_count}</p>
+              <p className="text-xs text-[#666]">Receipts</p>
             </div>
           </div>
 
           {/* Category breakdown */}
           {budgetData.by_category?.length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 mb-2 font-medium">Spending by category</p>
+              <p className="text-xs text-[#666] mb-2 font-medium">Spending by category</p>
               <div className="space-y-1.5">
                 {budgetData.by_category.slice(0, 5).map((cat, i) => {
                   const maxSpend = parseFloat(budgetData.by_category[0].total);
@@ -202,11 +202,11 @@ export default function ReceiptScan() {
                   return (
                     <div key={i} className="flex items-center gap-2">
                       <span className="text-sm w-6">{categoryIcons[cat.category] || '📦'}</span>
-                      <span className="text-xs text-gray-400 w-24 truncate capitalize">{cat.category?.replace('_', ' ')}</span>
-                      <div className="flex-1 bg-gray-800 rounded-full h-2">
+                      <span className="text-xs text-[#888] w-24 truncate capitalize">{cat.category?.replace('_', ' ')}</span>
+                      <div className="flex-1 bg-[#1e1e1e] rounded-full h-2">
                         <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="text-xs text-gray-300 w-16 text-right">${parseFloat(cat.total).toFixed(2)}</span>
+                      <span className="text-xs text-[#bbb] w-16 text-right">${parseFloat(cat.total).toFixed(2)}</span>
                     </div>
                   );
                 })}
@@ -217,7 +217,7 @@ export default function ReceiptScan() {
           {/* Weekly trend */}
           {budgetData.weekly_trend?.length > 1 && (
             <div>
-              <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
+              <p className="text-xs text-[#666] mb-2 font-medium flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" /> Weekly trend
               </p>
               <div className="flex items-end gap-1 h-16">
@@ -230,7 +230,7 @@ export default function ReceiptScan() {
                         className="w-full bg-emerald-500/40 rounded-t"
                         style={{ height: `${Math.max(pct, 4)}%` }}
                       />
-                      <span className="text-[10px] text-gray-600">${parseFloat(week.total_spent).toFixed(0)}</span>
+                      <span className="text-[10px] text-[#555]">${parseFloat(week.total_spent).toFixed(0)}</span>
                     </div>
                   );
                 })}
@@ -243,13 +243,13 @@ export default function ReceiptScan() {
       {/* ── STEP 1: Capture ── */}
       {step === 'capture' && (
         <div className="space-y-4">
-          <div className="bg-gray-950 rounded-xl p-8 text-center space-y-4">
+          <div className="bg-[#0d0d0d] rounded-sm p-8 text-center space-y-4">
             {imagePreview ? (
-              <img src={imagePreview} alt="Receipt" className="max-h-48 mx-auto rounded-lg" />
+              <img src={imagePreview} alt="Receipt" className="max-h-48 mx-auto rounded-sm" />
             ) : (
-              <div className="text-gray-600">
+              <div className="text-[#555]">
                 <Receipt className="w-16 h-16 mx-auto mb-3 opacity-30" />
-                <p className="text-sm text-gray-500">Take a photo of your receipt or upload an image</p>
+                <p className="text-sm text-[#666]">Take a photo of your receipt or upload an image</p>
               </div>
             )}
 
@@ -257,7 +257,7 @@ export default function ReceiptScan() {
               {/* Camera capture */}
               <button
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex items-center gap-2 px-5 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition"
+                className="flex items-center gap-2 px-5 py-3 bg-[#c8f135] text-white rounded-sm font-medium hover:bg-orange-600 transition"
               >
                 <Camera className="w-5 h-5" />
                 Take Photo
@@ -274,7 +274,7 @@ export default function ReceiptScan() {
               {/* File upload */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-5 py-3 bg-gray-800 text-gray-200 rounded-xl font-medium hover:bg-gray-700 transition"
+                className="flex items-center gap-2 px-5 py-3 bg-[#1e1e1e] text-[#ddd] rounded-sm font-medium hover:bg-[#2a2a2a] transition"
               >
                 <Upload className="w-5 h-5" />
                 Upload
@@ -290,9 +290,9 @@ export default function ReceiptScan() {
           </div>
 
           {/* Tips */}
-          <div className="bg-gray-950/50 rounded-xl p-4">
-            <p className="text-xs font-medium text-gray-400 mb-2">Tips for best results</p>
-            <ul className="text-xs text-gray-500 space-y-1">
+          <div className="bg-[#0d0d0d]/50 rounded-sm p-4">
+            <p className="text-xs font-medium text-[#888] mb-2">Tips for best results</p>
+            <ul className="text-xs text-[#666] space-y-1">
               <li>• Lay receipt flat with even lighting</li>
               <li>• Make sure all items and prices are visible</li>
               <li>• Avoid shadows and wrinkles</li>
@@ -304,14 +304,14 @@ export default function ReceiptScan() {
 
       {/* ── STEP 2: Parsing ── */}
       {step === 'parsing' && (
-        <div className="bg-gray-950 rounded-xl p-8 text-center space-y-4">
+        <div className="bg-[#0d0d0d] rounded-sm p-8 text-center space-y-4">
           {imagePreview && (
-            <img src={imagePreview} alt="Receipt" className="max-h-32 mx-auto rounded-lg opacity-50" />
+            <img src={imagePreview} alt="Receipt" className="max-h-32 mx-auto rounded-sm opacity-50" />
           )}
-          <Loader className="w-8 h-8 mx-auto text-orange-400 animate-spin" />
+          <Loader className="w-8 h-8 mx-auto text-[#c8f135] animate-spin" />
           <div>
-            <p className="text-gray-200 font-medium">Reading your receipt...</p>
-            <p className="text-sm text-gray-500">This takes about 5-10 seconds</p>
+            <p className="text-[#ddd] font-medium">Reading your receipt...</p>
+            <p className="text-sm text-[#666]">This takes about 5-10 seconds</p>
           </div>
         </div>
       )}
@@ -321,25 +321,25 @@ export default function ReceiptScan() {
         <div className="space-y-3">
           {/* Receipt header */}
           {receipt && (
-            <div className="bg-gray-950 rounded-xl p-4">
+            <div className="bg-[#0d0d0d] rounded-sm p-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-bold text-gray-100">{receipt.store_name || 'Unknown Store'}</p>
+                  <p className="font-bold text-[#f4f4f0]">{receipt.store_name || 'Unknown Store'}</p>
                   {receipt.receipt_date && (
-                    <p className="text-xs text-gray-500">{new Date(receipt.receipt_date).toLocaleDateString()}</p>
+                    <p className="text-xs text-[#666]">{new Date(receipt.receipt_date).toLocaleDateString()}</p>
                   )}
                 </div>
                 {receipt.total && (
                   <div className="text-right">
                     <p className="text-lg font-bold text-emerald-400">${parseFloat(receipt.total).toFixed(2)}</p>
-                    <p className="text-xs text-gray-500">Total</p>
+                    <p className="text-xs text-[#666]">Total</p>
                   </div>
                 )}
               </div>
               {summary && (
-                <div className="flex gap-4 mt-3 pt-3 border-t border-gray-800">
-                  <span className="text-xs text-gray-400">
-                    <span className="text-gray-200 font-medium">{summary.total_items}</span> items found
+                <div className="flex gap-4 mt-3 pt-3 border-t border-[#2a2a2a]">
+                  <span className="text-xs text-[#888]">
+                    <span className="text-[#ddd] font-medium">{summary.total_items}</span> items found
                   </span>
                   <span className="text-xs text-emerald-400">
                     <Check className="w-3 h-3 inline" /> {summary.matched} matched
@@ -354,10 +354,10 @@ export default function ReceiptScan() {
 
           {/* Select all / actions */}
           <div className="flex justify-between items-center px-1">
-            <button onClick={toggleAll} className="text-xs text-orange-400 font-medium">
+            <button onClick={toggleAll} className="text-xs text-[#c8f135] font-medium">
               {items.every(i => i._selected !== false) ? 'Deselect All' : 'Select All'}
             </button>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-[#666]">
               {items.filter(i => i._selected !== false).length} of {items.length} selected
             </span>
           </div>
@@ -367,7 +367,7 @@ export default function ReceiptScan() {
             {items.map((item) => (
               <div
                 key={item.id}
-                className={`bg-gray-950 rounded-xl p-3 flex gap-3 items-start transition ${
+                className={`bg-[#0d0d0d] rounded-sm p-3 flex gap-3 items-start transition ${
                   item._selected === false ? 'opacity-40' : ''
                 }`}
               >
@@ -376,8 +376,8 @@ export default function ReceiptScan() {
                   onClick={() => toggleItem(item.id)}
                   className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                     item._selected !== false
-                      ? 'bg-orange-500 border-orange-500' 
-                      : 'border-gray-600'
+                      ? 'bg-[#c8f135] border-[#c8f135]' 
+                      : 'border-[#444]'
                   }`}
                 >
                   {item._selected !== false && <Check className="w-3 h-3 text-white" />}
@@ -395,14 +395,14 @@ export default function ReceiptScan() {
                     <>
                       <div className="flex justify-between items-start">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-100 truncate">
+                          <p className="text-sm font-medium text-[#f4f4f0] truncate">
                             {item.product?.name || item.item_name}
                           </p>
                           {item.product && item.item_name !== item.product.name && (
-                            <p className="text-xs text-gray-500 truncate">Receipt: {item.line_text}</p>
+                            <p className="text-xs text-[#666] truncate">Receipt: {item.line_text}</p>
                           )}
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-[#666]">
                               {categoryIcons[item.category] || '📦'} {item.category?.replace('_', ' ')}
                             </span>
                             {item.matched ? (
@@ -414,7 +414,7 @@ export default function ReceiptScan() {
                                 {item.match_confidence === 'high' ? 'matched' : 'partial match'}
                               </span>
                             ) : (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#2a2a2a] text-[#888]">
                                 no match
                               </span>
                             )}
@@ -429,11 +429,11 @@ export default function ReceiptScan() {
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0 ml-2">
-                          <p className="text-sm font-bold text-gray-100">
+                          <p className="text-sm font-bold text-[#f4f4f0]">
                             ${parseFloat(item.total_price || 0).toFixed(2)}
                           </p>
                           {item.quantity > 1 && (
-                            <p className="text-xs text-gray-500">×{item.quantity}</p>
+                            <p className="text-xs text-[#666]">×{item.quantity}</p>
                           )}
                         </div>
                       </div>
@@ -445,7 +445,7 @@ export default function ReceiptScan() {
                 {editingItem !== item.id && (
                   <button
                     onClick={() => setEditingItem(item.id)}
-                    className="p-1 text-gray-600 hover:text-gray-400 flex-shrink-0"
+                    className="p-1 text-[#555] hover:text-[#888] flex-shrink-0"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
@@ -458,7 +458,7 @@ export default function ReceiptScan() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={reset}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-800 text-gray-300 rounded-xl font-medium"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium"
             >
               <RotateCcw className="w-4 h-4" />
               Rescan
@@ -466,7 +466,7 @@ export default function ReceiptScan() {
             <button
               onClick={addToPantry}
               disabled={loading || items.filter(i => i._selected !== false).length === 0}
-              className="flex-[2] flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 disabled:opacity-50 transition"
+              className="flex-[2] flex items-center justify-center gap-2 px-4 py-3 bg-[#c8f135] text-white rounded-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition"
             >
               {loading ? (
                 <Loader className="w-4 h-4 animate-spin" />
@@ -481,27 +481,27 @@ export default function ReceiptScan() {
 
       {/* ── STEP 4: Done ── */}
       {step === 'done' && (
-        <div className="bg-gray-950 rounded-xl p-8 text-center space-y-4">
+        <div className="bg-[#0d0d0d] rounded-sm p-8 text-center space-y-4">
           <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto">
             <Check className="w-8 h-8 text-emerald-400" />
           </div>
           <div>
-            <p className="text-lg font-bold text-gray-100">Receipt Added!</p>
-            <p className="text-sm text-gray-500">
+            <p className="text-lg font-bold text-[#f4f4f0]">Receipt Added!</p>
+            <p className="text-sm text-[#666]">
               Items are in your pantry with prices tracked
             </p>
           </div>
           <div className="flex gap-3 justify-center pt-2">
             <button
               onClick={reset}
-              className="flex items-center gap-2 px-5 py-3 bg-orange-500 text-white rounded-xl font-medium"
+              className="flex items-center gap-2 px-5 py-3 bg-[#c8f135] text-white rounded-sm font-medium"
             >
               <Camera className="w-4 h-4" />
               Scan Another
             </button>
             <button
               onClick={() => navigate('/pantry')}
-              className="flex items-center gap-2 px-5 py-3 bg-gray-800 text-gray-200 rounded-xl font-medium"
+              className="flex items-center gap-2 px-5 py-3 bg-[#1e1e1e] text-[#ddd] rounded-sm font-medium"
             >
               <Package className="w-4 h-4" />
               View Pantry
@@ -525,34 +525,34 @@ function EditItemForm({ item, onSave, onCancel }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Item name"
-        className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-orange-500"
+        className="w-full px-2 py-1.5 bg-[#1e1e1e] border border-[#333] rounded-sm text-sm text-[#f4f4f0] focus:outline-none focus:ring-1 focus:ring-[#c8f135]"
       />
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[#666] text-sm">$</span>
           <input
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             type="number"
             step="0.01"
             placeholder="0.00"
-            className="w-full pl-6 pr-2 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-orange-500"
+            className="w-full pl-6 pr-2 py-1.5 bg-[#1e1e1e] border border-[#333] rounded-sm text-sm text-[#f4f4f0] focus:outline-none focus:ring-1 focus:ring-[#c8f135]"
           />
         </div>
         <input
           value={upc}
           onChange={(e) => setUpc(e.target.value)}
           placeholder="UPC (optional)"
-          className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-orange-500"
+          className="flex-1 px-2 py-1.5 bg-[#1e1e1e] border border-[#333] rounded-sm text-sm text-[#f4f4f0] focus:outline-none focus:ring-1 focus:ring-[#c8f135]"
         />
       </div>
       <div className="flex gap-2 justify-end">
-        <button onClick={onCancel} className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200">
+        <button onClick={onCancel} className="px-3 py-1 text-xs text-[#888] hover:text-[#ddd]">
           Cancel
         </button>
         <button
           onClick={() => onSave({ item_name: name, total_price: parseFloat(price) || null, upc: upc || null })}
-          className="px-3 py-1 bg-orange-500 text-white text-xs rounded-lg font-medium"
+          className="px-3 py-1 bg-[#c8f135] text-white text-xs rounded-sm font-medium"
         >
           Save
         </button>

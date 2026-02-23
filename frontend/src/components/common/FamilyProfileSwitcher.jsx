@@ -97,7 +97,7 @@ export default function FamilyProfileSwitcher({ onAllergenChange }) {
   return (
     <div className="px-4 mt-3">
       <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
-        <span className="text-xs text-gray-400 font-medium whitespace-nowrap mr-1">
+        <span className="text-xs text-[#888] font-medium whitespace-nowrap mr-1">
           Scanning for:
         </span>
         {profiles.map((profile) => {
@@ -110,8 +110,8 @@ export default function FamilyProfileSwitcher({ onAllergenChange }) {
               onClick={() => selectProfile(profile)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
                 isActive
-                  ? 'bg-orange-500/20 text-orange-300 ring-2 ring-orange-400 scale-105'
-                  : 'bg-gray-800 text-gray-400'
+                  ? 'bg-[rgba(200,241,53,0.1)] text-[#a8cc20] ring-2 ring-orange-400 scale-105'
+                  : 'bg-[#1e1e1e] text-[#888]'
               }`}
             >
               <span className="text-base">{profile.avatar}</span>

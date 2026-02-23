@@ -38,7 +38,7 @@ export default function Progress() {
   return (
     <div className="pb-4">
       {/* Header */}
-      <h1 className="text-xl font-bold text-gray-100 mb-4">Your Progress</h1>
+      <h1 className="text-xl font-bold text-[#f4f4f0] mb-4">Your Progress</h1>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto">
@@ -51,8 +51,8 @@ export default function Progress() {
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
               activeTab === tab.key
-                ? 'bg-orange-500/100 text-white'
-                : 'bg-gray-800 text-gray-400'
+                ? 'bg-[rgba(200,241,53,0.06)] text-white'
+                : 'bg-[#1e1e1e] text-[#888]'
             }`}
           >
             {tab.label}
@@ -64,7 +64,7 @@ export default function Progress() {
       {activeTab === 'overview' && dashboard && (
         <>
           {/* Health Score */}
-          <div className="bg-gradient-to-br from-orange-500 to-green-600 rounded-2xl p-6 text-white mb-4 shadow-lg">
+          <div className="bg-gradient-to-br from-[#c8f135] to-green-600 rounded-sm p-6 text-white mb-4 shadow-lg">
             <div className="text-center">
               <div className="text-5xl font-bold mb-2">{Math.round(dashboard.health_score)}</div>
               <div className="text-orange-100 mb-4">Health Score</div>
@@ -88,14 +88,14 @@ export default function Progress() {
 
           {/* Pantry Breakdown */}
           {dashboard.pantry_stats?.breakdown && (
-            <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-              <h2 className="font-semibold text-gray-100 mb-3">Pantry Breakdown</h2>
+            <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+              <h2 className="font-semibold text-[#f4f4f0] mb-3">Pantry Breakdown</h2>
               <div className="space-y-3">
                 {[
-                  { label: 'Excellent', key: 'excellent', color: 'bg-orange-500/100', emoji: '🌟' },
+                  { label: 'Excellent', key: 'excellent', color: 'bg-[rgba(200,241,53,0.06)]', emoji: '🌟' },
                   { label: 'Good', key: 'good', color: 'bg-green-400', emoji: '🟢' },
                   { label: 'Okay', key: 'okay', color: 'bg-yellow-400', emoji: '🟡' },
-                  { label: 'Poor', key: 'poor', color: 'bg-orange-400', emoji: '🟠' },
+                  { label: 'Poor', key: 'poor', color: 'bg-[#c8f135]', emoji: '🟠' },
                   { label: 'Avoid', key: 'avoid', color: 'bg-red-500/100', emoji: '🔴' }
                 ].map(item => {
                   const count = dashboard.pantry_stats.breakdown[item.key] || 0;
@@ -107,9 +107,9 @@ export default function Progress() {
                       <div className="flex-1">
                         <div className="flex justify-between text-sm mb-1">
                           <span>{item.label}</span>
-                          <span className="text-gray-500">{count}</span>
+                          <span className="text-[#666]">{count}</span>
                         </div>
-                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
                           <div 
                             className={`h-full ${item.color} transition-all`}
                             style={{ width: `${pct}%` }}
@@ -125,26 +125,26 @@ export default function Progress() {
 
           {/* Weekly Trend */}
           {dashboard.weekly_trend && (
-            <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-              <h2 className="font-semibold text-gray-100 mb-3">This Week</h2>
+            <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+              <h2 className="font-semibold text-[#f4f4f0] mb-3">This Week</h2>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-gray-100">
+                  <div className="text-2xl font-bold text-[#f4f4f0]">
                     {dashboard.weekly_trend.scans || 0}
                   </div>
-                  <div className="text-xs text-gray-500">Scans</div>
+                  <div className="text-xs text-[#666]">Scans</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-orange-500">
+                  <div className="text-2xl font-bold text-[#c8f135]">
                     {dashboard.weekly_trend.swaps || 0}
                   </div>
-                  <div className="text-xs text-gray-500">Swaps</div>
+                  <div className="text-xs text-[#666]">Swaps</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-amber-500">
                     {dashboard.weekly_trend.recipes || 0}
                   </div>
-                  <div className="text-xs text-gray-500">Recipes</div>
+                  <div className="text-xs text-[#666]">Recipes</div>
                 </div>
               </div>
             </div>
@@ -154,17 +154,17 @@ export default function Progress() {
           <div className="grid grid-cols-2 gap-3">
             <Link
               to="/swaps"
-              className="bg-gray-950 rounded-xl p-4 shadow-sm text-center"
+              className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm text-center"
             >
               <span className="text-2xl block mb-2">🔄</span>
-              <span className="text-sm font-medium text-gray-300">Find Swaps</span>
+              <span className="text-sm font-medium text-[#bbb]">Find Swaps</span>
             </Link>
             <Link
               to="/recipes"
-              className="bg-gray-950 rounded-xl p-4 shadow-sm text-center"
+              className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm text-center"
             >
               <span className="text-2xl block mb-2">👨‍🍳</span>
-              <span className="text-sm font-medium text-gray-300">Browse Recipes</span>
+              <span className="text-sm font-medium text-[#bbb]">Browse Recipes</span>
             </Link>
           </div>
         </>
@@ -176,39 +176,39 @@ export default function Progress() {
           {achievements.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🏆</div>
-              <h2 className="text-xl font-semibold text-gray-100 mb-2">No achievements yet</h2>
-              <p className="text-gray-500">Start scanning products to earn badges!</p>
+              <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">No achievements yet</h2>
+              <p className="text-[#666]">Start scanning products to earn badges!</p>
             </div>
           ) : (
             achievements.map((achievement, index) => (
               <div 
                 key={index}
-                className={`bg-gray-950 rounded-xl p-4 shadow-sm flex items-center gap-4 ${
+                className={`bg-[#0d0d0d] rounded-sm p-4 shadow-sm flex items-center gap-4 ${
                   !achievement.earned ? 'opacity-50' : ''
                 }`}
               >
                 {/* Badge */}
-                <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                <div className={`w-14 h-14 rounded-sm flex items-center justify-center text-2xl ${
                   achievement.earned 
                     ? 'bg-gradient-to-br from-amber-400 to-orange-500' 
-                    : 'bg-gray-700'
+                    : 'bg-[#2a2a2a]'
                 }`}>
                   {achievement.icon}
                 </div>
                 
                 {/* Info */}
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-100">{achievement.name}</h3>
-                  <p className="text-sm text-gray-500">{achievement.description}</p>
+                  <h3 className="font-semibold text-[#f4f4f0]">{achievement.name}</h3>
+                  <p className="text-sm text-[#666]">{achievement.description}</p>
                   {!achievement.earned && achievement.progress !== undefined && (
                     <div className="mt-2">
-                      <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-orange-500/100"
+                          className="h-full bg-[rgba(200,241,53,0.06)]"
                           style={{ width: `${Math.min(100, achievement.progress)}%` }}
                         />
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-[#888] mt-1">
                         {achievement.current} / {achievement.target}
                       </p>
                     </div>
@@ -217,7 +217,7 @@ export default function Progress() {
 
                 {/* Status */}
                 {achievement.earned && (
-                  <span className="text-orange-500 text-sm font-medium">✓ Earned</span>
+                  <span className="text-[#c8f135] text-sm font-medium">✓ Earned</span>
                 )}
               </div>
             ))

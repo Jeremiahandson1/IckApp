@@ -73,14 +73,14 @@ export default function RecipeDetail() {
       case 'easy': return 'bg-green-500/20 text-green-700';
       case 'medium': return 'bg-yellow-500/20 text-yellow-700';
       case 'hard': return 'bg-red-500/20 text-red-700';
-      default: return 'bg-gray-800 text-gray-300';
+      default: return 'bg-[#1e1e1e] text-[#bbb]';
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -89,8 +89,8 @@ export default function RecipeDetail() {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">🍳</div>
-        <h2 className="text-xl font-semibold text-gray-100 mb-2">Recipe not found</h2>
-        <button onClick={() => navigate('/recipes')} className="text-orange-400 mt-2">
+        <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">Recipe not found</h2>
+        <button onClick={() => navigate('/recipes')} className="text-[#c8f135] mt-2">
           ← Browse all recipes
         </button>
       </div>
@@ -102,7 +102,7 @@ export default function RecipeDetail() {
       {/* Back Button */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-400 mb-4"
+        className="flex items-center gap-2 text-[#888] mb-4"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -111,11 +111,11 @@ export default function RecipeDetail() {
       </button>
 
       {/* Header */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-        <h1 className="text-xl font-bold text-gray-100 mb-2">{recipe.name}</h1>
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h1 className="text-xl font-bold text-[#f4f4f0] mb-2">{recipe.name}</h1>
         
         {/* Meta */}
-        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-[#666] mb-3">
           <span>⏱ {recipe.prep_time_minutes} prep + {recipe.total_time_minutes - recipe.prep_time_minutes} cook</span>
           <span>•</span>
           <span>🍽 {recipe.servings} servings</span>
@@ -127,7 +127,7 @@ export default function RecipeDetail() {
 
         {/* Description */}
         {recipe.description && (
-          <p className="text-gray-400 text-sm mb-3">{recipe.description}</p>
+          <p className="text-[#888] text-sm mb-3">{recipe.description}</p>
         )}
 
         {/* Tags */}
@@ -138,7 +138,7 @@ export default function RecipeDetail() {
             </span>
           )}
           {recipe.dietary_tags?.map(tag => (
-            <span key={tag} className="px-2 py-1 bg-gray-800 text-gray-400 text-xs rounded-full">
+            <span key={tag} className="px-2 py-1 bg-[#1e1e1e] text-[#888] text-xs rounded-full">
               {tag}
             </span>
           ))}
@@ -153,38 +153,38 @@ export default function RecipeDetail() {
       {/* Cost & Health Benefits */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         {recipe.estimated_cost && (
-          <div className="bg-gray-950 rounded-xl p-4 shadow-sm">
-            <div className="text-2xl font-bold text-orange-400">${recipe.estimated_cost.toFixed(2)}</div>
-            <div className="text-xs text-gray-500">Per Batch</div>
+          <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm">
+            <div className="text-2xl font-bold text-[#c8f135]">${recipe.estimated_cost.toFixed(2)}</div>
+            <div className="text-xs text-[#666]">Per Batch</div>
           </div>
         )}
         {recipe.health_benefits && (
-          <div className="bg-orange-500/10 rounded-xl p-4">
-            <div className="text-sm text-orange-700">{recipe.health_benefits}</div>
+          <div className="bg-[rgba(200,241,53,0.06)] rounded-sm p-4">
+            <div className="text-sm text-[#7a8e00]">{recipe.health_benefits}</div>
           </div>
         )}
       </div>
 
       {/* vs Store Bought */}
       {recipe.vs_store_bought && (
-        <div className="bg-gradient-to-r from-orange-50 to-green-50 rounded-xl p-4 mb-4">
-          <h3 className="font-semibold text-orange-300 mb-1">Why Homemade is Better</h3>
-          <p className="text-sm text-orange-700">{recipe.vs_store_bought}</p>
+        <div className="bg-gradient-to-r from-orange-50 to-green-50 rounded-sm p-4 mb-4">
+          <h3 className="font-semibold text-[#a8cc20] mb-1">Why Homemade is Better</h3>
+          <p className="text-sm text-[#7a8e00]">{recipe.vs_store_bought}</p>
         </div>
       )}
 
       {/* Ingredients */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-        <h2 className="font-semibold text-gray-100 mb-3">Ingredients</h2>
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h2 className="font-semibold text-[#f4f4f0] mb-3">Ingredients</h2>
         <ul className="space-y-2">
           {recipe.ingredients?.map((ingredient, index) => (
             <li key={index} className="flex items-start gap-3 text-sm">
-              <span className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center flex-shrink-0 text-xs">
+              <span className="w-5 h-5 rounded-full bg-[rgba(200,241,53,0.1)] text-[#c8f135] flex items-center justify-center flex-shrink-0 text-xs">
                 {index + 1}
               </span>
-              <span className="text-gray-300">
+              <span className="text-[#bbb]">
                 <strong>{ingredient.amount} {ingredient.unit}</strong> {ingredient.item}
-                {ingredient.notes && <span className="text-gray-400"> ({ingredient.notes})</span>}
+                {ingredient.notes && <span className="text-[#888]"> ({ingredient.notes})</span>}
               </span>
             </li>
           ))}
@@ -192,8 +192,8 @@ export default function RecipeDetail() {
       </div>
 
       {/* Instructions */}
-      <div className="bg-gray-950 rounded-xl p-4 shadow-sm mb-4">
-        <h2 className="font-semibold text-gray-100 mb-3">Instructions</h2>
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h2 className="font-semibold text-[#f4f4f0] mb-3">Instructions</h2>
         <ol className="space-y-4">
           {recipe.instructions?.map((step, index) => (
             <li 
@@ -205,12 +205,12 @@ export default function RecipeDetail() {
             >
               <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium ${
                 checkedSteps.has(index) 
-                  ? 'bg-orange-500/100 text-white' 
-                  : 'bg-gray-700 text-gray-400'
+                  ? 'bg-[rgba(200,241,53,0.06)] text-white' 
+                  : 'bg-[#2a2a2a] text-[#888]'
               }`}>
                 {checkedSteps.has(index) ? '✓' : index + 1}
               </span>
-              <span className={`text-sm text-gray-300 ${checkedSteps.has(index) ? 'line-through' : ''}`}>
+              <span className={`text-sm text-[#bbb] ${checkedSteps.has(index) ? 'line-through' : ''}`}>
                 {step}
               </span>
             </li>
@@ -219,14 +219,14 @@ export default function RecipeDetail() {
 
         {/* Progress */}
         {recipe.instructions?.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-800">
-            <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+          <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+            <div className="flex items-center justify-between text-sm text-[#666] mb-2">
               <span>Progress</span>
               <span>{checkedSteps.size} of {recipe.instructions.length}</span>
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
               <div 
-                className="h-full bg-orange-500/100 transition-all duration-300"
+                className="h-full bg-[rgba(200,241,53,0.06)] transition-all duration-300"
                 style={{ width: `${(checkedSteps.size / recipe.instructions.length) * 100}%` }}
               />
             </div>
@@ -238,7 +238,7 @@ export default function RecipeDetail() {
       <div className="fixed bottom-20 left-4 right-4">
         <button
           onClick={() => setShowRating(true)}
-          className="w-full py-4 bg-orange-500/100 text-white rounded-xl font-semibold shadow-lg"
+          className="w-full py-4 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-semibold shadow-lg"
         >
           I Made This! 🎉
         </button>
@@ -247,7 +247,7 @@ export default function RecipeDetail() {
       {/* Rating Modal */}
       {showRating && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-center mb-4">How was it?</h2>
             
             {/* Star Rating */}
@@ -266,14 +266,14 @@ export default function RecipeDetail() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowRating(false)}
-                className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={submitMadeIt}
                 disabled={submitting || rating === 0}
-                className="flex-1 py-3 bg-orange-500/100 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium disabled:opacity-50"
               >
                 {submitting ? 'Saving...' : 'Submit'}
               </button>

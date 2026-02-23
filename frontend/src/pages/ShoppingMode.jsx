@@ -90,7 +90,7 @@ export default function ShoppingMode() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -110,9 +110,9 @@ export default function ShoppingMode() {
   });
 
   return (
-    <div className="pb-24 bg-gray-900 min-h-screen -mx-4 px-4 -mt-4 pt-4">
+    <div className="pb-24 bg-[#111] min-h-screen -mx-4 px-4 -mt-4 pt-4">
       {/* Header */}
-      <div className="bg-orange-500/100 text-white rounded-xl p-4 mb-4 shadow-lg">
+      <div className="bg-[rgba(200,241,53,0.06)] text-white rounded-sm p-4 mb-4 shadow-lg">
         <div className="flex items-center justify-between mb-2">
           <button
             onClick={() => navigate(`/shopping/${id}`)}
@@ -132,9 +132,9 @@ export default function ShoppingMode() {
             <span>{checkedCount} of {items.length} items</span>
             <span>{Math.round((checkedCount / items.length) * 100)}%</span>
           </div>
-          <div className="h-3 bg-gray-950/20 rounded-full overflow-hidden">
+          <div className="h-3 bg-[#0d0d0d]/20 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-gray-950 transition-all duration-300"
+              className="h-full bg-[#0d0d0d] transition-all duration-300"
               style={{ width: `${(checkedCount / items.length) * 100}%` }}
             />
           </div>
@@ -155,15 +155,15 @@ export default function ShoppingMode() {
           <div 
             key={item.id}
             onClick={() => toggleItem(item.id, item.checked)}
-            className={`bg-gray-950 rounded-xl p-4 shadow-sm flex items-center gap-3 cursor-pointer transition-all ${
+            className={`bg-[#0d0d0d] rounded-sm p-4 shadow-sm flex items-center gap-3 cursor-pointer transition-all ${
               item.checked ? 'opacity-50' : ''
             }`}
           >
             {/* Checkbox */}
             <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
               item.checked 
-                ? 'bg-orange-500/100 border-orange-500 text-white' 
-                : 'border-gray-600'
+                ? 'bg-[rgba(200,241,53,0.06)] border-[#c8f135] text-white' 
+                : 'border-[#444]'
             }`}>
               {item.checked && (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,11 +174,11 @@ export default function ShoppingMode() {
 
             {/* Score */}
             {item.total_score && !item.checked && (
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
-                item.total_score >= 86 ? 'bg-orange-500/100' :
+              <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
+                item.total_score >= 86 ? 'bg-[rgba(200,241,53,0.06)]' :
                 item.total_score >= 71 ? 'bg-green-400' :
                 item.total_score >= 51 ? 'bg-yellow-400' :
-                item.total_score >= 31 ? 'bg-orange-400' : 'bg-red-500/100'
+                item.total_score >= 31 ? 'bg-[#c8f135]' : 'bg-red-500/100'
               }`}>
                 {Math.round(item.total_score)}
               </div>
@@ -186,21 +186,21 @@ export default function ShoppingMode() {
             
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h3 className={`font-medium text-gray-100 ${item.checked ? 'line-through' : ''}`}>
+              <h3 className={`font-medium text-[#f4f4f0] ${item.checked ? 'line-through' : ''}`}>
                 {item.name}
               </h3>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center gap-2 text-sm text-[#666]">
                 <span>{item.brand}</span>
                 {item.quantity > 1 && <span>×{item.quantity}</span>}
               </div>
               {item.aisle && !item.checked && (
-                <p className="text-xs text-orange-400 mt-1">📍 Aisle {item.aisle}</p>
+                <p className="text-xs text-[#c8f135] mt-1">📍 Aisle {item.aisle}</p>
               )}
             </div>
 
             {/* Price if checked */}
             {item.checked && item.price_paid && (
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-[#666]">
                 ${(item.price_paid * (item.quantity || 1)).toFixed(2)}
               </span>
             )}
@@ -214,7 +214,7 @@ export default function ShoppingMode() {
           <button
             onClick={completeTrip}
             disabled={completing}
-            className="w-full py-4 bg-orange-500/100 text-white rounded-xl font-semibold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-4 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-semibold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {completing ? (
               <>
@@ -234,14 +234,14 @@ export default function ShoppingMode() {
       {/* Price Input Modal */}
       {showPriceModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-950 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm">
             <h2 className="text-lg font-bold mb-4">Enter Price (Optional)</h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-[#666] mb-4">
               Track actual prices to improve future estimates
             </p>
             
             <div className="relative mb-6">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#666]">$</span>
               <input
                 type="number"
                 step="0.01"
@@ -251,7 +251,7 @@ export default function ShoppingMode() {
                   [showPriceModal]: e.target.value
                 }))}
                 placeholder="0.00"
-                className="w-full pl-8 pr-4 py-3 border border-gray-700 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full pl-8 pr-4 py-3 border border-[#333] rounded-sm text-lg focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
                 autoFocus
               />
             </div>
@@ -262,13 +262,13 @@ export default function ShoppingMode() {
                   setPriceInput(prev => ({ ...prev, [showPriceModal]: '' }));
                   confirmCheckWithPrice();
                 }}
-                className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-medium"
+                className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
               >
                 Skip
               </button>
               <button
                 onClick={confirmCheckWithPrice}
-                className="flex-1 py-3 bg-orange-500/100 text-white rounded-xl font-medium"
+                className="flex-1 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium"
               >
                 Done
               </button>
