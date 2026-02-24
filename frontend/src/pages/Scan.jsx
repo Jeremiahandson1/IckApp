@@ -275,8 +275,6 @@ export default function Scan() {
               <button
                 key={key}
                 onClick={() => setMode(key)}
-                key={key}
-                onClick={() => setMode(key)}
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: '9px',
