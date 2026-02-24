@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { isValidUPC, getScoreColor, getScoreBgClass, formatRelativeTime } from '../utils/helpers';
 import { isNative } from '../utils/platform';
-import { scanNative, shouldUseNativeScanner, stopNativeScanner } from '../utils/nativeScanner';
+import { scanNative, shouldUseNativeScanner, stopNativeScanner, isScanSupported, requestPermission } from '../utils/nativeScanner';
 
 // Analytics helper — fire and forget
 const track = (type, data = {}) => {
@@ -68,14 +68,29 @@ export default function Scan() {
   const startNativeScanner = async () => {
     setScanning(true);
     try {
+      const supported = await isScanSupported();
+      if (!supported) {
+        setScanning(false);
+        startWebScanner();
+        return;
+      }
+
+      const granted = await requestPermission();
+      if (!granted) {
+        toast.error('Camera permission denied. Please allow camera access in Settings.');
+        setScanning(false);
+        setMode('search');
+        return;
+      }
+
       const result = await scanNative();
       if (result?.upc) {
         await lookupProduct(result.upc);
       } else {
-        // User cancelled native scanner — stay on page
         setScanning(false);
       }
     } catch (error) {
+      console.error('Native scanner error:', error);
       toast.error('Scanner error. Try search instead.');
       setMode('search');
       setScanning(false);

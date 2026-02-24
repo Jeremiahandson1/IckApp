@@ -228,8 +228,9 @@
 .animate-fade-up { animation: fadeUp 0.5s ease forwards; }
 
 /* ── Native ── */
-body.barcode-scanning-active { background: transparent !important; }
+body.barcode-scanning-active { background: transparent !important; background-color: transparent !important; }
 body.barcode-scanning-active > * { visibility: hidden; }
+html.barcode-scanning-active { background: transparent !important; background-color: transparent !important; }
 
 .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
