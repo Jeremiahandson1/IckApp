@@ -82,6 +82,7 @@ export async function scanNative() {
   try {
     // Add scanning UI class to body (hides webview content behind native camera)
     document.querySelector('body')?.classList.add('barcode-scanning-active');
+    document.querySelector('html')?.classList.add('barcode-scanning-active');
 
     const result = await scanner.scan({
       formats: [
@@ -91,6 +92,7 @@ export async function scanNative() {
     });
 
     document.querySelector('body')?.classList.remove('barcode-scanning-active');
+    document.querySelector('html')?.classList.remove('barcode-scanning-active');
 
     if (result.barcodes && result.barcodes.length > 0) {
       const barcode = result.barcodes[0];
@@ -107,6 +109,7 @@ export async function scanNative() {
     return null; // User cancelled
   } catch (error) {
     document.querySelector('body')?.classList.remove('barcode-scanning-active');
+    document.querySelector('html')?.classList.remove('barcode-scanning-active');
     
     if (error.message?.includes('canceled') || error.message?.includes('cancelled')) {
       return null; // User cancelled — not an error
@@ -125,6 +128,7 @@ export async function stopNativeScanner() {
     if (scanner) {
       await scanner.stopScan();
       document.querySelector('body')?.classList.remove('barcode-scanning-active');
+    document.querySelector('html')?.classList.remove('barcode-scanning-active');
     }
   } catch {}
 }
