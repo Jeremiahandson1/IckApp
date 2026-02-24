@@ -262,9 +262,9 @@ export default function Scan() {
     <div className="min-h-screen bg-black">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 pt-safe">
-        <div className="flex items-center justify-between px-4 py-4" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)' }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '26px', letterSpacing: '2px', color: 'var(--ick-green)' }}>
-            {mode === 'search' ? 'SEARCH' : 'SCAN'}
+        <div className="flex items-center justify-between px-4 py-4">
+          <h1 className="text-xl font-bold text-white">
+            {mode === 'search' ? 'Search Products' : 'Scan Product'}
           </h1>
           <div className="flex gap-2">
             {[
@@ -275,19 +275,11 @@ export default function Scan() {
               <button
                 key={key}
                 onClick={() => setMode(key)}
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '9px',
-                  letterSpacing: '1.5px',
-                  textTransform: 'uppercase',
-                  padding: '6px 12px',
-                  border: mode === key ? '1px solid var(--ick-green)' : '1px solid rgba(255,255,255,0.15)',
-                  color: mode === key ? 'var(--ick-green)' : 'rgba(255,255,255,0.5)',
-                  background: mode === key ? 'rgba(200,241,53,0.08)' : 'transparent',
-                  transition: 'all 0.15s',
-                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  mode === key ? 'bg-orange-500/100 text-white' : 'bg-gray-950/20 text-white'
+                }`}
               >
-                <Icon className="w-3 h-3 inline mr-1" />{label}
+                <Icon className="w-3.5 h-3.5 inline mr-1" />{label}
               </button>
             ))}
           </div>
@@ -302,35 +294,35 @@ export default function Scan() {
             {/* Larger scan window — easier to aim in a store aisle */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-52"
               style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)', borderRadius: '16px' }}>
-              <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-[#c8f135] rounded-tl-xl" />
-              <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-[#c8f135] rounded-tr-xl" />
-              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-[#c8f135] rounded-bl-xl" />
-              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-[#c8f135] rounded-br-xl" />
+              <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-orange-500 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-orange-500 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-orange-500 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-orange-500 rounded-br-xl" />
               {scanning && !loading && (
-                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-[#c8f135] opacity-80 animate-scan-line" />
+                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-orange-500 opacity-80 animate-scan-line" />
               )}
             </div>
           </div>
           <div className="absolute left-0 right-0 bottom-32 text-center text-white">
             {loading ? (
               <div className="flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-sm bg-black/40 backdrop-blur flex items-center justify-center">
-                  <div className="w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full animate-spin" />
+                <div className="w-14 h-14 rounded-2xl bg-black/40 backdrop-blur flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                 </div>
-                <p style={{ fontFamily: "var(--font-display)", fontSize: "20px", letterSpacing: "2px", color: "var(--ick-green)" }}>CHECKING......</p>
+                <p className="font-medium">Checking for ick...</p>
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full bg-[#c8f135] animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-[#c8f135] animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-[#c8f135] animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             ) : (
-              <p className="font-medium text-[#ddd]">Point at a barcode. We'll do the icking.</p>
+              <p className="font-medium text-gray-200">Point at a barcode. We'll do the icking.</p>
             )}
           </div>
           <button onClick={toggleTorch}
             className={`absolute bottom-8 left-1/2 -translate-x-1/2 p-4 rounded-full transition-colors ${
-              torchOn ? 'bg-[rgba(200,241,53,0.06)] text-white' : 'bg-[#0d0d0d]/20 text-white'
+              torchOn ? 'bg-orange-500/100 text-white' : 'bg-gray-950/20 text-white'
             }`}>
             <Flashlight className="w-6 h-6" />
           </button>
@@ -339,31 +331,31 @@ export default function Scan() {
 
       {/* Native scanner mode — ML Kit opens its own native camera overlay */}
       {mode === 'camera' && useNative && (
-        <div className="relative h-screen flex flex-col items-center justify-center bg-[#111]">
+        <div className="relative h-screen flex flex-col items-center justify-center bg-gray-900">
           {loading ? (
             <div className="flex flex-col items-center gap-4">
-              <div className="w-16 h-16 rounded-sm bg-[#0d0d0d]/10 backdrop-blur flex items-center justify-center">
-                <div className="w-10 h-10 border-4 border-[#c8f135] border-t-transparent rounded-full animate-spin" />
+              <div className="w-16 h-16 rounded-2xl bg-gray-950/10 backdrop-blur flex items-center justify-center">
+                <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
               </div>
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "24px", letterSpacing: "2px", color: "var(--ick-green)" }}>ANALYZING...</p>
+              <p className="text-white font-medium text-lg">Analyzing product...</p>
               <div className="flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-[#c8f135] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 rounded-full bg-[#c8f135] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 rounded-full bg-[#c8f135] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-6 px-8">
-              <div className="w-32 h-32 rounded-full bg-[rgba(200,241,53,0.06)]/20 flex items-center justify-center">
-                <Camera className="w-16 h-16 text-[#c8f135]" />
+              <div className="w-32 h-32 rounded-full bg-orange-500/100/20 flex items-center justify-center">
+                <Camera className="w-16 h-16 text-orange-400" />
               </div>
               <div className="text-center">
-                <h2 style={{ fontFamily: "var(--font-display)", fontSize: "32px", letterSpacing: "2px", color: "var(--ick-green)" }}>READY TO SCAN</h2>
-                <p className="text-[#888]">Tap below to open the camera and scan a barcode</p>
+                <h2 className="text-white text-xl font-bold mb-2">Ready to Scan</h2>
+                <p className="text-gray-400">Tap below to open the camera and scan a barcode</p>
               </div>
               <button
                 onClick={startScanner}
-                style={{ background: 'var(--ick-green)', color: '#0a0a0a', fontFamily: 'var(--font-mono)', fontSize: '13px', letterSpacing: '2px', textTransform: 'uppercase', padding: '16px 40px', border: 'none', cursor: 'pointer' }} className="active:scale-95 transition-transform"
+                className="px-12 py-4 bg-orange-500/100 text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform shadow-lg shadow-orange-500/30"
               >
                 <Camera className="w-5 h-5 inline mr-2" />
                 Scan Barcode
@@ -374,36 +366,36 @@ export default function Scan() {
       )}
 
       {mode === 'search' && (
-        <div className="min-h-screen bg-[#111] pt-20 px-4">
+        <div className="min-h-screen bg-gray-900 pt-20 px-4">
           <div className="max-w-md mx-auto">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 placeholder="Search by product name or brand..."
-                className="w-full pl-12 pr-10 py-4 rounded-sm border border-[#333] bg-[#0d0d0d] text-lg focus:outline-none focus:ring-2 focus:ring-[#c8f135] focus:border-transparent"
+                className="w-full pl-12 pr-10 py-4 rounded-2xl border border-gray-700 bg-gray-950 text-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 autoFocus
               />
               {searchQuery && (
                 <button onClick={() => { setSearchQuery(''); setSearchResults([]); setSuggestions([]); setShowSuggestions(false); }}
                   className="absolute right-4 top-1/2 -translate-y-1/2">
-                  <X className="w-5 h-5 text-[#888]" />
+                  <X className="w-5 h-5 text-gray-400" />
                 </button>
               )}
             </div>
             
             {/* Autocomplete suggestions dropdown */}
             {showSuggestions && suggestions.length > 0 && (
-              <div className="mt-1 bg-[#1e1e1e] border border-[#333] rounded-sm overflow-hidden shadow-lg">
+              <div className="mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-lg">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
                     onClick={() => selectSuggestion(s)}
-                    className="w-full text-left px-4 py-3 text-[#ddd] hover:bg-[#2a2a2a] active:bg-gray-600 transition-colors border-b border-[#333]/50 last:border-0 flex items-center gap-3"
+                    className="w-full text-left px-4 py-3 text-gray-200 hover:bg-gray-700 active:bg-gray-600 transition-colors border-b border-gray-700/50 last:border-0 flex items-center gap-3"
                   >
-                    <Search className="w-4 h-4 text-[#666] flex-shrink-0" />
+                    <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
                     <span className="truncate">{s}</span>
                   </button>
                 ))}
@@ -412,28 +404,28 @@ export default function Scan() {
             <div className="mt-4 space-y-2">
               {/* Product not found — contribution form */}
               {notFoundUPC && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-sm p-4 mb-4">
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-sm bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
                       <Send className="w-5 h-5 text-amber-400" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-[#f4f4f0]">Product not found</h3>
-                      <p className="text-sm text-[#888] mt-1">
-                        UPC <span className="font-mono text-xs bg-[#0d0d0d] px-1.5 py-0.5 rounded">{notFoundUPC}</span> isn't in our database yet. Help us add it!
+                      <h3 className="font-semibold text-gray-100">Product not found</h3>
+                      <p className="text-sm text-gray-400 mt-1">
+                        UPC <span className="font-mono text-xs bg-gray-950 px-1.5 py-0.5 rounded">{notFoundUPC}</span> isn't in our database yet. Help us add it!
                       </p>
                       <div className="mt-3 space-y-2">
                         <input
                           type="text" value={contributeName}
                           onChange={(e) => setContributeName(e.target.value)}
                           placeholder="Product name (e.g. Cheerios)"
-                          className="w-full px-3 py-2 rounded-sm border border-[#333] text-sm"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-700 text-sm"
                         />
                         <input
                           type="text" value={contributeBrand}
                           onChange={(e) => setContributeBrand(e.target.value)}
                           placeholder="Brand (e.g. General Mills)"
-                          className="w-full px-3 py-2 rounded-sm border border-[#333] text-sm"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-700 text-sm"
                         />
                         <div className="flex gap-2">
                           <button
@@ -452,13 +444,13 @@ export default function Scan() {
                               setContributing(false);
                             }}
                             disabled={contributing || !contributeName.trim()}
-                            className="flex-1 py-2 bg-amber-500/100 text-white rounded-sm text-sm font-medium disabled:opacity-50"
+                            className="flex-1 py-2 bg-amber-500/100 text-white rounded-lg text-sm font-medium disabled:opacity-50"
                           >
                             {contributing ? 'Submitting...' : 'Submit Product'}
                           </button>
                           <button
                             onClick={() => { setNotFoundUPC(null); setContributeName(''); setContributeBrand(''); }}
-                            className="px-3 py-2 bg-[#1e1e1e] text-[#888] rounded-sm text-sm"
+                            className="px-3 py-2 bg-gray-800 text-gray-400 rounded-lg text-sm"
                           >
                             Dismiss
                           </button>
@@ -470,11 +462,11 @@ export default function Scan() {
               )}
               {searching && (
                 <div className="text-center py-8">
-                  <div className="w-6 h-6 border-2 border-[#c8f135] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
                 </div>
               )}
               {!searching && searchQuery.length >= 2 && searchResults.length === 0 && (
-                <div className="text-center py-8 text-[#666]">
+                <div className="text-center py-8 text-gray-500">
                   <p>No products found for &ldquo;{searchQuery}&rdquo;</p>
                   <p className="text-sm mt-1">Try scanning the barcode instead</p>
                 </div>
@@ -483,29 +475,29 @@ export default function Scan() {
                 <button
                   key={product.upc || product.id}
                   onClick={() => navigate(`/product/${product.upc}`, { state: { product } })}
-                  className="w-full flex items-center gap-4 p-4 bg-[#0d0d0d] rounded-sm border border-[#2a2a2a] text-left hover:bg-[#111] transition-colors"
+                  className="w-full flex items-center gap-4 p-4 bg-gray-950 rounded-xl border border-gray-800 text-left hover:bg-gray-900 transition-colors"
                 >
                   {product.image_url ? (
-                    <img src={product.image_url} alt="" className="w-12 h-12 rounded-sm object-cover bg-[#1e1e1e]"
+                    <img src={product.image_url} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-800"
                       onError={(e) => { e.target.style.display = 'none'; }} />
                   ) : (
-                    <div className="w-12 h-12 rounded-sm bg-[#1e1e1e] flex items-center justify-center text-[#888] text-xs">
+                    <div className="w-12 h-12 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 text-xs">
                       No img
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[#f4f4f0] truncate">{product.name}</p>
-                    <p className="text-sm text-[#666] truncate">{product.brand}</p>
+                    <p className="font-medium text-gray-100 truncate">{product.name}</p>
+                    <p className="text-sm text-gray-500 truncate">{product.brand}</p>
                     {product.estimated_score && (
-                      <p className="text-xs text-[#888] mt-0.5">Estimated score</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Estimated score</p>
                     )}
                   </div>
                   {product.total_score != null ? (
-                    <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(product.total_score)}`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(product.total_score)}`}>
                       {Math.round(product.total_score)}
                     </div>
                   ) : (
-                    <div className="w-10 h-10 rounded-sm flex items-center justify-center bg-[#1e1e1e] text-[#888] text-xs font-medium">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-800 text-gray-400 text-xs font-medium">
                       ?
                     </div>
                   )}
@@ -517,28 +509,28 @@ export default function Scan() {
                 <div className="pt-2 mb-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Heart className="w-4 h-4 text-red-400 fill-red-400" />
-                    <h3 className="text-sm font-semibold text-[#666]">Favorites</h3>
+                    <h3 className="text-sm font-semibold text-gray-500">Favorites</h3>
                   </div>
                   {favorites.map((fav, idx) => (
                     <button
                       key={`fav-${fav.upc}-${idx}`}
                       onClick={() => navigate(`/product/${fav.upc}`)}
-                      className="w-full flex items-center gap-4 p-3 bg-[#0d0d0d] rounded-sm border border-[#2a2a2a] text-left hover:bg-[#111] transition-colors mb-2"
+                      className="w-full flex items-center gap-4 p-3 bg-gray-950 rounded-xl border border-gray-800 text-left hover:bg-gray-900 transition-colors mb-2"
                     >
                       {fav.image_url ? (
-                        <img src={fav.image_url} alt="" className="w-10 h-10 rounded-sm object-cover bg-[#1e1e1e]"
+                        <img src={fav.image_url} alt="" className="w-10 h-10 rounded-lg object-cover bg-gray-800"
                           onError={(e) => { e.target.style.display = 'none'; }} />
                       ) : (
-                        <div className="w-10 h-10 rounded-sm bg-red-500/10 flex items-center justify-center text-red-300 text-xs">
+                        <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-300 text-xs">
                           ❤️
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[#f4f4f0] truncate text-sm">{fav.name || fav.upc}</p>
-                        <p className="text-xs text-[#888]">{fav.brand}</p>
+                        <p className="font-medium text-gray-100 truncate text-sm">{fav.name || fav.upc}</p>
+                        <p className="text-xs text-gray-400">{fav.brand}</p>
                       </div>
                       {fav.total_score != null && (
-                        <div className={`w-9 h-9 rounded-sm flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(fav.total_score)}`}>
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(fav.total_score)}`}>
                           {Math.round(fav.total_score)}
                         </div>
                       )}
@@ -551,29 +543,29 @@ export default function Scan() {
               {!searching && searchQuery.length < 2 && recentScans.length > 0 && (
                 <div className="pt-2">
                   <div className="flex items-center gap-2 mb-3">
-                    <Clock className="w-4 h-4 text-[#888]" />
-                    <h3 className="text-sm font-semibold text-[#666]">Recent Scans</h3>
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <h3 className="text-sm font-semibold text-gray-500">Recent Scans</h3>
                   </div>
                   {recentScans.map((scan, idx) => (
                     <button
                       key={`${scan.upc}-${idx}`}
                       onClick={() => navigate(`/product/${scan.upc}`)}
-                      className="w-full flex items-center gap-4 p-3 bg-[#0d0d0d] rounded-sm border border-[#2a2a2a] text-left hover:bg-[#111] transition-colors mb-2"
+                      className="w-full flex items-center gap-4 p-3 bg-gray-950 rounded-xl border border-gray-800 text-left hover:bg-gray-900 transition-colors mb-2"
                     >
                       {scan.image_url ? (
-                        <img src={scan.image_url} alt="" className="w-10 h-10 rounded-sm object-cover bg-[#1e1e1e]"
+                        <img src={scan.image_url} alt="" className="w-10 h-10 rounded-lg object-cover bg-gray-800"
                           onError={(e) => { e.target.style.display = 'none'; }} />
                       ) : (
-                        <div className="w-10 h-10 rounded-sm bg-[#1e1e1e] flex items-center justify-center text-[#bbb] text-xs">
+                        <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-gray-300 text-xs">
                           📦
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[#f4f4f0] truncate text-sm">{scan.name || scan.upc}</p>
-                        <p className="text-xs text-[#888]">{scan.brand} · {formatRelativeTime(scan.scanned_at)}</p>
+                        <p className="font-medium text-gray-100 truncate text-sm">{scan.name || scan.upc}</p>
+                        <p className="text-xs text-gray-400">{scan.brand} · {formatRelativeTime(scan.scanned_at)}</p>
                       </div>
                       {scan.total_score != null && (
-                        <div className={`w-9 h-9 rounded-sm flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(scan.total_score)}`}>
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(scan.total_score)}`}>
                           {Math.round(scan.total_score)}
                         </div>
                       )}
@@ -587,23 +579,23 @@ export default function Scan() {
       )}
 
       {mode === 'manual' && (
-        <div className="min-h-screen bg-[#111] pt-20 px-6">
+        <div className="min-h-screen bg-gray-900 pt-20 px-6">
           <div className="max-w-md mx-auto pt-8">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-[rgba(200,241,53,0.1)] rounded-sm mx-auto flex items-center justify-center mb-4">
-                <Keyboard className="w-8 h-8 text-[#c8f135]" />
+              <div className="w-16 h-16 bg-orange-500/20 rounded-2xl mx-auto flex items-center justify-center mb-4">
+                <Keyboard className="w-8 h-8 text-orange-400" />
               </div>
-              <h2 className="text-xl font-bold text-[#f4f4f0]">Enter UPC Code</h2>
-              <p className="text-[#888] mt-1">Type the barcode number from the package</p>
+              <h2 className="text-xl font-bold text-gray-100">Enter UPC Code</h2>
+              <p className="text-gray-400 mt-1">Type the barcode number from the package</p>
             </div>
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <input type="text" value={manualUPC}
                 onChange={(e) => setManualUPC(e.target.value.replace(/\D/g, ''))}
                 placeholder="e.g., 040000464310"
-                className="w-full text-center text-lg tracking-wider py-4 rounded-sm border border-[#333] bg-[#0d0d0d] focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
+                className="w-full text-center text-lg tracking-wider py-4 rounded-2xl border border-gray-700 bg-gray-950 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 inputMode="numeric" maxLength={14} autoFocus />
               <button type="submit" disabled={loading || !manualUPC}
-                className="w-full py-4 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-bold text-lg hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                className="w-full py-4 bg-orange-500/100 text-white rounded-2xl font-bold text-lg hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
