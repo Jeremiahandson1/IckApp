@@ -48,11 +48,14 @@ export async function scanNative() {
 
       listener = await BarcodeScanner.addListener('barcodeScanned', async (event) => {
         await cleanup();
+        console.log('Barcode event:', JSON.stringify(event));
+        const upc = event.barcode?.rawValue || event.barcode?.displayValue || event.rawValue || event.displayValue;
+        console.log('UPC extracted:', upc);
         try {
           const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
           await Haptics.impact({ style: ImpactStyle.Medium });
         } catch {}
-        resolve({ upc: event.barcode.rawValue });
+        resolve({ upc });
       });
 
       errorListener = await BarcodeScanner.addListener('scanError', async (event) => {
