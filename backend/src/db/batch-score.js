@@ -119,7 +119,18 @@ async function main() {
   const total = 845477;
   console.log(`  Products to score: ${total.toLocaleString()}\n`);
 
+  // Resume from checkpoint if available
+  const CHECKPOINT_FILE = '/tmp/batch-score-checkpoint.txt';
   let lastId = 0;
+  try {
+    const { readFileSync } = await import('fs');
+    const saved = readFileSync(CHECKPOINT_FILE, 'utf8').trim();
+    if (saved) {
+      lastId = parseInt(saved);
+      console.log(`  ↩ Resuming from id ${lastId.toLocaleString()}\n`);
+    }
+  } catch {}
+
   while (true) {
     const { rows } = await pool.query(`
       SELECT id, upc, ingredients, nutriscore_grade, nova_group, nutrition_facts, is_organic
@@ -138,6 +149,14 @@ async function main() {
 
     stats.total += rows.length;
     lastId = rows[rows.length - 1].id;
+
+    // Save checkpoint every 10k products
+    if (stats.total % 10000 === 0) {
+      try {
+        const { writeFileSync } = await import('fs');
+        writeFileSync(CHECKPOINT_FILE, String(lastId));
+      } catch {}
+    }
 
     if (stats.total % REPORT_EVERY === 0 || rows.length < BATCH_SIZE) {
       const elapsed = (Date.now() - stats.start) / 1000;
