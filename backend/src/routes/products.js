@@ -899,18 +899,52 @@ router.get('/:id', async (req, res) => {
     }
     const product = result.rows[0];
 
-    // Get swaps for this product
+    // Dynamic swap discovery
+    // 1. Use hardcoded swaps_to if available
+    // 2. Otherwise find better-scoring products in same category
+    // 3. Fallback: name similarity across brands
     let swaps = [];
+
     if (product.swaps_to && product.swaps_to.length > 0) {
       const swapUpcs = Array.isArray(product.swaps_to) ? product.swaps_to : JSON.parse(product.swaps_to);
       const swapResult = await pool.query(
         `SELECT * FROM products WHERE upc = ANY($1::text[])`,
         [swapUpcs]
       );
-      swaps = swapResult.rows.map(s => ({
-        ...s,
-        ...getScoreRating(s.total_score)
-      }));
+      swaps = swapResult.rows.map(s => ({ ...s, ...getScoreRating(s.total_score) }));
+    }
+
+    // Dynamic: same category, higher score
+    if (swaps.length === 0 && product.category && product.total_score != null) {
+      const swapResult = await pool.query(
+        `SELECT * FROM products
+         WHERE category = $1
+           AND upc != $2
+           AND total_score > $3
+           AND total_score IS NOT NULL
+           AND image_url IS NOT NULL
+         ORDER BY total_score DESC
+         LIMIT 5`,
+        [product.category, product.upc, product.total_score]
+      );
+      swaps = swapResult.rows.map(s => ({ ...s, ...getScoreRating(s.total_score) }));
+    }
+
+    // Fallback: name keyword match, different brand
+    if (swaps.length === 0 && product.name) {
+      const firstWord = product.name.split(' ')[0];
+      const swapResult = await pool.query(
+        `SELECT * FROM products
+         WHERE name ILIKE $1
+           AND upc != $2
+           AND (brand != $3 OR $3 IS NULL)
+           AND total_score IS NOT NULL
+           AND image_url IS NOT NULL
+         ORDER BY total_score DESC
+         LIMIT 5`,
+        [`%${firstWord}%`, product.upc, product.brand || null]
+      );
+      swaps = swapResult.rows.map(s => ({ ...s, ...getScoreRating(s.total_score) }));
     }
 
     // Get recipes that replace this product
