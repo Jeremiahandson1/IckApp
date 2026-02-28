@@ -90,7 +90,14 @@ export async function initDatabase() {
       subcategory VARCHAR(100),
       image_url TEXT,
       
-      -- Scoring model: Nutrition 60% + Additives 30% + Organic 10%
+      -- OLD scoring components (kept for backward compat, no longer in total_score formula)
+      harmful_ingredients_score INT DEFAULT 50,
+      banned_elsewhere_score INT DEFAULT 50,
+      transparency_score INT DEFAULT 50,
+      processing_score INT DEFAULT 50,
+      company_behavior_score INT DEFAULT 50,
+      
+      -- NEW scoring model: Nutrition 60% + Additives 30% + Organic 10%
       nutrition_score INT DEFAULT 50,
       additives_score INT DEFAULT 50,
       organic_bonus INT DEFAULT 0,
@@ -341,9 +348,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
     CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
     CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score);
-    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
-    CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand);
-    CREATE INDEX IF NOT EXISTS idx_products_clean_alt ON products(is_clean_alternative) WHERE is_clean_alternative = true;
     CREATE INDEX IF NOT EXISTS idx_pantry_user ON pantry_items(user_id);
     CREATE INDEX IF NOT EXISTS idx_velocity_user ON consumption_velocity(user_id);
     CREATE INDEX IF NOT EXISTS idx_velocity_upc ON consumption_velocity(upc);
@@ -352,9 +356,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_harmful_name ON harmful_ingredients(name);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
-    CREATE INDEX IF NOT EXISTS idx_swap_clicks_user ON swap_clicks(user_id);
-    CREATE INDEX IF NOT EXISTS idx_shopping_list_items_list ON shopping_list_items(list_id);
-    CREATE INDEX IF NOT EXISTS idx_scan_logs_upc ON scan_logs(upc);
 
     -- Scan logs for rate limiting free users
     CREATE TABLE IF NOT EXISTS scan_logs (
@@ -447,19 +448,6 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_curated_upc ON curated_availability(upc);
 
-    -- Refresh tokens (for JWT rotation)
-    CREATE TABLE IF NOT EXISTS refresh_tokens (
-      id SERIAL PRIMARY KEY,
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-      token_hash VARCHAR(64) UNIQUE NOT NULL,
-      revoked BOOLEAN DEFAULT false,
-      revoked_at TIMESTAMP,
-      expires_at TIMESTAMP NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
-    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
-
     -- Online purchase links (Amazon, Thrive Market, brand sites, etc.)
     CREATE TABLE IF NOT EXISTS online_links (
       id SERIAL PRIMARY KEY,
@@ -500,10 +488,6 @@ export async function initDatabase() {
       
       -- Push notification subscriptions
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS native_push_token TEXT;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(64);
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at TIMESTAMP;
 
       -- Admin role
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
@@ -555,29 +539,6 @@ export async function initDatabase() {
         created_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
-
-      -- Dynamic swap discovery cache columns
-      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);
-      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
-      CREATE INDEX IF NOT EXISTS idx_products_swap_type ON products(swap_discovery_type, total_score DESC);
-
-      -- Login attempt tracking for per-email brute-force protection
-      CREATE TABLE IF NOT EXISTS login_attempts (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
-        ip VARCHAR(45),
-        success BOOLEAN NOT NULL,
-        attempted_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email, attempted_at);
-
-      -- Periodic cleanup: remove old expired/revoked refresh tokens and login attempts
-      DELETE FROM refresh_tokens WHERE created_at < NOW() - INTERVAL '90 days';
-      DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '7 days';
-      -- Prune analytics events older than 90 days (unbounded growth prevention)
-      DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
-      -- Prune scan logs older than 1 year (keep recent history, drop ancient)
-      DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
     `);
 
     // Check if total_score still uses old formula (5 columns)
@@ -605,57 +566,7 @@ export async function initDatabase() {
       console.log('  ✓ total_score migrated to new formula');
     }
 
-    // Drop legacy score columns from old 5-column scoring model (no longer used)
-    const legacyCols = [
-      'harmful_ingredients_score',
-      'banned_elsewhere_score',
-      'transparency_score',
-      'processing_score',
-      'company_behavior_score',
-    ];
-    for (const col of legacyCols) {
-      const exists = await pool.query(`
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'products' AND column_name = $1
-      `, [col]);
-      if (exists.rows.length > 0) {
-        await pool.query(`ALTER TABLE products DROP COLUMN IF EXISTS ${col}`);
-        console.log(`  ✓ Dropped legacy column: ${col}`);
-      }
-    }
-
     console.log('Database migrations complete');
-
-    // Tables with foreign keys that must be created after the migration block
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id UUID NOT NULL,
-        token_hash VARCHAR(64) UNIQUE NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        used_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_tokens(token_hash)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)`);
-    await pool.query(`DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '1 day'`);
-
-    // Auto-seed on fresh deploy if core tables are empty
-    try {
-      const [hiCount, recipeCount] = await Promise.all([
-        pool.query('SELECT COUNT(*) FROM harmful_ingredients'),
-        pool.query('SELECT COUNT(*) FROM recipes'),
-      ]);
-      if (parseInt(hiCount.rows[0].count) === 0 || parseInt(recipeCount.rows[0].count) === 0) {
-        console.log('▸ Empty DB detected — running initial seed...');
-        const { seedDatabase } = await import('./seed.js');
-        await seedDatabase();
-        console.log('▸ Seed complete');
-      }
-    } catch (e) {
-      console.warn('⚠ Auto-seed failed (non-fatal):', e.message);
-    }
   } catch (err) {
     console.error('Error initializing database schema:', err);
     throw err;
