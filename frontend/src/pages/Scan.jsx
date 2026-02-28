@@ -260,6 +260,44 @@ export default function Scan() {
 
   return (
     <div className="min-h-screen bg-black">
+
+      {/* ── Native scanner overlay — stays visible while body is transparent ── */}
+      {useNative && scanning && !loading && (
+        <div style={{
+          visibility: 'visible',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          pointerEvents: 'none',
+        }}>
+          {/* Viewfinder */}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', width: 280, height: 180 }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: 36, height: 36, borderTop: '4px solid #c8f135', borderLeft: '4px solid #c8f135', borderRadius: '12px 0 0 0' }} />
+              <div style={{ position: 'absolute', top: 0, right: 0, width: 36, height: 36, borderTop: '4px solid #c8f135', borderRight: '4px solid #c8f135', borderRadius: '0 12px 0 0' }} />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, width: 36, height: 36, borderBottom: '4px solid #c8f135', borderLeft: '4px solid #c8f135', borderRadius: '0 0 0 12px' }} />
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderBottom: '4px solid #c8f135', borderRight: '4px solid #c8f135', borderRadius: '0 0 12px 0' }} />
+              <div className="animate-scan-line" style={{ position: 'absolute', left: 16, right: 16, top: '50%', height: 2, background: '#c8f135', opacity: 0.8 }} />
+            </div>
+          </div>
+          {/* Top label */}
+          <div style={{ position: 'absolute', top: 72, left: 0, right: 0, textAlign: 'center' }}>
+            <p style={{ color: '#fff', fontSize: 14, fontWeight: 500, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+              Point camera at a barcode
+            </p>
+          </div>
+          {/* Cancel button */}
+          <div style={{ position: 'absolute', bottom: 80, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'all' }}>
+            <button
+              onClick={() => { stopScanner(); setScanning(false); }}
+              style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '12px 40px', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 pt-safe">
         <div className="flex items-center justify-between px-4 py-4" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)' }}>

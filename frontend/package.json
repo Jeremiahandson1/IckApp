@@ -7,25 +7,22 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-
     "cap:init": "cap init Ick com.ick.app --web-dir dist",
     "cap:sync": "cap sync",
-
     "android:add": "cap add android",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
     "android:run": "npm run build && cap sync android && cap run android",
     "android:build": "npm run build && cap sync android && cd android && ./gradlew assembleRelease",
-
     "ios:add": "cap add ios",
     "ios:sync": "npm run build && cap sync ios",
     "ios:open": "cap open ios",
     "ios:run": "npm run build && cap sync ios && cap run ios",
-
     "native:setup": "npm run build && cap add android && cap add ios && cap sync",
     "native:dev": "VITE_NATIVE=true vite"
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^5.4.0",
     "@capacitor/android": "^5.7.0",
     "@capacitor/app": "^5.0.7",
     "@capacitor/camera": "^5.0.9",
@@ -38,7 +35,6 @@
     "@capacitor/share": "^5.0.7",
     "@capacitor/splash-screen": "^5.0.7",
     "@capacitor/status-bar": "^5.0.7",
-    "@capacitor-mlkit/barcode-scanning": "^5.4.0",
     "@zxing/library": "^0.21.3",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.263.1",
@@ -56,6 +52,7 @@
     "postcss": "^8.4.35",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1",
+    "typescript": "^5.9.3",
     "vite": "^5.1.0",
     "vite-plugin-pwa": "^0.19.0",
     "workbox-window": "^7.0.0"
