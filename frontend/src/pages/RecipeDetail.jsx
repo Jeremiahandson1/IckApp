@@ -116,7 +116,7 @@ export default function RecipeDetail() {
         
         {/* Meta */}
         <div className="flex flex-wrap items-center gap-2 text-sm text-[#666] mb-3">
-          <span>⏱ {recipe.prep_time_minutes} prep + {recipe.total_time_minutes - recipe.prep_time_minutes} cook</span>
+          <span>⏱ {recipe.prep_time_minutes || 0} prep + {(recipe.total_time_minutes || 0) - (recipe.prep_time_minutes || 0)} cook</span>
           <span>•</span>
           <span>🍽 {recipe.servings} servings</span>
           <span>•</span>
