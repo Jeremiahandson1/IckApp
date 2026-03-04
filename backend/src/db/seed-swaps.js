@@ -398,26 +398,38 @@ export async function seedCuratedSwaps() {
   let updated = 0;
   let created = 0;
 
-  // 1. Ensure all clean alternatives exist in DB (will be scored on first scan if not scored yet)
+  // 1. Ensure all clean alternatives exist in DB with proper scores
+  //    These are verified-clean brands (organic, minimal additives) — they need
+  //    real component scores so the generated total_score is competitive.
+  //    Without this, they default to nutrition_score=50/additives_score=50/organic_bonus=0
+  //    → total_score=45, making them invisible as alternatives.
   for (const alt of CLEAN_ALTERNATIVES) {
     try {
-      const exists = await pool.query('SELECT id FROM products WHERE upc = $1', [alt.upc]);
-      if (exists.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO products (upc, name, brand, category, is_clean_alternative)
-           VALUES ($1, $2, $3, $4, true)
-           ON CONFLICT (upc) DO UPDATE SET
-             is_clean_alternative = true,
-             category = COALESCE(products.category, $4)`,
-          [alt.upc, alt.name, alt.brand, alt.category]
-        );
-        created++;
-      } else {
-        await pool.query(
-          'UPDATE products SET is_clean_alternative = true WHERE upc = $1',
-          [alt.upc]
-        );
-      }
+      const nutritionScore = alt.nutrition_score || 75;
+      const additivesScore = alt.additives_score || 85;
+      const organicBonus = alt.organic_bonus ?? 100;
+
+      await pool.query(
+        `INSERT INTO products (upc, name, brand, category, subcategory,
+         is_clean_alternative, nutrition_score, additives_score, organic_bonus)
+         VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8)
+         ON CONFLICT (upc) DO UPDATE SET
+           is_clean_alternative = true,
+           category = COALESCE(products.category, $4),
+           subcategory = COALESCE(products.subcategory, $5),
+           nutrition_score = CASE
+             WHEN products.nutrition_score = 50 THEN $6
+             ELSE products.nutrition_score
+           END,
+           additives_score = CASE
+             WHEN products.additives_score = 50 THEN $7
+             ELSE products.additives_score
+           END,
+           organic_bonus = GREATEST(products.organic_bonus, $8)`,
+        [alt.upc, alt.name, alt.brand, alt.category, alt.subcategory || null,
+         nutritionScore, additivesScore, organicBonus]
+      );
+      created++;
     } catch (err) {
       console.error(`  Failed clean alt ${alt.upc}:`, err.message);
     }

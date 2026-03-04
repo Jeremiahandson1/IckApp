@@ -11,6 +11,14 @@ const OFF_BASE = 'https://world.openfoodfacts.org';
 const USER_AGENT = 'Ick/2.0 (swap-discovery)';
 const CACHE_HOURS = 72; // re-search after 3 days
 
+// AbortSignal.timeout polyfill for Node < 17.3
+function fetchTimeout(ms) {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 // ============================================================
 // PRODUCT TYPE DEFINITIONS
 // Each type has: test pattern, OFF category tags to search,
@@ -367,7 +375,7 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
        AND p.swap_discovered_at > NOW() - INTERVAL '1 hour' * $4
        ORDER BY p.total_score DESC
        LIMIT $5`,
-      [matchedType.id, Math.max(product.total_score || 0, 30), upc, CACHE_HOURS, limit * 2]
+      [matchedType.id, 50, upc, CACHE_HOURS, limit * 2]
     );
 
     if (cached.rows.length >= limit) {
@@ -414,7 +422,7 @@ async function searchOFF(type, product, excludeUpc) {
 
       const res = await fetch(url, {
         headers: { 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(5000)
+        signal: fetchTimeout(5000)
       });
 
       if (res.ok) {
@@ -447,7 +455,7 @@ async function searchOFF(type, product, excludeUpc) {
 
       const res = await fetch(url, {
         headers: { 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(5000)
+        signal: fetchTimeout(5000)
       });
 
       if (res.ok) {

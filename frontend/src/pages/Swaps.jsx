@@ -154,41 +154,76 @@ export default function Swaps() {
                           <h4 className="text-sm font-semibold text-[#bbb] mb-2">Better Store Options</h4>
                           <div className="space-y-2">
                             {swapDetails[item.upc].products.map((swap) => (
-                              <div key={swap.id || swap.upc} className="bg-[#0d0d0d] rounded-sm p-3 flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(swap.total_score)}`}>
-                                  {Math.round(swap.total_score)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h5 className="font-medium text-[#f4f4f0] truncate text-sm">{swap.name}</h5>
-                                  <p className="text-xs text-[#666]">{swap.brand}</p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-xs text-[#c8f135] font-medium">
-                                      +{Math.round(swap.total_score - item.total_score)} points
-                                    </span>
-                                    {swap.typical_price && (
-                                      <span className="text-xs text-[#888]">
-                                        ~${Number(swap.typical_price).toFixed(2)}
+                              <div key={swap.id || swap.upc} className="bg-[#0d0d0d] rounded-sm p-3">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(swap.total_score)}`}>
+                                    {Math.round(swap.total_score)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h5 className="font-medium text-[#f4f4f0] truncate text-sm">{swap.name}</h5>
+                                    <p className="text-xs text-[#666]">{swap.brand}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-xs text-[#c8f135] font-medium">
+                                        +{Math.round(swap.total_score - item.total_score)} points
                                       </span>
-                                    )}
+                                      {swap.typical_price && (
+                                        <span className="text-xs text-[#888]">
+                                          ~${Number(swap.typical_price).toFixed(2)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <button
+                                      onClick={() => {
+                                        trackSwapClick(item.upc, swap.id);
+                                        navigate(`/product/${swap.upc}`);
+                                      }}
+                                      className="px-3 py-1.5 bg-[rgba(200,241,53,0.06)] text-[#c8f135] rounded text-xs font-medium"
+                                    >
+                                      View
+                                    </button>
+                                    <button
+                                      onClick={() => markPurchased(item.upc, swap.id)}
+                                      className="px-3 py-1.5 bg-[#1e1e1e] text-[#888] rounded text-xs font-medium"
+                                    >
+                                      Bought
+                                    </button>
                                   </div>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                  <button
-                                    onClick={() => {
-                                      trackSwapClick(item.upc, swap.id);
-                                      navigate(`/product/${swap.upc}`);
-                                    }}
-                                    className="px-3 py-1.5 bg-[rgba(200,241,53,0.06)] text-[#c8f135] rounded text-xs font-medium"
-                                  >
-                                    View
-                                  </button>
-                                  <button
-                                    onClick={() => markPurchased(item.upc, swap.id)}
-                                    className="px-3 py-1.5 bg-[#1e1e1e] text-[#888] rounded text-xs font-medium"
-                                  >
-                                    Bought
-                                  </button>
-                                </div>
+                                {/* Store availability */}
+                                {swap.nearby_stores?.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-[#2a2a2a]">
+                                    <p className="text-xs text-[#666] mb-1">Available at</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {swap.nearby_stores.map((s, i) => (
+                                        <span key={i} className="text-xs px-2 py-0.5 bg-[#1e1e1e] text-[#888] rounded-full">
+                                          {s.store_name}{s.price ? ` · $${Number(s.price).toFixed(2)}` : ''}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Online purchase links */}
+                                {swap.online_links?.length > 0 && (
+                                  <div className={`${swap.nearby_stores?.length > 0 ? 'mt-1' : 'mt-2 pt-2 border-t border-[#2a2a2a]'}`}>
+                                    {!swap.nearby_stores?.length && <p className="text-xs text-[#666] mb-1">Buy online</p>}
+                                    <div className="flex flex-wrap gap-1">
+                                      {swap.online_links.map((link, i) => (
+                                        <a
+                                          key={i}
+                                          href={link.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="text-xs px-2 py-0.5 bg-[rgba(200,241,53,0.1)] text-[#c8f135] rounded-full"
+                                        >
+                                          {link.name} ↗
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

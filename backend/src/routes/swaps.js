@@ -108,11 +108,16 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     }
 
     // 2. Smart subcategory + name matching
-    //    The old approach matched on OFF's broad categories like "en:snacks" which 
+    //    The old approach matched on OFF's broad categories like "en:snacks" which
     //    returned chia seeds as swaps for fruit snacks. Now we:
     //    a) Match subcategory first (most specific)
     //    b) Match product TYPE via name keywords
     //    c) Return NOTHING rather than garbage — 0 results > 5 wrong results
+    //
+    //    Threshold: we want alternatives BETTER than the scanned product, but
+    //    use a fixed floor of 50 so low-scored products still find good swaps
+    //    and we don't accidentally filter out all our clean alternatives.
+    const swapScoreFloor = 50;
     if (swaps.length === 0) {
       const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
       
@@ -227,7 +232,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
              AND p.upc != $3
              ORDER BY p.total_score DESC
              LIMIT 10`,
-            [`%${product.subcategory}%`, Math.max(product.total_score || 0, 40), upc]
+            [`%${product.subcategory}%`, swapScoreFloor, upc]
           );
           // Filter to same product type
           swaps = subResult.rows.filter(r => {
@@ -252,7 +257,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
                AND p.upc != $3
                ORDER BY rank DESC, p.total_score DESC
                LIMIT 15`,
-              [matchedType.search, Math.max(product.total_score || 0, 40), upc]
+              [matchedType.search, swapScoreFloor, upc]
             );
             // Strict filter: must actually be the same type of product
             swaps = ftsResult.rows.filter(r => {
@@ -280,8 +285,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
            ORDER BY p.total_score DESC
            LIMIT 30`,
           [
-            product.category, 
-            Math.max(product.total_score || 0, 40),
+            product.category,
+            swapScoreFloor,
             upc,
             `%${product.category.split(':').pop().replace(/-/g, '%')}%`
           ]
@@ -376,6 +381,16 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         );
         onlineLinks = linksResult.rows;
       } catch (e) { /* online_links table may not exist yet */ }
+
+      // Fallback: generate retail search links so every alternative is buyable
+      if (onlineLinks.length === 0 && swap.name) {
+        const q = encodeURIComponent(`${swap.brand || ''} ${swap.name}`.trim());
+        onlineLinks = [
+          { name: 'Amazon', url: `https://www.amazon.com/s?k=${q}`, link_type: 'search' },
+          { name: 'Walmart', url: `https://www.walmart.com/search?q=${q}`, link_type: 'search' },
+          { name: 'Target', url: `https://www.target.com/s?searchTerm=${q}`, link_type: 'search' },
+        ];
+      }
 
       formattedSwaps.push({
         ...swap,
@@ -652,8 +667,8 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
            ORDER BY is_clean_alternative DESC, total_score DESC 
            LIMIT 1`,
           [
-            item.category, 
-            Math.max(item.total_score || 0, 40),
+            item.category,
+            50,
             item.upc,
             `%${item.category.split(':').pop().replace(/-/g, '%')}%`
           ]
