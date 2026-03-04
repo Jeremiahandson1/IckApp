@@ -77,7 +77,12 @@ function additivesScore(ingredientsText) {
 function scoreProduct(p) {
   let nutrition = nutriscoreToScore(p.nutriscore_grade);
   if (nutrition === null && p.nutrition_facts) {
-    const nf = typeof p.nutrition_facts === 'string' ? JSON.parse(p.nutrition_facts) : p.nutrition_facts;
+    let nf;
+    try {
+      nf = typeof p.nutrition_facts === 'string' ? JSON.parse(p.nutrition_facts) : p.nutrition_facts;
+    } catch {
+      nf = null;
+    }
     nutrition = scoreFromNutrients(nf);
   }
   if (nutrition === null) nutrition = 50;

@@ -64,11 +64,11 @@ export function getScoreTextClass(score) {
 
 export function getScoreLightBgClass(score) {
   const classes = {
-    excellent: 'bg-green-500/100/10',
-    good: 'bg-green-500/100/10',
-    okay: 'bg-amber-500/100/10',
-    poor: 'bg-orange-500/100/10',
-    avoid: 'bg-red-500/100/10'
+    excellent: 'bg-green-500/10',
+    good: 'bg-green-500/10',
+    okay: 'bg-amber-500/10',
+    poor: 'bg-orange-500/10',
+    avoid: 'bg-red-500/10'
   };
   return classes[getScoreRating(score)];
 }
@@ -132,10 +132,10 @@ export function getSeverityLabel(severity) {
 }
 
 export function getSeverityColor(severity) {
-  if (severity >= 9) return 'text-red-400 bg-red-500/100/10';
-  if (severity >= 7) return 'text-orange-400 bg-orange-500/100/10';
-  if (severity >= 5) return 'text-amber-400 bg-amber-500/100/10';
-  if (severity >= 3) return 'text-blue-400 bg-blue-500/100/10';
+  if (severity >= 9) return 'text-red-400 bg-red-500/10';
+  if (severity >= 7) return 'text-orange-400 bg-orange-500/10';
+  if (severity >= 5) return 'text-amber-400 bg-amber-500/10';
+  if (severity >= 3) return 'text-blue-400 bg-blue-500/10';
   return 'text-gray-400 bg-gray-800';
 }
 
@@ -188,5 +188,5 @@ export function debounce(func, wait) {
 
 // Generate unique ID
 export function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }

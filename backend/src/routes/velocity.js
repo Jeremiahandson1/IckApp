@@ -75,9 +75,9 @@ router.post('/log', async (req, res) => {
   try {
     const { upc, days_to_consume } = req.body;
 
-    const daysNum = parseInt(days_to_consume);
+    const daysNum = parseInt(days_to_consume, 10);
 
-    if (!upc || !daysNum || daysNum <= 0) {
+    if (!upc || isNaN(daysNum) || daysNum <= 0) {
       return res.status(400).json({ error: 'UPC and valid days_to_consume required' });
     }
 
@@ -123,7 +123,7 @@ router.get('/running-low', async (req, res) => {
   try {
     const { days = 7 } = req.query;
 
-    const daysNum = parseInt(days) || 7;
+    const daysNum = parseInt(days, 10) || 7;
 
     const result = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category, p.total_score, p.image_url

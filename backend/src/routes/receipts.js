@@ -141,7 +141,7 @@ Rules:
               upc = matchResult.rows[0].upc;
               matchScore = matchResult.rows[0].rank;
             }
-          } catch { /* full text search may fail on short terms */ }
+          } catch (e) { console.error('FTS match failed for:', searchTerm, e.message); }
         }
       }
 
@@ -325,7 +325,7 @@ router.post('/:id/add-to-pantry', async (req, res) => {
 router.get('/budget/summary', async (req, res) => {
   try {
     const { period = '30' } = req.query;
-    const days = parseInt(period) || 30;
+    const days = parseInt(period, 10) || 30;
 
     const [totalSpent, avgPerTrip, tripCount, topStores, byCategory, recentTrend] = await Promise.all([
       // Total spent in period

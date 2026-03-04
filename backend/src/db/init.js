@@ -460,6 +460,40 @@ export async function initDatabase() {
       UNIQUE(upc, url)
     );
     CREATE INDEX IF NOT EXISTS idx_online_links_upc ON online_links(upc);
+
+    -- Refresh tokens for JWT rotation
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      token_hash VARCHAR(64) UNIQUE NOT NULL,
+      revoked BOOLEAN DEFAULT false,
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
+    -- Login attempts for brute-force protection
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      ip VARCHAR(45),
+      success BOOLEAN DEFAULT false,
+      attempted_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email, attempted_at);
+
+    -- Password reset tokens
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      token_hash VARCHAR(64) UNIQUE NOT NULL,
+      used_at TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
   `;
 
   try {
@@ -491,6 +525,14 @@ export async function initDatabase() {
 
       -- Admin role
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
+
+      -- Email verification columns
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(64);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP;
+
+      -- Native push token
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS native_push_token VARCHAR(255);
 
       -- Store memory for auto-sighting
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_store VARCHAR(255);

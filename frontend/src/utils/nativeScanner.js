@@ -4,7 +4,7 @@ import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning
 export const isNative = Capacitor.isNativePlatform();
 
 export function shouldUseNativeScanner() {
-  return isNative;
+  return false; // Always use html5-qrcode — MLKit causes issues on Android
 }
 
 export async function isScanSupported() {
@@ -30,7 +30,9 @@ export async function requestPermission() {
 export async function scanNative() {
   if (!isNative) return null;
 
-  return new Promise(async (resolve) => {
+  // @capacitor-mlkit/barcode-scanning opens its own native camera UI —
+  // no WebView transparency needed. Just listen for the result.
+  return new Promise((resolve, reject) => {
     let listener = null;
     let errorListener = null;
 
@@ -38,46 +40,43 @@ export async function scanNative() {
       try { await listener?.remove(); } catch {}
       try { await errorListener?.remove(); } catch {}
       try { await BarcodeScanner.stopScan(); } catch {}
-      document.querySelector('body')?.classList.remove('barcode-scanning-active');
-      document.querySelector('html')?.classList.remove('barcode-scanning-active');
     };
 
-    try {
-      document.querySelector('body')?.classList.add('barcode-scanning-active');
-      document.querySelector('html')?.classList.add('barcode-scanning-active');
+    (async () => {
+      try {
+        listener = await BarcodeScanner.addListener('barcodeScanned', async (event) => {
+          await cleanup();
+          const upc = event.barcode?.rawValue || event.barcode?.displayValue;
+          try {
+            const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+            await Haptics.impact({ style: ImpactStyle.Medium });
+          } catch {}
+          resolve({ upc });
+        });
 
-      listener = await BarcodeScanner.addListener('barcodeScanned', async (event) => {
+        errorListener = await BarcodeScanner.addListener('scanError', async (event) => {
+          console.error('Scan error:', event.message);
+          await cleanup();
+          resolve(null);
+        });
+
+        await BarcodeScanner.startScan({
+          formats: [
+            BarcodeFormat.Ean13, BarcodeFormat.Ean8,
+            BarcodeFormat.UpcA, BarcodeFormat.UpcE,
+            BarcodeFormat.Code128, BarcodeFormat.Code39, BarcodeFormat.Itf
+          ]
+        });
+
+      } catch (error) {
         await cleanup();
-        const upc = event.barcode?.rawValue || event.barcode?.displayValue;
-        try {
-          const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
-          await Haptics.impact({ style: ImpactStyle.Medium });
-        } catch {}
-        resolve({ upc });
-      });
-
-      errorListener = await BarcodeScanner.addListener('scanError', async (event) => {
-        console.error('Scan error:', event.message);
-        await cleanup();
-        resolve(null);
-      });
-
-      await BarcodeScanner.startScan({
-        formats: [
-          BarcodeFormat.Ean13, BarcodeFormat.Ean8,
-          BarcodeFormat.UpcA, BarcodeFormat.UpcE,
-          BarcodeFormat.Code128, BarcodeFormat.Code39, BarcodeFormat.Itf
-        ]
-      });
-
-    } catch (error) {
-      await cleanup();
-      if (error.message?.includes('cancel') || error.message?.includes('dismiss')) {
-        resolve(null);
-      } else {
-        throw error;
+        if (error.message?.includes('cancel') || error.message?.includes('dismiss')) {
+          resolve(null);
+        } else {
+          reject(error);
+        }
       }
-    }
+    })();
   });
 }
 
@@ -87,6 +86,4 @@ export async function stopNativeScanner() {
     await BarcodeScanner.stopScan();
     await BarcodeScanner.removeAllListeners();
   } catch {}
-  document.querySelector('body')?.classList.remove('barcode-scanning-active');
-  document.querySelector('html')?.classList.remove('barcode-scanning-active');
 }

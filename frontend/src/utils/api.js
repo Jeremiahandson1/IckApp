@@ -293,5 +293,8 @@ export const account = {
   changePassword: (current_password, new_password) =>
     api.put('/auth/password', { current_password, new_password }),
   deleteAccount: (password) =>
-    api.request('/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) }),
+    api.request('/auth/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    }),
 };

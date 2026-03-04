@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Database (must come after dotenv so DATABASE_URL is available)
-import { initDatabase } from './db/init.js';
+import pool, { initDatabase } from './db/init.js';
 
 // Routes
 import authRoutes from './routes/auth.js';

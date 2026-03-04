@@ -258,7 +258,7 @@ router.put('/lists/:id/complete', async (req, res) => {
 router.post('/lists/generate', async (req, res) => {
   try {
     const { days_ahead = 14 } = req.body;
-    const daysNum = parseInt(days_ahead) || 14;
+    const daysNum = parseInt(days_ahead, 10) || 14;
 
     // Create new list
     const listResult = await pool.query(
