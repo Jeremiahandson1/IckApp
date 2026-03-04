@@ -76,7 +76,7 @@ export default function PantryAudit() {
     scannedUpcSet.current.add(upc);
     
     try {
-      const product = await api.get(`/products/scan/${upc}`);
+      const product = await api.get(`/products/view/${upc}`);
       
       setScannedItems(prev => [{
         ...product,

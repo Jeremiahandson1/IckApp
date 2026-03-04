@@ -92,7 +92,7 @@ router.post('/log', async (req, res) => {
     // Update velocity
     const result = await pool.query(
       `INSERT INTO consumption_velocity (user_id, product_id, upc, avg_days_to_consume, consumption_count, last_consumed_at, next_predicted_empty)
-       VALUES ($1, $2, $3, $4, 1, NOW(), NOW() + ($4 || ' days')::INTERVAL)
+       VALUES ($1, $2, $3, $4, 1, NOW(), NOW() + (INTERVAL '1 day' * $4))
        ON CONFLICT (user_id, upc) DO UPDATE SET
          avg_days_to_consume = (consumption_velocity.avg_days_to_consume * consumption_velocity.consumption_count + $4) / (consumption_velocity.consumption_count + 1),
          consumption_count = consumption_velocity.consumption_count + 1,
@@ -130,7 +130,7 @@ router.get('/running-low', async (req, res) => {
        FROM consumption_velocity cv
        LEFT JOIN products p ON cv.product_id = p.id
        WHERE cv.user_id = $1
-       AND cv.next_predicted_empty <= NOW() + ($2 || ' days')::INTERVAL
+       AND cv.next_predicted_empty <= NOW() + (INTERVAL '1 day' * $2)
        AND cv.confidence IN ('medium', 'high')
        ORDER BY cv.next_predicted_empty ASC`,
       [req.user.id, String(daysNum)]

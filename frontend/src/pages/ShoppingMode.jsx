@@ -130,12 +130,12 @@ export default function ShoppingMode() {
         <div className="mt-4">
           <div className="flex items-center justify-between text-sm mb-1">
             <span>{checkedCount} of {items.length} items</span>
-            <span>{Math.round((checkedCount / items.length) * 100)}%</span>
+            <span>{items.length > 0 ? Math.round((checkedCount / items.length) * 100) : 0}%</span>
           </div>
           <div className="h-3 bg-[#0d0d0d]/20 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-[#0d0d0d] transition-all duration-300"
-              style={{ width: `${(checkedCount / items.length) * 100}%` }}
+              style={{ width: `${items.length > 0 ? (checkedCount / items.length) * 100 : 0}%` }}
             />
           </div>
         </div>

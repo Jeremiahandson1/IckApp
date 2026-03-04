@@ -331,19 +331,19 @@ router.get('/budget/summary', async (req, res) => {
       // Total spent in period
       pool.query(
         `SELECT COALESCE(SUM(total), 0) as total_spent, COUNT(*) as receipt_count
-         FROM receipts WHERE user_id = $1 AND created_at >= NOW() - ($2 || ' days')::INTERVAL`,
+         FROM receipts WHERE user_id = $1 AND created_at >= NOW() - (INTERVAL '1 day' * $2)`,
         [req.user.id, String(days)]
       ),
       // Average per trip
       pool.query(
         `SELECT COALESCE(AVG(total), 0) as avg_per_trip
-         FROM receipts WHERE user_id = $1 AND total IS NOT NULL AND created_at >= NOW() - ($2 || ' days')::INTERVAL`,
+         FROM receipts WHERE user_id = $1 AND total IS NOT NULL AND created_at >= NOW() - (INTERVAL '1 day' * $2)`,
         [req.user.id, String(days)]
       ),
       // Trip count by store
       pool.query(
         `SELECT store_name, COUNT(*) as visits, SUM(total) as total_spent
-         FROM receipts WHERE user_id = $1 AND created_at >= NOW() - ($2 || ' days')::INTERVAL
+         FROM receipts WHERE user_id = $1 AND created_at >= NOW() - (INTERVAL '1 day' * $2)
          GROUP BY store_name ORDER BY total_spent DESC LIMIT 5`,
         [req.user.id, String(days)]
       ),
@@ -359,7 +359,7 @@ router.get('/budget/summary', async (req, res) => {
         `SELECT ri.category, SUM(ri.total_price) as total, COUNT(*) as item_count
          FROM receipt_items ri
          JOIN receipts r ON ri.receipt_id = r.id
-         WHERE r.user_id = $1 AND r.created_at >= NOW() - ($2 || ' days')::INTERVAL
+         WHERE r.user_id = $1 AND r.created_at >= NOW() - (INTERVAL '1 day' * $2)
          GROUP BY ri.category ORDER BY total DESC`,
         [req.user.id, String(days)]
       ),

@@ -184,7 +184,7 @@ export default function Swaps() {
                                       View
                                     </button>
                                     <button
-                                      onClick={() => markPurchased(item.upc, swap.id)}
+                                      onClick={() => markPurchased(item.upc, swap.upc)}
                                       className="px-3 py-1.5 bg-[#1e1e1e] text-[#888] rounded text-xs font-medium"
                                     >
                                       Bought

@@ -142,11 +142,11 @@ router.post('/users/:id/grant-trial', async (req, res) => {
 
     await pool.query(
       `INSERT INTO subscriptions (user_id, plan, status, trial_started_at, trial_ends_at)
-       VALUES ($1, 'trial', 'active', NOW(), NOW() + ($2 || ' days')::INTERVAL)
+       VALUES ($1, 'trial', 'active', NOW(), NOW() + (INTERVAL '1 day' * $2))
        ON CONFLICT (user_id) DO UPDATE SET
          plan = 'trial', status = 'active',
          trial_started_at = COALESCE(subscriptions.trial_started_at, NOW()),
-         trial_ends_at = NOW() + ($2 || ' days')::INTERVAL`,
+         trial_ends_at = NOW() + (INTERVAL '1 day' * $2)`,
       [id, String(days)]
     );
 

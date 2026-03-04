@@ -102,8 +102,8 @@ export default function ProductResult() {
       const [swapsData] = await Promise.all([
         swapsApi.forProduct(upc)
       ]);
-      setSwapOptions(swapsData.swaps || []);
-      setRecipes(swapsData.homemade_alternatives || swapsData.recipes || []);
+      setSwapOptions(swapsData?.swaps || []);
+      setRecipes(swapsData?.homemade_alternatives || swapsData?.recipes || []);
     } catch (error) {
       console.error('Error fetching swaps:', error);
     }
@@ -141,12 +141,18 @@ export default function ProductResult() {
 
   const harmfulIngredients = product.harmful_ingredients_found || [];
   const isClean = product.total_score >= 71;
-  const nutritionFacts = typeof product.nutrition_facts === 'string' 
-    ? JSON.parse(product.nutrition_facts || '{}') 
-    : (product.nutrition_facts || {});
-  const allergens = typeof product.allergens_tags === 'string'
-    ? JSON.parse(product.allergens_tags || '[]')
-    : (product.allergens_tags || []);
+  let nutritionFacts = {};
+  try {
+    nutritionFacts = typeof product.nutrition_facts === 'string'
+      ? JSON.parse(product.nutrition_facts || '{}')
+      : (product.nutrition_facts || {});
+  } catch { /* invalid JSON */ }
+  let allergens = [];
+  try {
+    allergens = typeof product.allergens_tags === 'string'
+      ? JSON.parse(product.allergens_tags || '[]')
+      : (product.allergens_tags || []);
+  } catch { /* invalid JSON */ }
   const hasNutrition = Object.keys(nutritionFacts).length > 0;
 
   return (

@@ -278,7 +278,7 @@ router.post('/lists/generate', async (req, res) => {
        FROM consumption_velocity cv
        LEFT JOIN products p ON cv.product_id = p.id
        WHERE cv.user_id = $1
-       AND cv.next_predicted_empty <= NOW() + ($2 || ' days')::INTERVAL
+       AND cv.next_predicted_empty <= NOW() + (INTERVAL '1 day' * $2)
        AND cv.confidence IN ('medium', 'high')`,
       [req.user.id, String(daysNum)]
     );

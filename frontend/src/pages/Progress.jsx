@@ -23,7 +23,7 @@ export default function Progress() {
         api.get('/progress/achievements')
       ]);
       setDashboard(dashRes);
-      setAchievements(achieveRes.achievements || []);
+      setAchievements(achieveRes?.achievements || []);
     } catch (err) {
       toast.error('Failed to load progress');
     } finally {

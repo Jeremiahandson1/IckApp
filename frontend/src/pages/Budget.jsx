@@ -109,8 +109,8 @@ export default function Budget() {
           </p>
           <div className="flex items-end gap-2 h-24">
             {summary.weekly_trend.map((week, i) => {
-              const maxWeek = Math.max(...summary.weekly_trend.map(w => parseFloat(w.total_spent)));
-              const pct = maxWeek > 0 ? (parseFloat(week.total_spent) / maxWeek * 100) : 0;
+              const maxWeek = Math.max(...summary.weekly_trend.map(w => parseFloat(w.total_spent) || 0));
+              const pct = maxWeek > 0 ? ((parseFloat(week.total_spent) || 0) / maxWeek * 100) : 0;
               const dateStr = new Date(week.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
