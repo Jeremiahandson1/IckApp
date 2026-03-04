@@ -541,6 +541,10 @@ export async function initDatabase() {
       -- Contribution review tracking
       ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
 
+      -- Swap discovery tracking (used by dynamic swap engine)
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
+
       -- Receipt + price tracking on pantry items
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS price_paid DECIMAL(8,2);
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS store_name VARCHAR(255);

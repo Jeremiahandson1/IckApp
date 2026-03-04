@@ -537,20 +537,21 @@ async function saveDiscoveries(candidates, type) {
         sodium_100g: nm.sodium_100g || null,
       };
 
-      // Compute a basic score from nutriscore + nova + organic
-      // This is a quick estimate — full scoring happens when user scans
-      const nutriScore = NUTRISCORE_RANK[nutriscoreGrade?.toLowerCase()] || 2;
-      const basicScore = Math.min(100, Math.round(
-        nutriScore * 15 +                           // 15-75 from nutriscore
-        (novaGroup ? (4 - novaGroup) * 5 : 0) +     // 0-15 from NOVA
-        (isOrganic ? 10 : 0)                          // 0-10 organic bonus
-      ));
+      // Compute component scores for the generated total_score column
+      // total_score = ROUND(nutrition_score * 0.60 + additives_score * 0.30 + organic_bonus * 0.10)
+      const nutriscoreMap = { a: 90, b: 70, c: 50, d: 30, e: 10 };
+      const nutritionScore = nutriscoreMap[nutriscoreGrade?.toLowerCase()] || 50;
+      // NOVA group as proxy for additives: less processing = fewer additives
+      const novaAdditiveMap = { 1: 90, 2: 70, 3: 50, 4: 25 };
+      const additivesScore = novaAdditiveMap[novaGroup] || 50;
+      const organicBonusVal = isOrganic ? 100 : 0;
 
       const result = await pool.query(
         `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
          nutriscore_grade, nova_group, is_organic, allergens_tags, nutrition_facts,
-         total_score, swap_discovery_type, swap_discovered_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+         nutrition_score, additives_score, organic_bonus,
+         swap_discovery_type, swap_discovered_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
          ON CONFLICT (upc) DO UPDATE SET
            name = COALESCE(NULLIF(EXCLUDED.name, 'Unknown'), products.name),
            image_url = COALESCE(EXCLUDED.image_url, products.image_url),
@@ -559,16 +560,21 @@ async function saveDiscoveries(candidates, type) {
            is_organic = EXCLUDED.is_organic OR products.is_organic,
            swap_discovery_type = EXCLUDED.swap_discovery_type,
            swap_discovered_at = NOW(),
-           total_score = CASE 
-             WHEN products.nutrition_score IS NOT NULL THEN products.total_score
-             ELSE GREATEST(EXCLUDED.total_score, products.total_score)
-           END
+           nutrition_score = CASE
+             WHEN products.nutrition_score != 50 THEN products.nutrition_score
+             ELSE EXCLUDED.nutrition_score
+           END,
+           additives_score = CASE
+             WHEN products.additives_score != 50 THEN products.additives_score
+             ELSE EXCLUDED.additives_score
+           END,
+           organic_bonus = GREATEST(EXCLUDED.organic_bonus, products.organic_bonus)
          RETURNING *`,
         [
           upc, name, brand, category, imageUrl, ingredients,
           nutriscoreGrade, novaGroup, isOrganic,
           JSON.stringify(allergensTags), JSON.stringify(nutritionFacts),
-          basicScore, type.id
+          nutritionScore, additivesScore, organicBonusVal, type.id
         ]
       );
 
