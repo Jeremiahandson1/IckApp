@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
     const result = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category, p.total_score, p.image_url
        FROM consumption_velocity cv
-       JOIN products p ON cv.product_id = p.id
+       LEFT JOIN products p ON cv.product_id = p.id
        WHERE cv.user_id = $1
        ORDER BY cv.next_predicted_empty ASC`,
       [req.user.id]
@@ -36,7 +36,7 @@ router.get('/product/:upc', async (req, res) => {
     const result = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category
        FROM consumption_velocity cv
-       JOIN products p ON cv.product_id = p.id
+       LEFT JOIN products p ON cv.product_id = p.id
        WHERE cv.user_id = $1 AND cv.upc = $2`,
       [req.user.id, upc]
     );
@@ -128,7 +128,7 @@ router.get('/running-low', async (req, res) => {
     const result = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category, p.total_score, p.image_url
        FROM consumption_velocity cv
-       JOIN products p ON cv.product_id = p.id
+       LEFT JOIN products p ON cv.product_id = p.id
        WHERE cv.user_id = $1
        AND cv.next_predicted_empty <= NOW() + ($2 || ' days')::INTERVAL
        AND cv.confidence IN ('medium', 'high')

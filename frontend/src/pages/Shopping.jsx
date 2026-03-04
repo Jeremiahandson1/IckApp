@@ -56,9 +56,13 @@ export default function Shopping() {
   const generateSmartList = async () => {
     setGenerating(true);
     try {
-      const res = await api.post('/shopping/lists/generate', { days: 7 });
-      showToast(`Created smart shopping list`, 'success');
-      navigate(`/shopping/${res.id}`);
+      const res = await api.post('/shopping/lists/generate', { days_ahead: 7 });
+      if (res.id) {
+        showToast('Created smart shopping list', 'success');
+        navigate(`/shopping/${res.id}`);
+      } else {
+        showToast(res.message || 'Not enough data to generate a list yet', 'info');
+      }
     } catch (err) {
       showToast('Failed to generate list', 'error');
     } finally {

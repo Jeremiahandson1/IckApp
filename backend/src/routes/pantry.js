@@ -272,7 +272,7 @@ router.put('/:id/finish', async (req, res) => {
     // Update velocity tracking (including next_predicted_empty for smart shopping lists)
     const velocityResult = await pool.query(
       `INSERT INTO consumption_velocity (user_id, product_id, upc, avg_days_to_consume, consumption_count, last_consumed_at, next_predicted_empty)
-       VALUES ($1, $2, $3, $4, 1, NOW(), NOW() + ($4 || ' days')::INTERVAL)
+       VALUES ($1, $2, $3, $4, 1, NOW(), NOW() + (INTERVAL '1 day' * $4))
        ON CONFLICT (user_id, upc) DO UPDATE SET
          avg_days_to_consume = (consumption_velocity.avg_days_to_consume * consumption_velocity.consumption_count + $4) / (consumption_velocity.consumption_count + 1),
          consumption_count = consumption_velocity.consumption_count + 1,

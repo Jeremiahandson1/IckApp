@@ -246,9 +246,9 @@ export default function Profile() {
           <div>
             <h3 className="font-semibold text-[#f4f4f0]">Subscription</h3>
             <p className="text-sm text-[#666] mt-0.5">
-              {profile?.subscription?.isPremium 
-                ? profile.subscription.isTrialing 
-                  ? `Trial — ${profile.subscription.daysLeft} days left`
+              {profile?.subscription?.is_premium
+                ? profile.subscription.status === 'trialing'
+                  ? `Trial — ${profile.subscription.days_remaining} days left`
                   : `${profile.subscription.plan} plan`
                 : 'Free plan'}
             </p>
@@ -323,7 +323,7 @@ export default function Profile() {
                 const reg = await navigator.serviceWorker.ready;
                 const sub = await reg.pushManager.subscribe({
                   userVisibleOnly: true,
-                  applicationServerKey: process.env.VITE_VAPID_PUBLIC_KEY || undefined
+                  applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY || undefined
                 });
                 await api.post('/auth/push-subscribe', { subscription: sub.toJSON() });
                 showToast('Notifications enabled!', 'success');

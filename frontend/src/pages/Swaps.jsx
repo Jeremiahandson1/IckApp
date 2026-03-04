@@ -65,7 +65,7 @@ export default function Swaps() {
     try {
       await api.post('/swaps/purchased', {
         from_upc: fromUpc,
-        to_product_id: toProductId
+        to_upc: toProductId
       });
       showToast('Swap marked as purchased!', 'success');
       loadRecommendations();

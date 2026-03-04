@@ -1,5 +1,6 @@
 // Score rating helpers
 export function getScoreRating(score) {
+  if (score == null) return 'unscored';
   if (score >= 86) return 'excellent';
   if (score >= 71) return 'good';
   if (score >= 51) return 'okay';

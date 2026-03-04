@@ -276,7 +276,7 @@ router.post('/lists/generate', async (req, res) => {
     const velocityResult = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category, p.typical_price
        FROM consumption_velocity cv
-       JOIN products p ON cv.product_id = p.id
+       LEFT JOIN products p ON cv.product_id = p.id
        WHERE cv.user_id = $1
        AND cv.next_predicted_empty <= NOW() + ($2 || ' days')::INTERVAL
        AND cv.confidence IN ('medium', 'high')`,
@@ -373,7 +373,7 @@ router.post('/lists/generate', async (req, res) => {
       ...listResult.rows[0],
       items: fullList.rows,
       list_type: listType,
-      prediction_window_days: days_ahead
+      prediction_window_days: daysNum
     });
 
   } catch (err) {

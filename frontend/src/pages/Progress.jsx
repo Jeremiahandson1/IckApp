@@ -68,18 +68,18 @@ export default function Progress() {
             <div className="text-center">
               <div className="text-5xl font-bold mb-2">{Math.round(dashboard.health_score)}</div>
               <div className="text-orange-100 mb-4">Health Score</div>
-              
+
               <div className="flex justify-center gap-8 text-sm">
                 <div>
-                  <div className="text-2xl font-bold">{dashboard.pantry_stats?.total_items || 0}</div>
+                  <div className="text-2xl font-bold">{dashboard.pantry?.total_items || 0}</div>
                   <div className="opacity-80">Items</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{dashboard.swap_stats?.total_swaps || 0}</div>
+                  <div className="text-2xl font-bold">{dashboard.swaps?.total_explored || 0}</div>
                   <div className="opacity-80">Swaps</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{dashboard.recipe_stats?.recipes_made || 0}</div>
+                  <div className="text-2xl font-bold">{dashboard.recipes?.total_made || 0}</div>
                   <div className="opacity-80">Recipes</div>
                 </div>
               </div>
@@ -87,7 +87,7 @@ export default function Progress() {
           </div>
 
           {/* Pantry Breakdown */}
-          {dashboard.pantry_stats?.breakdown && (
+          {dashboard.pantry?.breakdown && (
             <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
               <h2 className="font-semibold text-[#f4f4f0] mb-3">Pantry Breakdown</h2>
               <div className="space-y-3">
@@ -98,8 +98,8 @@ export default function Progress() {
                   { label: 'Poor', key: 'poor', color: 'bg-[#c8f135]', emoji: '🟠' },
                   { label: 'Avoid', key: 'avoid', color: 'bg-red-500/100', emoji: '🔴' }
                 ].map(item => {
-                  const count = dashboard.pantry_stats.breakdown[item.key] || 0;
-                  const total = dashboard.pantry_stats.total_items || 1;
+                  const count = dashboard.pantry.breakdown[item.key] || 0;
+                  const total = dashboard.pantry.total_items || 1;
                   const pct = (count / total) * 100;
                   return (
                     <div key={item.key} className="flex items-center gap-3">
@@ -110,7 +110,7 @@ export default function Progress() {
                           <span className="text-[#666]">{count}</span>
                         </div>
                         <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full ${item.color} transition-all`}
                             style={{ width: `${pct}%` }}
                           />
@@ -124,25 +124,46 @@ export default function Progress() {
           )}
 
           {/* Weekly Trend */}
-          {dashboard.weekly_trend && (
+          {Array.isArray(dashboard.weekly_trend) && dashboard.weekly_trend.length > 0 && (
             <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
-              <h2 className="font-semibold text-[#f4f4f0] mb-3">This Week</h2>
+              <h2 className="font-semibold text-[#f4f4f0] mb-3">Weekly Avg Score</h2>
+              <div className="flex items-end gap-1 h-24">
+                {dashboard.weekly_trend.map((week, i) => {
+                  const score = parseInt(week.avg_score) || 0;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <span className="text-xs text-[#888]">{score}</span>
+                      <div
+                        className="w-full rounded-t bg-[#c8f135]"
+                        style={{ height: `${Math.max(4, score)}%` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Engagement Stats */}
+          {dashboard.engagement && (
+            <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+              <h2 className="font-semibold text-[#f4f4f0] mb-3">Activity</h2>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-[#f4f4f0]">
-                    {dashboard.weekly_trend.scans || 0}
+                    {dashboard.engagement.products_scanned || 0}
                   </div>
                   <div className="text-xs text-[#666]">Scans</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-[#c8f135]">
-                    {dashboard.weekly_trend.swaps || 0}
+                    {dashboard.engagement.swaps_clicked || 0}
                   </div>
                   <div className="text-xs text-[#666]">Swaps</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-amber-500">
-                    {dashboard.weekly_trend.recipes || 0}
+                    {dashboard.engagement.recipes_viewed || 0}
                   </div>
                   <div className="text-xs text-[#666]">Recipes</div>
                 </div>
@@ -181,29 +202,29 @@ export default function Progress() {
             </div>
           ) : (
             achievements.map((achievement, index) => (
-              <div 
+              <div
                 key={index}
                 className={`bg-[#0d0d0d] rounded-sm p-4 shadow-sm flex items-center gap-4 ${
-                  !achievement.earned ? 'opacity-50' : ''
+                  !achievement.unlocked ? 'opacity-50' : ''
                 }`}
               >
                 {/* Badge */}
                 <div className={`w-14 h-14 rounded-sm flex items-center justify-center text-2xl ${
-                  achievement.earned 
-                    ? 'bg-gradient-to-br from-amber-400 to-orange-500' 
+                  achievement.unlocked
+                    ? 'bg-gradient-to-br from-amber-400 to-orange-500'
                     : 'bg-[#2a2a2a]'
                 }`}>
                   {achievement.icon}
                 </div>
-                
+
                 {/* Info */}
                 <div className="flex-1">
                   <h3 className="font-semibold text-[#f4f4f0]">{achievement.name}</h3>
                   <p className="text-sm text-[#666]">{achievement.description}</p>
-                  {!achievement.earned && achievement.progress !== undefined && (
+                  {!achievement.unlocked && achievement.progress !== undefined && (
                     <div className="mt-2">
                       <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-[rgba(200,241,53,0.06)]"
                           style={{ width: `${Math.min(100, achievement.progress)}%` }}
                         />
@@ -216,7 +237,7 @@ export default function Progress() {
                 </div>
 
                 {/* Status */}
-                {achievement.earned && (
+                {achievement.unlocked && (
                   <span className="text-[#c8f135] text-sm font-medium">✓ Earned</span>
                 )}
               </div>

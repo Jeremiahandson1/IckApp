@@ -598,8 +598,8 @@ router.get('/curated', async (req, res) => {
       SELECT p.upc, p.name, p.brand, p.category, p.subcategory,
              p.total_score, p.nutrition_score, p.additives_score, p.organic_bonus,
              p.nutriscore_grade, p.nova_group, p.image_url,
-             p.allergens_tags, p.ingredients_text,
-             p.is_organic, p.additives_count
+             p.allergens_tags, p.ingredients,
+             p.is_organic, p.is_clean_alternative
       FROM products p
       ORDER BY p.total_score DESC
     `);

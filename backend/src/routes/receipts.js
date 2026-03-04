@@ -378,8 +378,8 @@ router.get('/budget/summary', async (req, res) => {
       total_spent: parseFloat(totalSpent.rows[0].total_spent),
       receipt_count: parseInt(totalSpent.rows[0].receipt_count),
       avg_per_trip: parseFloat(avgPerTrip.rows[0].avg_per_trip),
-      top_stores: tripCount.rows,
-      favorite_stores: topStores.rows,
+      top_stores: topStores.rows,
+      favorite_stores: tripCount.rows,
       by_category: byCategory.rows,
       weekly_trend: recentTrend.rows
     });

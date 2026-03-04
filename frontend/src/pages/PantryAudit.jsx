@@ -143,11 +143,12 @@ export default function PantryAudit() {
     }
   };
 
-  const totalScore = scannedItems.length > 0
-    ? Math.round(scannedItems.reduce((sum, item) => sum + item.total_score, 0) / scannedItems.length)
+  const scoredItems = scannedItems.filter(item => item.total_score != null);
+  const totalScore = scoredItems.length > 0
+    ? Math.round(scoredItems.reduce((sum, item) => sum + item.total_score, 0) / scoredItems.length)
     : 0;
 
-  const problemCount = scannedItems.filter(item => item.total_score < 50).length;
+  const problemCount = scannedItems.filter(item => item.total_score != null && item.total_score < 50).length;
 
   return (
     <div className="pb-4">

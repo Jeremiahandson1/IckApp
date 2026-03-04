@@ -219,8 +219,9 @@ export default function Scan() {
     // Autocomplete — fast, lightweight (150ms debounce)
     acTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await api.get(`/products/autocomplete?q=${encodeURIComponent(query)}`);
-        const items = Array.isArray(res) ? res : [];
+        const res = await api.get(`/products/search?q=${encodeURIComponent(query)}&limit=5`);
+        const raw = Array.isArray(res) ? res : res.products || [];
+        const items = raw.map(p => p.name).filter(Boolean);
         setSuggestions(items);
         setShowSuggestions(items.length > 0);
       } catch { setSuggestions([]); }
