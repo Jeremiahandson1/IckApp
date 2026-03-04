@@ -8,6 +8,88 @@ const router = express.Router();
 // Basic pantry CRUD is free (creates stickiness)
 router.use(authenticateToken);
 
+// Pantry health audit — premium only
+// MUST be before /:id routes or Express treats "audit" as an :id param
+router.get('/audit', requirePremium, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pi.*, p.name, p.brand, p.category, p.total_score, p.image_url, p.harmful_ingredients_found
+       FROM pantry_items pi
+       LEFT JOIN products p ON pi.product_id = p.id
+       WHERE pi.user_id = $1 AND pi.status = 'active'
+       ORDER BY p.total_score ASC NULLS FIRST`,
+      [req.user.id]
+    );
+
+    const items = result.rows.map(row => {
+      if (row.harmful_ingredients_found) {
+        try {
+          const raw = typeof row.harmful_ingredients_found === 'string'
+            ? JSON.parse(row.harmful_ingredients_found)
+            : row.harmful_ingredients_found;
+          row.harmful_ingredients_found = raw.map(h =>
+            typeof h === 'string' ? h : (h.name || 'Unknown')
+          );
+        } catch { row.harmful_ingredients_found = []; }
+      }
+      return row;
+    });
+
+    // Calculate stats — only count items that have a score
+    const totalItems = items.length;
+    const itemsWithScore = items.filter(i => i.total_score != null);
+    const avgScore = itemsWithScore.length > 0
+      ? Math.round(itemsWithScore.reduce((sum, i) => sum + i.total_score, 0) / itemsWithScore.length)
+      : 0;
+
+    const breakdown = {
+      excellent: itemsWithScore.filter(i => i.total_score >= 86).length,
+      good: itemsWithScore.filter(i => i.total_score >= 71 && i.total_score < 86).length,
+      okay: itemsWithScore.filter(i => i.total_score >= 51 && i.total_score < 71).length,
+      poor: itemsWithScore.filter(i => i.total_score >= 31 && i.total_score < 51).length,
+      avoid: itemsWithScore.filter(i => i.total_score < 31).length,
+      unscored: items.length - itemsWithScore.length
+    };
+
+    // Get worst offenders (items to swap first)
+    const worstOffenders = itemsWithScore
+      .filter(i => i.total_score < 50)
+      .slice(0, 5);
+
+    // Collect all harmful ingredients found
+    const harmfulFound = {};
+    items.forEach(item => {
+      if (item.harmful_ingredients_found && Array.isArray(item.harmful_ingredients_found)) {
+        item.harmful_ingredients_found.forEach(h => {
+          const name = typeof h === 'string' ? h : (h.name || 'Unknown');
+          if (!harmfulFound[name]) {
+            harmfulFound[name] = { name, count: 0, products: [] };
+          }
+          harmfulFound[name].count++;
+          harmfulFound[name].products.push(item.name || item.custom_name || 'Unknown product');
+        });
+      }
+    });
+
+    const topHarmfulIngredients = Object.values(harmfulFound)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    res.json({
+      total_items: totalItems,
+      average_score: avgScore,
+      breakdown,
+      worst_offenders: worstOffenders,
+      top_harmful_ingredients: topHarmfulIngredients,
+      items
+    });
+
+  } catch (err) {
+    console.error('Pantry audit error:', err);
+    res.status(500).json({ error: 'Failed to generate audit' });
+  }
+});
+
 // Get all pantry items for user
 router.get('/', async (req, res) => {
   try {
@@ -28,12 +110,14 @@ router.get('/', async (req, res) => {
     // fetches its own data and handles objects via IngredientCard.
     const items = result.rows.map(row => {
       if (row.harmful_ingredients_found) {
-        const raw = typeof row.harmful_ingredients_found === 'string'
-          ? JSON.parse(row.harmful_ingredients_found)
-          : row.harmful_ingredients_found;
-        row.harmful_ingredients_found = raw.map(h => 
-          typeof h === 'string' ? h : (h.name || 'Unknown')
-        );
+        try {
+          const raw = typeof row.harmful_ingredients_found === 'string'
+            ? JSON.parse(row.harmful_ingredients_found)
+            : row.harmful_ingredients_found;
+          row.harmful_ingredients_found = raw.map(h =>
+            typeof h === 'string' ? h : (h.name || 'Unknown')
+          );
+        } catch { row.harmful_ingredients_found = []; }
       }
       return row;
     });
@@ -275,90 +359,6 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete item error:', err);
     res.status(500).json({ error: 'Failed to delete item' });
-  }
-});
-
-// Get pantry audit/damage report
-// Pantry health audit — premium only
-router.get('/audit', requirePremium, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT pi.*, p.name, p.brand, p.category, p.total_score, p.image_url, p.harmful_ingredients_found
-       FROM pantry_items pi
-       LEFT JOIN products p ON pi.product_id = p.id
-       WHERE pi.user_id = $1 AND pi.status = 'active'
-       ORDER BY p.total_score ASC`,
-      [req.user.id]
-    );
-
-    const items = result.rows.map(row => {
-      if (row.harmful_ingredients_found) {
-        const raw = typeof row.harmful_ingredients_found === 'string'
-          ? JSON.parse(row.harmful_ingredients_found)
-          : row.harmful_ingredients_found;
-        row.harmful_ingredients_found = raw.map(h => 
-          typeof h === 'string' ? h : (h.name || 'Unknown')
-        );
-      }
-      return row;
-    });
-    
-    // Calculate stats
-    const totalItems = items.length;
-    const itemsWithScore = items.filter(i => i.total_score !== null);
-    const avgScore = itemsWithScore.length > 0
-      ? Math.round(itemsWithScore.reduce((sum, i) => sum + i.total_score, 0) / itemsWithScore.length)
-      : 0;
-
-    const breakdown = {
-      excellent: items.filter(i => i.total_score >= 86).length,
-      good: items.filter(i => i.total_score >= 71 && i.total_score < 86).length,
-      okay: items.filter(i => i.total_score >= 51 && i.total_score < 71).length,
-      poor: items.filter(i => i.total_score >= 31 && i.total_score < 51).length,
-      avoid: items.filter(i => i.total_score < 31).length
-    };
-
-    // Get worst offenders (items to swap first)
-    const worstOffenders = items
-      .filter(i => i.total_score !== null && i.total_score < 50)
-      .slice(0, 5);
-
-    // Collect all harmful ingredients found
-    const harmfulFound = {};
-    items.forEach(item => {
-      if (item.harmful_ingredients_found) {
-        const found = typeof item.harmful_ingredients_found === 'string'
-          ? JSON.parse(item.harmful_ingredients_found)
-          : item.harmful_ingredients_found;
-        found.forEach(h => {
-          // Handle both string format ("Red 40") and object format ({name: "Red 40", ...})
-          const name = typeof h === 'string' ? h : (h.name || 'Unknown');
-          const entry = typeof h === 'string' ? { name: h } : h;
-          if (!harmfulFound[name]) {
-            harmfulFound[name] = { ...entry, count: 0, products: [] };
-          }
-          harmfulFound[name].count++;
-          harmfulFound[name].products.push(item.name);
-        });
-      }
-    });
-
-    const topHarmfulIngredients = Object.values(harmfulFound)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    res.json({
-      total_items: totalItems,
-      average_score: avgScore,
-      breakdown,
-      worst_offenders: worstOffenders,
-      top_harmful_ingredients: topHarmfulIngredients,
-      items
-    });
-
-  } catch (err) {
-    console.error('Pantry audit error:', err);
-    res.status(500).json({ error: 'Failed to generate audit' });
   }
 });
 

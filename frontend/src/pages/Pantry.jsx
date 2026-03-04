@@ -59,15 +59,17 @@ export default function Pantry() {
 
   const filteredItems = pantryItems
     .filter(item => {
+      const score = item.total_score;
       if (filter === 'all') return true;
-      if (filter === 'bad' && item.total_score <= 50) return true;
-      if (filter === 'good' && item.total_score > 70) return true;
-      if (filter === 'okay' && item.total_score > 50 && item.total_score <= 70) return true;
+      if (score == null) return filter === 'bad'; // unscored items show under "bad"
+      if (filter === 'bad' && score <= 50) return true;
+      if (filter === 'good' && score > 70) return true;
+      if (filter === 'okay' && score > 50 && score <= 70) return true;
       return false;
     })
     .sort((a, b) => {
-      if (sortBy === 'score') return a.total_score - b.total_score;
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'score') return (a.total_score ?? -1) - (b.total_score ?? -1);
+      if (sortBy === 'name') return (a.name || a.custom_name || '').localeCompare(b.name || b.custom_name || '');
       if (sortBy === 'date') return new Date(b.added_at) - new Date(a.added_at);
       return 0;
     });
@@ -225,18 +227,19 @@ export default function Pantry() {
             <div className="flex items-start gap-3">
               {/* Score Badge */}
               <div className={`w-12 h-12 rounded-sm flex items-center justify-center text-white font-bold ${
+                item.total_score == null ? 'bg-[#333]' :
                 item.total_score >= 86 ? 'bg-[rgba(200,241,53,0.06)]' :
                 item.total_score >= 71 ? 'bg-green-400' :
                 item.total_score >= 51 ? 'bg-yellow-400' :
                 item.total_score >= 31 ? 'bg-[#c8f135]' : 'bg-red-500/100'
               }`}>
-                {Math.round(item.total_score)}
+                {item.total_score != null ? Math.round(item.total_score) : '?'}
               </div>
-              
+
               {/* Product Info */}
               <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-[#f4f4f0] truncate">{item.name}</h3>
-                <p className="text-sm text-[#666]">{item.brand}</p>
+                <h3 className="font-medium text-[#f4f4f0] truncate">{item.name || item.custom_name || 'Unknown Product'}</h3>
+                <p className="text-sm text-[#666]">{item.brand || 'Unknown brand'}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-xs font-medium ${getScoreColor(item.total_score)}`}>
                     {getScoreLabel(item.total_score)}
@@ -280,7 +283,7 @@ export default function Pantry() {
 
             {/* Actions Row */}
             <div className="flex gap-2 mt-3 pt-3 border-t border-[#2a2a2a]">
-              {item.total_score < 70 && (
+              {(item.total_score == null || item.total_score < 70) && (
                 <button
                   onClick={() => navigate(`/product/${item.upc}?tab=swaps`)}
                   className="flex-1 py-2 bg-[rgba(200,241,53,0.06)] text-[#c8f135] rounded-sm text-sm font-medium"
