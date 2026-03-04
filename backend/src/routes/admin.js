@@ -147,7 +147,7 @@ router.post('/users/:id/grant-trial', async (req, res) => {
          plan = 'trial', status = 'active',
          trial_started_at = COALESCE(subscriptions.trial_started_at, NOW()),
          trial_ends_at = NOW() + (INTERVAL '1 day' * $2)`,
-      [id, String(days)]
+      [id, days]
     );
 
     res.json({ granted: true, days });

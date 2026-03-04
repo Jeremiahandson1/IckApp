@@ -9,9 +9,11 @@ export default function TrialBanner() {
 
   if (!sub) return null;
 
+  const isTrialing = sub.status === 'trialing';
+
   // Trial active — show days remaining
-  if (sub.isTrialing && sub.daysLeft > 0) {
-    const urgent = sub.daysLeft <= 7;
+  if (isTrialing && sub.days_remaining > 0) {
+    const urgent = sub.days_remaining <= 7;
     return (
       <div
         onClick={() => navigate('/subscription')}
@@ -23,7 +25,7 @@ export default function TrialBanner() {
       >
         <Clock className="w-3.5 h-3.5" />
         <span>
-          {sub.daysLeft} day{sub.daysLeft !== 1 ? 's' : ''} left in your free trial
+          {sub.days_remaining} day{sub.days_remaining !== 1 ? 's' : ''} left in your free trial
           {urgent ? ' — subscribe to keep all features' : ''}
         </span>
       </div>
@@ -31,7 +33,7 @@ export default function TrialBanner() {
   }
 
   // Trial expired, not subscribed
-  if (sub.status === 'trial_expired' && !sub.isPremium) {
+  if (sub.status === 'expired' && !sub.is_premium) {
     return (
       <div
         onClick={() => navigate('/subscription')}
@@ -44,7 +46,7 @@ export default function TrialBanner() {
   }
 
   // Free user, never trialed
-  if (sub.plan === 'free' && !sub.isTrialing) {
+  if (sub.plan === 'free' && !isTrialing) {
     return (
       <div
         onClick={() => navigate('/subscription')}

@@ -99,23 +99,24 @@ export default function Subscription() {
   }
 
   // Already premium
-  if (sub?.isPremium) {
+  if (sub?.is_premium) {
+    const isTrialing = sub.status === 'trialing';
     return (
       <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
         <div className="bg-gradient-to-br from-orange-50 to-teal-50 rounded-sm p-6 text-center">
           <Crown className="w-12 h-12 text-[#c8f135] mx-auto mb-3" />
           <h2 className="text-xl font-bold text-[#f4f4f0]">
-            {sub.isTrialing ? 'Free Trial Active' : 'Premium Member'}
+            {isTrialing ? 'Free Trial Active' : 'Premium Member'}
           </h2>
-          {sub.isTrialing && (
+          {isTrialing && (
             <p className="text-[#c8f135] font-medium mt-1">
-              {sub.daysLeft} day{sub.daysLeft !== 1 ? 's' : ''} remaining
+              {sub.days_remaining} day{sub.days_remaining !== 1 ? 's' : ''} remaining
             </p>
           )}
           <p className="text-[#888] mt-2">Full access to all features.</p>
         </div>
 
-        {sub.isTrialing && (
+        {isTrialing && (
           <div className="bg-[#0d0d0d] rounded-sm p-6 border border-[#333] space-y-4">
             <h3 className="font-semibold text-[#f4f4f0]">Keep it going?</h3>
             <p className="text-sm text-[#888]">Lock in your price before the trial ends:</p>

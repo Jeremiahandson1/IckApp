@@ -332,20 +332,20 @@ router.get('/budget/summary', async (req, res) => {
       pool.query(
         `SELECT COALESCE(SUM(total), 0) as total_spent, COUNT(*) as receipt_count
          FROM receipts WHERE user_id = $1 AND created_at >= NOW() - (INTERVAL '1 day' * $2)`,
-        [req.user.id, String(days)]
+        [req.user.id, days]
       ),
       // Average per trip
       pool.query(
         `SELECT COALESCE(AVG(total), 0) as avg_per_trip
          FROM receipts WHERE user_id = $1 AND total IS NOT NULL AND created_at >= NOW() - (INTERVAL '1 day' * $2)`,
-        [req.user.id, String(days)]
+        [req.user.id, days]
       ),
       // Trip count by store
       pool.query(
         `SELECT store_name, COUNT(*) as visits, SUM(total) as total_spent
          FROM receipts WHERE user_id = $1 AND created_at >= NOW() - (INTERVAL '1 day' * $2)
          GROUP BY store_name ORDER BY total_spent DESC LIMIT 5`,
-        [req.user.id, String(days)]
+        [req.user.id, days]
       ),
       // Top stores
       pool.query(
@@ -361,7 +361,7 @@ router.get('/budget/summary', async (req, res) => {
          JOIN receipts r ON ri.receipt_id = r.id
          WHERE r.user_id = $1 AND r.created_at >= NOW() - (INTERVAL '1 day' * $2)
          GROUP BY ri.category ORDER BY total DESC`,
-        [req.user.id, String(days)]
+        [req.user.id, days]
       ),
       // Weekly spending trend (last 8 weeks)
       pool.query(

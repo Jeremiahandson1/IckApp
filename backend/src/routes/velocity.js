@@ -133,7 +133,7 @@ router.get('/running-low', async (req, res) => {
        AND cv.next_predicted_empty <= NOW() + (INTERVAL '1 day' * $2)
        AND cv.confidence IN ('medium', 'high')
        ORDER BY cv.next_predicted_empty ASC`,
-      [req.user.id, String(daysNum)]
+      [req.user.id, daysNum]
     );
 
     res.json(result.rows);
