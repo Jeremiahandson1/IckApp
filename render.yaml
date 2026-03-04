@@ -32,7 +32,9 @@ services:
       - key: REFRESH_SECRET
         generateValue: true  # Separate secret for refresh tokens
       - key: FRONTEND_URL
-        value: https://ick-0y07.onrender.com
+        sync: false  # Set to your Render app URL (e.g. https://ick.onrender.com) — required for CORS in production
+      - key: APP_URL
+        sync: false  # Same as FRONTEND_URL — used for Stripe checkout redirect URLs
       - key: USDA_API_KEY
         sync: false  # Get free key at https://fdc.nal.usda.gov/api-key-signup/ (1000 req/hr vs 30/hr on DEMO_KEY)
       - key: ADMIN_BOOTSTRAP_SECRET

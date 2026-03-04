@@ -44,8 +44,11 @@ git push -u origin main
 |-----|-------|
 | `DATABASE_URL` | *(paste the Internal Database URL from step 2)* |
 | `JWT_SECRET` | *(click "Generate" for a random value)* |
+| `REFRESH_SECRET` | *(click "Generate" — must be different from JWT_SECRET)* |
 | `NODE_ENV` | `production` |
 | `NODE_VERSION` | `20` |
+| `FRONTEND_URL` | *(your Render app URL, e.g. https://ick.onrender.com)* |
+| `ADMIN_BOOTSTRAP_SECRET` | *(any random string — needed to create first admin account)* |
 | `USDA_API_KEY` | *(free — get at https://fdc.nal.usda.gov/api-key-signup/)* |
 | `FATSECRET_CLIENT_ID` | *(free — sign up at https://platform.fatsecret.com/)* |
 | `FATSECRET_CLIENT_SECRET` | *(from FatSecret dashboard)* |
@@ -87,7 +90,7 @@ Your app is at: **https://ick.onrender.com**
 
 SSH into your service or use Render Shell:
 ```bash
-cd backend && node src/db/import-off.js --limit=50000
+cd backend && node src/db/import-off-bulk.js --limit=50000
 ```
 This adds ~50k products from Open Food Facts. Takes ~15 minutes.
 
@@ -97,8 +100,8 @@ This adds ~50k products from Open Food Facts. Takes ~15 minutes.
 2. Add to Render environment variables:
    - `STRIPE_SECRET_KEY`
    - `STRIPE_WEBHOOK_SECRET`
-   - `STRIPE_PRICE_MONTHLY`
-   - `STRIPE_PRICE_YEARLY`
+   - `STRIPE_MONTHLY_PRICE_ID`
+   - `STRIPE_YEARLY_PRICE_ID`
 3. Set up Stripe webhook pointing to: `https://ick.com/api/subscription/webhook`
 
 ### Redeploy
