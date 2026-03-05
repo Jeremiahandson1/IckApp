@@ -190,9 +190,20 @@ router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
       ranking: '2', // minimize missing ingredients
       ignorePantry: 'false'
     });
-    const spoonRes = await fetch(
-      `https://api.spoonacular.com/recipes/findByIngredients?${params}`
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let spoonRes;
+    try {
+      spoonRes = await fetch(
+        `https://api.spoonacular.com/recipes/findByIngredients?${params}`,
+        { signal: controller.signal }
+      );
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      console.warn('Spoonacular fetch failed:', fetchErr.name === 'AbortError' ? 'timeout' : fetchErr.message);
+      return res.json({ recipes: [], pantry_items: [] });
+    }
+    clearTimeout(timeoutId);
 
     if (!spoonRes.ok) {
       console.error('Spoonacular error:', spoonRes.status, await spoonRes.text());
@@ -200,6 +211,10 @@ router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
     }
 
     const spoonRecipes = await spoonRes.json();
+    if (!Array.isArray(spoonRecipes)) {
+      console.warn('Spoonacular returned non-array:', typeof spoonRecipes);
+      return res.json({ recipes: [], pantry_items: [] });
+    }
 
     // Cross-reference each recipe's ingredients with user pantry
     const enriched = spoonRecipes.map(recipe => {

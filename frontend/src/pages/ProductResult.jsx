@@ -779,8 +779,8 @@ function SpoonacularRecipeCard({ recipe }) {
               <div
                 className="h-full bg-emerald-500 rounded-full transition-all"
                 style={{
-                  width: `${recipe.ingredients.length > 0
-                    ? ((recipe.have_count / recipe.ingredients.length) * 100)
+                  width: `${recipe.ingredients?.length > 0
+                    ? Math.min((recipe.have_count / recipe.ingredients.length) * 100, 100)
                     : 0}%`
                 }}
               />

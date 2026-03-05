@@ -117,10 +117,9 @@ class ApiClient {
         if (!res.ok) return false;
 
         const data = await res.json();
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-          this.token = data.token;
-        }
+        if (!data.token) return false;
+        localStorage.setItem('token', data.token);
+        this.token = data.token;
         if (data.refreshToken) {
           localStorage.setItem('refreshToken', data.refreshToken);
         }
@@ -139,6 +138,7 @@ class ApiClient {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     this.token = null;
+    this._refreshPromise = null;
     // Dispatch a custom event so AuthContext can react without circular imports
     window.dispatchEvent(new Event('auth:logout'));
   }
