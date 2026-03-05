@@ -445,7 +445,7 @@ function ProductsTab({ showToast }) {
           <input
             type="number"
             value={minScore}
-            onChange={e => setMinScore(parseInt(e.target.value))}
+            onChange={e => setMinScore(parseInt(e.target.value) || 0)}
             min={0}
             max={100}
             className="w-20 px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"

@@ -422,11 +422,18 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS flyer_availability (
       id SERIAL PRIMARY KEY,
       upc VARCHAR(20),
+      product_id INT REFERENCES products(id) ON DELETE SET NULL,
       our_product_name VARCHAR(255),
       merchant VARCHAR(255) NOT NULL,
+      flyer_product_name VARCHAR(255),
+      brand VARCHAR(255),
       price DECIMAL(8,2),
       price_text VARCHAR(100),
       sale_story TEXT,
+      valid_from TIMESTAMP,
+      valid_to TIMESTAMP,
+      image_url TEXT,
+      flyer_item_id VARCHAR(100),
       search_zip VARCHAR(10),
       region VARCHAR(100),
       crawled_at TIMESTAMP DEFAULT NOW(),
@@ -443,6 +450,7 @@ export async function initDatabase() {
       upc VARCHAR(20) NOT NULL,
       store_name VARCHAR(255) NOT NULL,
       store_chain VARCHAR(100),
+      source VARCHAR(50) DEFAULT 'curated',
       verified_at TIMESTAMP DEFAULT NOW(),
       created_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(upc, store_name)
@@ -458,7 +466,7 @@ export async function initDatabase() {
       link_type VARCHAR(50) DEFAULT 'marketplace',
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(upc, url)
+      UNIQUE(upc, name)
     );
     CREATE INDEX IF NOT EXISTS idx_online_links_upc ON online_links(upc);
 
@@ -541,6 +549,29 @@ export async function initDatabase() {
 
       -- Contribution review tracking
       ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+
+      -- Flyer availability columns used by flyerCrawler.js
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS product_id INT REFERENCES products(id) ON DELETE SET NULL;
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS flyer_product_name VARCHAR(255);
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS brand VARCHAR(255);
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS valid_from TIMESTAMP;
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS valid_to TIMESTAMP;
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS image_url TEXT;
+      ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS flyer_item_id VARCHAR(100);
+
+      -- Curated availability source column used by curatedStores.js
+      ALTER TABLE curated_availability ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'curated';
+
+      -- Fix online_links unique constraint: seed files use ON CONFLICT (upc, name)
+      -- Drop old constraint if it exists, add correct one
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'online_links_upc_url_key'
+        ) THEN
+          ALTER TABLE online_links DROP CONSTRAINT online_links_upc_url_key;
+        END IF;
+      END $$;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_online_links_upc_name ON online_links(upc, name);
 
       -- Swap discovery tracking (used by dynamic swap engine)
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);

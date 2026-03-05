@@ -247,12 +247,13 @@ export default function PantryAudit() {
           <div key={item.upc} className="bg-[#0d0d0d] rounded-sm p-3 shadow-sm flex items-center gap-3">
             {/* Score */}
             <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${
+              item.total_score == null ? 'bg-gray-500' :
               item.total_score >= 86 ? 'bg-[rgba(200,241,53,0.06)]' :
               item.total_score >= 71 ? 'bg-green-400' :
               item.total_score >= 51 ? 'bg-yellow-400' :
               item.total_score >= 31 ? 'bg-[#c8f135]' : 'bg-red-500/100'
             }`}>
-              {Math.round(item.total_score)}
+              {item.total_score != null ? Math.round(item.total_score) : '?'}
             </div>
             
             {/* Info */}

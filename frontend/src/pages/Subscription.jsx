@@ -150,7 +150,7 @@ export default function Subscription() {
   }
 
   // Free / expired — pitch page
-  const scansCount = scanStats?.total_products_scanned || 0;
+  const scansCount = scanStats?.engagement?.products_scanned || 0;
   const hasScanned = scansCount > 0;
 
   return (

@@ -877,8 +877,8 @@ router.get('/:id', async (req, res) => {
 
     // Get recipes that replace this product
     const recipeResult = await pool.query(
-      `SELECT * FROM recipes WHERE replaces_category = $1 OR $2 = ANY(replaces_products)`,
-      [product.category, product.upc]
+      `SELECT * FROM recipes WHERE replaces_category = $1 OR replaces_products @> $2::jsonb`,
+      [product.category, JSON.stringify(product.upc)]
     );
 
     res.json({

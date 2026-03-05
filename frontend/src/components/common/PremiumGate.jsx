@@ -21,7 +21,7 @@ export default function PremiumGate({ feature, children }) {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/subscription/status`, {
+      const res = await fetch(`${API_URL}/subscription/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -43,7 +43,7 @@ export default function PremiumGate({ feature, children }) {
   const handleStartTrial = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/api/subscription/start-trial`, {
+      const res = await fetch(`${API_URL}/subscription/start-trial`, {
         method: 'POST',
         headers: { 
           Authorization: `Bearer ${token}`,

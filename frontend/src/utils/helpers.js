@@ -10,6 +10,7 @@ export function getScoreRating(score) {
 
 export function getScoreLabel(score) {
   const labels = {
+    unscored: '?',
     excellent: 'Clean',
     good: 'Decent',
     okay: 'Meh',
@@ -21,6 +22,7 @@ export function getScoreLabel(score) {
 
 export function getScoreColor(score) {
   const colors = {
+    unscored: 'text-gray-400',
     excellent: 'text-green-400',
     good: 'text-green-500',
     okay: 'text-amber-400',
@@ -32,6 +34,7 @@ export function getScoreColor(score) {
 
 export function getScoreHex(score) {
   const colors = {
+    unscored: '#888888',
     excellent: '#4ade80',
     good: '#22c55e',
     okay: '#fbbf24',
@@ -43,6 +46,7 @@ export function getScoreHex(score) {
 
 export function getScoreBgClass(score) {
   const classes = {
+    unscored: 'bg-gray-500/100',
     excellent: 'bg-green-500/100',
     good: 'bg-green-500/100',
     okay: 'bg-amber-500/100',
@@ -54,6 +58,7 @@ export function getScoreBgClass(score) {
 
 export function getScoreTextClass(score) {
   const classes = {
+    unscored: 'text-gray-400',
     excellent: 'text-green-400',
     good: 'text-green-500',
     okay: 'text-amber-400',
@@ -65,6 +70,7 @@ export function getScoreTextClass(score) {
 
 export function getScoreLightBgClass(score) {
   const classes = {
+    unscored: 'bg-gray-500/10',
     excellent: 'bg-green-500/10',
     good: 'bg-green-500/10',
     okay: 'bg-amber-500/10',

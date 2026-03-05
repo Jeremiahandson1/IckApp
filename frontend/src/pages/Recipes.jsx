@@ -17,7 +17,6 @@ export default function Recipes() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    loadRecipes();
     loadCategories();
   }, []);
 
