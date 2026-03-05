@@ -176,7 +176,7 @@ export default function Recipes() {
                         {recipe.estimated_cost && (
                           <>
                             <span>•</span>
-                            <span>~${recipe.estimated_cost.toFixed(2)}</span>
+                            <span>~${Number(recipe.estimated_cost).toFixed(2)}</span>
                           </>
                         )}
                       </div>

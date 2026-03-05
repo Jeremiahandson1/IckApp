@@ -154,7 +154,7 @@ export default function RecipeDetail() {
       <div className="grid grid-cols-2 gap-3 mb-4">
         {recipe.estimated_cost && (
           <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm">
-            <div className="text-2xl font-bold text-[#c8f135]">${recipe.estimated_cost.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-[#c8f135]">${Number(recipe.estimated_cost).toFixed(2)}</div>
             <div className="text-xs text-[#666]">Per Batch</div>
           </div>
         )}
