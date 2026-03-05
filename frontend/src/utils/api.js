@@ -250,7 +250,8 @@ export const recipes = {
   forProduct: (upc) => api.get(`/recipes/for/${upc}`),
   markMade: (id, data) => api.post(`/recipes/${id}/made`, data),
   history: () => api.get('/recipes/user/history'),
-  categories: () => api.get('/recipes/meta/categories')
+  categories: () => api.get('/recipes/meta/categories'),
+  spoonacular: (upc) => api.get(`/recipes/spoonacular/${upc}`)
 };
 
 export const shopping = {

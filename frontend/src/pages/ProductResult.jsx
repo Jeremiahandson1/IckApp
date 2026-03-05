@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Plus, ArrowRightLeft, ChefHat, AlertTriangle, 
+  ArrowLeft, Plus, ArrowRightLeft, ChefHat, AlertTriangle,
   Beaker, Info, ChevronDown, ChevronUp, Leaf,
-  ShieldAlert, Check, ExternalLink, Apple, Heart, Share2
+  ShieldAlert, Check, ExternalLink, Apple, Heart, Share2,
+  UtensilsCrossed, ShoppingCart
 } from 'lucide-react';
-import { products, pantry, swaps as swapsApi } from '../utils/api';
+import { products, pantry, swaps as swapsApi, recipes as recipesApi } from '../utils/api';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -32,6 +33,7 @@ export default function ProductResult() {
   const [addedToPantry, setAddedToPantry] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [spoonacularRecipes, setSpoonacularRecipes] = useState([]);
   const [activeAllergens, setActiveAllergens] = useState(
     user?.allergen_alerts || (() => {
       try { return JSON.parse(localStorage.getItem('ick_allergens') || '[]'); } catch { return []; }
@@ -108,6 +110,15 @@ export default function ProductResult() {
       console.error('Error fetching swaps:', error);
     }
   };
+
+  // Fetch Spoonacular "Make It Yourself" recipes when score is bad
+  useEffect(() => {
+    if (product && product.total_score < 71 && product.ingredients) {
+      recipesApi.spoonacular(upc)
+        .then(data => setSpoonacularRecipes(data?.recipes || []))
+        .catch(() => {});
+    }
+  }, [product, upc]);
 
   const handleAddToPantry = async () => {
     try {
@@ -510,6 +521,28 @@ export default function ProductResult() {
         </div>
       )}
 
+      {/* Spoonacular: Make It Yourself — only when score is bad */}
+      {!isClean && spoonacularRecipes.length > 0 && (
+        <div className="px-4 mt-4">
+          <CollapsibleSection
+            title={`Make It Yourself (${spoonacularRecipes.length})`}
+            icon={UtensilsCrossed}
+            iconColor="text-emerald-500"
+            expanded={expandedSection === 'diy-recipes'}
+            onToggle={() => setExpandedSection(expandedSection === 'diy-recipes' ? null : 'diy-recipes')}
+          >
+            <p className="text-xs text-[#888] mb-3">
+              Recipes using this product's ingredients. Items you already have in your pantry are highlighted.
+            </p>
+            <div className="space-y-3">
+              {spoonacularRecipes.map((recipe) => (
+                <SpoonacularRecipeCard key={recipe.id} recipe={recipe} />
+              ))}
+            </div>
+          </CollapsibleSection>
+        </div>
+      )}
+
       {/* Full Ingredients List */}
       {product.ingredients && (
         <div className="px-4 mt-4 mb-8">
@@ -709,6 +742,72 @@ function SwapCard({ swap, currentScore, onClick }) {
               </a>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpoonacularRecipeCard({ recipe }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="p-4 bg-emerald-500/5 rounded-sm border border-emerald-500/10">
+      <button onClick={() => setExpanded(!expanded)} className="w-full text-left">
+        <div className="flex items-start gap-3">
+          {recipe.image && (
+            <img
+              src={recipe.image}
+              alt=""
+              className="w-16 h-16 rounded-sm object-cover flex-shrink-0"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-[#f4f4f0] text-sm leading-tight">{recipe.title}</h4>
+            <div className="flex items-center gap-3 mt-1.5">
+              <span className="text-xs text-emerald-400 font-medium">
+                {recipe.have_count} have
+              </span>
+              <span className="text-xs text-[#888]">
+                {recipe.need_count} need
+              </span>
+            </div>
+            {/* Mini progress bar */}
+            <div className="mt-1.5 h-1.5 bg-[#1e1e1e] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all"
+                style={{
+                  width: `${recipe.ingredients.length > 0
+                    ? ((recipe.have_count / recipe.ingredients.length) * 100)
+                    : 0}%`
+                }}
+              />
+            </div>
+          </div>
+          {expanded ? <ChevronUp className="w-4 h-4 text-[#888] mt-1" /> : <ChevronDown className="w-4 h-4 text-[#888] mt-1" />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-emerald-500/10 space-y-1.5">
+          {recipe.ingredients.map((ing, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm">
+              {(ing.in_pantry || ing.is_from_product) ? (
+                <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              ) : (
+                <ShoppingCart className="w-3.5 h-3.5 text-[#666] flex-shrink-0" />
+              )}
+              <span className={ing.in_pantry || ing.is_from_product ? 'text-emerald-300' : 'text-[#888]'}>
+                {ing.amount ? `${ing.amount} ${ing.unit} ` : ''}{ing.name}
+              </span>
+              {ing.in_pantry && (
+                <span className="text-[10px] text-emerald-500 font-medium ml-auto">IN PANTRY</span>
+              )}
+              {ing.is_from_product && !ing.in_pantry && (
+                <span className="text-[10px] text-violet-400 font-medium ml-auto">IN PRODUCT</span>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

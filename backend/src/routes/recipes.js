@@ -138,6 +138,110 @@ router.get('/meta/categories', async (req, res) => {
   }
 });
 
+// Spoonacular: find recipes using product ingredients, cross-ref with pantry
+router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
+  const apiKey = process.env.SPOONACULAR_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'Spoonacular not configured' });
+  }
+
+  try {
+    const { upc } = req.params;
+
+    // Get product ingredients
+    const productResult = await pool.query(
+      'SELECT ingredients FROM products WHERE upc = $1',
+      [upc]
+    );
+    if (productResult.rows.length === 0 || !productResult.rows[0].ingredients) {
+      return res.json({ recipes: [], pantry_items: [] });
+    }
+
+    // Parse ingredient string into individual items
+    const rawIngredients = productResult.rows[0].ingredients;
+    const ingredientList = rawIngredients
+      .split(/,|;/)
+      .map(i => i.replace(/\(.*?\)/g, '').replace(/[^a-zA-Z\s]/g, '').trim().toLowerCase())
+      .filter(i => i.length > 2 && i.length < 40)
+      .slice(0, 15); // Spoonacular limit
+
+    if (ingredientList.length === 0) {
+      return res.json({ recipes: [], pantry_items: [] });
+    }
+
+    // Get user's pantry items for cross-reference
+    let pantryNames = [];
+    if (req.user) {
+      const pantryResult = await pool.query(
+        `SELECT LOWER(COALESCE(p.name, pi.custom_name, '')) as item_name
+         FROM pantry_items pi
+         LEFT JOIN products p ON pi.product_id = p.id
+         WHERE pi.user_id = $1 AND pi.status = 'active'`,
+        [req.user.id]
+      );
+      pantryNames = pantryResult.rows.map(r => r.item_name).filter(Boolean);
+    }
+
+    // Call Spoonacular findByIngredients
+    const params = new URLSearchParams({
+      apiKey,
+      ingredients: ingredientList.join(','),
+      number: '6',
+      ranking: '2', // minimize missing ingredients
+      ignorePantry: 'false'
+    });
+    const spoonRes = await fetch(
+      `https://api.spoonacular.com/recipes/findByIngredients?${params}`
+    );
+
+    if (!spoonRes.ok) {
+      console.error('Spoonacular error:', spoonRes.status, await spoonRes.text());
+      return res.json({ recipes: [], pantry_items: [] });
+    }
+
+    const spoonRecipes = await spoonRes.json();
+
+    // Cross-reference each recipe's ingredients with user pantry
+    const enriched = spoonRecipes.map(recipe => {
+      const allIngredients = [
+        ...(recipe.usedIngredients || []),
+        ...(recipe.missedIngredients || [])
+      ];
+
+      const ingredients = allIngredients.map(ing => {
+        const name = ing.name || ing.originalName || '';
+        const inPantry = pantryNames.some(p =>
+          p.includes(name.toLowerCase()) || name.toLowerCase().includes(p)
+        );
+        return {
+          name,
+          amount: ing.amount,
+          unit: ing.unit,
+          image: ing.image,
+          in_pantry: inPantry,
+          is_from_product: (recipe.usedIngredients || []).some(u => u.id === ing.id)
+        };
+      });
+
+      return {
+        id: recipe.id,
+        title: recipe.title,
+        image: recipe.image,
+        used_count: recipe.usedIngredientCount,
+        missed_count: recipe.missedIngredientCount,
+        ingredients,
+        have_count: ingredients.filter(i => i.in_pantry || i.is_from_product).length,
+        need_count: ingredients.filter(i => !i.in_pantry && !i.is_from_product).length
+      };
+    });
+
+    res.json({ recipes: enriched, pantry_items: pantryNames });
+  } catch (err) {
+    console.error('Spoonacular fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch recipe suggestions' });
+  }
+});
+
 // Get recipe by ID — MUST be last (/:id catches everything)
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
