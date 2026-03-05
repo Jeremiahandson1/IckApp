@@ -19,7 +19,9 @@
     "ios:open": "cap open ios",
     "ios:run": "npm run build && cap sync ios && cap run ios",
     "native:setup": "npm run build && cap add android && cap add ios && cap sync",
-    "native:dev": "VITE_NATIVE=true vite"
+    "native:dev": "VITE_NATIVE=true vite",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^5.4.0",
@@ -55,6 +57,7 @@
     "typescript": "^5.9.3",
     "vite": "^5.1.0",
     "vite-plugin-pwa": "^0.19.0",
+    "vitest": "^4.0.18",
     "workbox-window": "^7.0.0"
   }
 }

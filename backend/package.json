@@ -11,7 +11,9 @@
     "db:seed": "node src/db/seed.js",
     "db:import": "node src/db/import-off.js",
     "db:import:test": "node src/db/import-off.js --limit=100",
-    "db:import:full": "node src/db/import-off.js --full"
+    "db:import:full": "node src/db/import-off.js --full",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -21,12 +23,15 @@
     "express-rate-limit": "^7.1.5",
     "firebase-admin": "^12.3.1",
     "helmet": "^7.1.0",
-    "resend": "^3.2.0",
     "jsonwebtoken": "^9.0.2",
     "node-fetch": "^3.3.2",
     "pg": "^8.11.3",
+    "resend": "^3.2.0",
     "stripe": "^14.0.0",
     "web-push": "^3.6.7",
     "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }
