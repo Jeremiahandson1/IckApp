@@ -302,7 +302,8 @@ router.put('/profile', authenticateToken, async (req, res) => {
        req.user.id]
     );
 
-    res.json({ user: result.rows[0] });
+    const subscription = await getSubscriptionStatus(req.user.id);
+    res.json({ user: { ...result.rows[0], subscription } });
 
   } catch (err) {
     console.error('Profile update error:', err);
