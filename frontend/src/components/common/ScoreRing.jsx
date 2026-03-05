@@ -36,15 +36,17 @@ export default function ScoreRing({ score, name, size = 140 }) {
   useEffect(() => {
     const duration = 900;
     const start = performance.now();
+    let frameId;
     const animate = (now) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setAnimatedScore(Math.round(eased * score));
       setAnimatedPct(eased * (score / 100));
-      if (progress < 1) requestAnimationFrame(animate);
+      if (progress < 1) frameId = requestAnimationFrame(animate);
     };
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [score]);
 
   const dashOffset = circumference * (1 - animatedPct);

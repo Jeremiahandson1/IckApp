@@ -396,9 +396,9 @@ router.get('/view/:upc', optionalAuth, async (req, res) => {
 // Get user's scan history
 router.get('/history', authenticateToken, async (req, res) => {
   try {
-    const { limit = 20 } = req.query;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
     const result = await pool.query(
-      `SELECT sl.upc, sl.scanned_at, 
+      `SELECT sl.upc, sl.scanned_at,
               p.name, p.brand, p.image_url, p.total_score, p.category,
               p.nutrition_score, p.additives_score
        FROM scan_logs sl
@@ -406,7 +406,7 @@ router.get('/history', authenticateToken, async (req, res) => {
        WHERE sl.user_id = $1
        ORDER BY sl.scanned_at DESC
        LIMIT $2`,
-      [req.user.id, parseInt(limit)]
+      [req.user.id, limit]
     );
     res.json(result.rows);
   } catch (err) {
@@ -417,7 +417,8 @@ router.get('/history', authenticateToken, async (req, res) => {
 
 router.get('/search', async (req, res) => {
   try {
-    const { q, category, min_score, max_score, limit = 20 } = req.query;
+    const { q, category, min_score, max_score } = req.query;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
 
     let query = `
       SELECT p.*, c.name as company_name
@@ -454,7 +455,7 @@ router.get('/search', async (req, res) => {
 
     paramCount++;
     query += ` ORDER BY p.total_score DESC LIMIT $${paramCount}`;
-    params.push(parseInt(limit));
+    params.push(limit);
 
     const result = await pool.query(query, params);
     

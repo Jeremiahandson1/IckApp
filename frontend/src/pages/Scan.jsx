@@ -61,7 +61,11 @@ export default function Scan() {
     } else {
       stopScanner();
     }
-    return () => { stopScanner(); };
+    return () => {
+      stopScanner();
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (acTimeoutRef.current) clearTimeout(acTimeoutRef.current);
+    };
   }, [mode]);
 
   // ── Native scanner (ML Kit — iOS/Android) ──

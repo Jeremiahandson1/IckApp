@@ -32,9 +32,9 @@ export default function PremiumGate({ feature, children }) {
         setIsPremium(data.is_premium || data.premium_gate_off || false);
       }
     } catch (err) {
-      // If check fails, be permissive (fail open)
+      // If check fails, deny access (fail closed) — user can retry
       console.error('Premium check error:', err);
-      setIsPremium(true);
+      setIsPremium(false);
     } finally {
       setLoading(false);
     }

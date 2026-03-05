@@ -507,19 +507,27 @@ router.post('/click', authenticateToken, async (req, res) => {
       toId = r.rows[0]?.id;
     }
 
-    await pool.query(
-      `INSERT INTO swap_clicks (user_id, from_product_id, to_product_id, from_upc, to_upc)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [req.user.id, fromId, toId, fromUpc, toUpc]
-    );
-
-    // Update engagement
-    await pool.query(
-      `UPDATE user_engagement 
-       SET total_swaps_clicked = total_swaps_clicked + 1, updated_at = NOW()
-       WHERE user_id = $1`,
-      [req.user.id]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO swap_clicks (user_id, from_product_id, to_product_id, from_upc, to_upc)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.user.id, fromId, toId, fromUpc, toUpc]
+      );
+      await client.query(
+        `UPDATE user_engagement
+         SET total_swaps_clicked = total_swaps_clicked + 1, updated_at = NOW()
+         WHERE user_id = $1`,
+        [req.user.id]
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     res.json({ tracked: true });
 
@@ -534,27 +542,34 @@ router.post('/purchased', authenticateToken, async (req, res) => {
   try {
     const { from_upc, to_upc } = req.body;
 
-    // Update most recent swap click
-    await pool.query(
-      `UPDATE swap_clicks 
-       SET purchased = true, purchased_at = NOW()
-       WHERE id = (
-         SELECT id FROM swap_clicks
-         WHERE user_id = $1 AND from_upc = $2 AND to_upc = $3
-         AND purchased = false
-         ORDER BY clicked_at DESC
-         LIMIT 1
-       )`,
-      [req.user.id, from_upc, to_upc]
-    );
-
-    // Update engagement
-    await pool.query(
-      `UPDATE user_engagement 
-       SET total_swaps_purchased = total_swaps_purchased + 1, updated_at = NOW()
-       WHERE user_id = $1`,
-      [req.user.id]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE swap_clicks
+         SET purchased = true, purchased_at = NOW()
+         WHERE id = (
+           SELECT id FROM swap_clicks
+           WHERE user_id = $1 AND from_upc = $2 AND to_upc = $3
+           AND purchased = false
+           ORDER BY clicked_at DESC
+           LIMIT 1
+         )`,
+        [req.user.id, from_upc, to_upc]
+      );
+      await client.query(
+        `UPDATE user_engagement
+         SET total_swaps_purchased = total_swaps_purchased + 1, updated_at = NOW()
+         WHERE user_id = $1`,
+        [req.user.id]
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     res.json({ tracked: true });
 

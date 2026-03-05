@@ -17,9 +17,13 @@ export default function ShoppingMode() {
   useEffect(() => {
     loadList();
     // Prevent screen sleep during shopping
+    let wakeLock = null;
     if ('wakeLock' in navigator) {
-      navigator.wakeLock.request('screen').catch(() => {});
+      navigator.wakeLock.request('screen')
+        .then(lock => { wakeLock = lock; })
+        .catch(() => {});
     }
+    return () => { if (wakeLock) wakeLock.release().catch(() => {}); };
   }, [id]);
 
   const loadList = async () => {

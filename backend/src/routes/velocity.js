@@ -123,7 +123,7 @@ router.get('/running-low', async (req, res) => {
   try {
     const { days = 7 } = req.query;
 
-    const daysNum = parseInt(days, 10) || 7;
+    const daysNum = Math.min(Math.max(parseInt(days, 10) || 7, 1), 365);
 
     const result = await pool.query(
       `SELECT cv.*, p.name, p.brand, p.category, p.total_score, p.image_url

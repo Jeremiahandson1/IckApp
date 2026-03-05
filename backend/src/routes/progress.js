@@ -99,24 +99,24 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         recipes_viewed: engagement.total_recipes_viewed || 0
       },
       pantry: {
-        total_items: parseInt(pantryStats.total_items),
+        total_items: parseInt(pantryStats.total_items) || 0,
         average_score: parseInt(pantryStats.avg_score) || 0,
         breakdown: {
-          excellent: parseInt(pantryStats.excellent_count),
-          good: parseInt(pantryStats.good_count),
-          okay: parseInt(pantryStats.okay_count),
-          poor: parseInt(pantryStats.poor_count),
-          avoid: parseInt(pantryStats.avoid_count)
+          excellent: parseInt(pantryStats.excellent_count) || 0,
+          good: parseInt(pantryStats.good_count) || 0,
+          okay: parseInt(pantryStats.okay_count) || 0,
+          poor: parseInt(pantryStats.poor_count) || 0,
+          avoid: parseInt(pantryStats.avoid_count) || 0
         }
       },
       swaps: {
-        total_explored: parseInt(swapStats.total_swaps),
-        total_purchased: parseInt(swapStats.purchased_swaps),
-        score_improvement: parseInt(swapStats.total_score_improvement)
+        total_explored: parseInt(swapStats.total_swaps) || 0,
+        total_purchased: parseInt(swapStats.purchased_swaps) || 0,
+        score_improvement: parseInt(swapStats.total_score_improvement) || 0
       },
       recipes: {
-        total_viewed: parseInt(recipeStats.total_viewed),
-        total_made: parseInt(recipeStats.total_made)
+        total_viewed: parseInt(recipeStats.total_viewed) || 0,
+        total_made: parseInt(recipeStats.total_made) || 0
       },
       weekly_trend: trendResult.rows
     });

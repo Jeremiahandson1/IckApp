@@ -63,9 +63,10 @@ export default function ProductResult() {
 
   // Check favorite status
   useEffect(() => {
-    if (upc && user) {
-      products.checkFavorite(upc).then(r => setIsFavorited(r.favorited)).catch(() => {});
-    }
+    if (!upc || !user) return;
+    let cancelled = false;
+    products.checkFavorite(upc).then(r => { if (!cancelled) setIsFavorited(r.favorited); }).catch(() => {});
+    return () => { cancelled = true; };
   }, [upc, user]);
 
   const toggleFavorite = async () => {
