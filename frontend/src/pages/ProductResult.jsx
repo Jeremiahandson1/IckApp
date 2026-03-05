@@ -26,10 +26,11 @@ export default function ProductResult() {
   const toast = useToast();
   const { user } = useAuth();
 
-  const [product, setProduct] = useState(location.state?.product || null);
+  const passedProduct = location.state?.product || null;
+  const [product, setProduct] = useState(passedProduct);
   const [swapOptions, setSwapOptions] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [loading, setLoading] = useState(!product);
+  const [loading, setLoading] = useState(!passedProduct);
   const [addedToPantry, setAddedToPantry] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -40,12 +41,24 @@ export default function ProductResult() {
     })()
   );
 
+  // Reset state and fetch full product data whenever UPC changes (e.g. tapping an alternative)
   useEffect(() => {
-    if (!product) {
-      fetchProduct();
+    window.scrollTo(0, 0);
+    setSwapOptions([]);
+    setRecipes([]);
+    setSpoonacularRecipes([]);
+    setAddedToPantry(false);
+    setExpandedSection(null);
+    // Use passed product as placeholder while loading, but always fetch full data
+    const stateProduct = location.state?.product || null;
+    if (stateProduct && stateProduct.upc === upc) {
+      setProduct(stateProduct);
+      setLoading(false);
     } else {
-      fetchSwapsAndRecipes();
+      setProduct(null);
+      setLoading(true);
     }
+    fetchProduct();
   }, [upc]);
 
   // Check favorite status
