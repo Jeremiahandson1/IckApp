@@ -100,9 +100,9 @@ router.post('/log', async (req, res) => {
          next_predicted_empty = NOW() + (INTERVAL '1 day' * (
            (consumption_velocity.avg_days_to_consume * consumption_velocity.consumption_count + $4) / (consumption_velocity.consumption_count + 1)
          )),
-         confidence = CASE 
-           WHEN consumption_velocity.consumption_count >= 3 THEN 'high'
-           WHEN consumption_velocity.consumption_count >= 1 THEN 'medium'
+         confidence = CASE
+           WHEN consumption_velocity.consumption_count + 1 >= 3 THEN 'high'
+           WHEN consumption_velocity.consumption_count + 1 >= 1 THEN 'medium'
            ELSE 'low'
          END,
          updated_at = NOW()
