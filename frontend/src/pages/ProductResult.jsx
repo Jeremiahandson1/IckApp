@@ -113,12 +113,13 @@ export default function ProductResult() {
 
   // Fetch Spoonacular "Make It Yourself" recipes when score is bad
   useEffect(() => {
-    if (product && product.total_score < 71 && product.ingredients) {
-      recipesApi.spoonacular(upc)
-        .then(data => setSpoonacularRecipes(data?.recipes || []))
-        .catch(() => {});
-    }
-  }, [product, upc]);
+    if (!product || product.total_score >= 71 || !product.ingredients) return;
+    let cancelled = false;
+    recipesApi.spoonacular(upc)
+      .then(data => { if (!cancelled) setSpoonacularRecipes(data?.recipes || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [product?.total_score, product?.ingredients, upc]);
 
   const handleAddToPantry = async () => {
     try {

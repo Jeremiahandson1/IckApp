@@ -161,7 +161,7 @@ router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
     const rawIngredients = productResult.rows[0].ingredients;
     const ingredientList = rawIngredients
       .split(/,|;/)
-      .map(i => i.replace(/\(.*?\)/g, '').replace(/[^a-zA-Z\s]/g, '').trim().toLowerCase())
+      .map(i => i.replace(/\(.*?\)/g, '').replace(/[^a-zA-Z0-9\s-]/g, '').trim().toLowerCase())
       .filter(i => i.length > 2 && i.length < 40)
       .slice(0, 15); // Spoonacular limit
 
@@ -260,7 +260,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
     // Get products this recipe replaces
     let replacesProducts = [];
-    if (recipe.replaces_products && recipe.replaces_products.length > 0) {
+    if (Array.isArray(recipe.replaces_products) && recipe.replaces_products.length > 0) {
       const productsResult = await pool.query(
         'SELECT upc, name, brand, total_score FROM products WHERE upc = ANY($1)',
         [recipe.replaces_products]
