@@ -300,7 +300,7 @@ export default function Profile() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
-          <button className="w-full text-left py-2 text-red-500 flex items-center justify-between">
+          <button onClick={() => setShowDeleteConfirm(true)} className="w-full text-left py-2 text-red-500 flex items-center justify-between">
             <span>Delete Account</span>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

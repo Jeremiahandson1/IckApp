@@ -18,9 +18,15 @@ router.get('/', authenticateToken, async (req, res) => {
       const defaultProfile = await pool.query(
         `INSERT INTO family_profiles (user_id, name, avatar, allergen_alerts, is_default)
          VALUES ($1, $2, '👤', $3, true)
+         ON CONFLICT (user_id) WHERE is_default = true DO NOTHING
          RETURNING *`,
         [req.user.id, user.rows[0]?.name || 'Me', JSON.stringify(user.rows[0]?.allergen_alerts || [])]
       );
+      // If ON CONFLICT hit, re-fetch existing profiles
+      if (defaultProfile.rows.length === 0) {
+        const existing = await pool.query('SELECT * FROM family_profiles WHERE user_id = $1', [req.user.id]);
+        return res.json(existing.rows);
+      }
       return res.json(defaultProfile.rows);
     }
 

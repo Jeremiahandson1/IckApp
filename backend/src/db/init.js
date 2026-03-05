@@ -416,6 +416,7 @@ export async function initDatabase() {
       created_at TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_family_user ON family_profiles(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_family_default ON family_profiles(user_id) WHERE is_default = true;
 
     -- Flyer crawler results (Flipp-sourced weekly ad data)
     CREATE TABLE IF NOT EXISTS flyer_availability (

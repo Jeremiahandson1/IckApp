@@ -115,7 +115,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
 
     const user = result.rows[0];
 
-    await pool.query('INSERT INTO user_engagement (user_id) VALUES ($1)', [user.id]);
+    await pool.query('INSERT INTO user_engagement (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [user.id]);
 
     // Generate email verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
