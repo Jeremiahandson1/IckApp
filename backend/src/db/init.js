@@ -659,6 +659,17 @@ export async function initDatabase() {
       console.log('  ✓ total_score migrated to new formula');
     }
 
+    // Result cache — stores full swaps/recipes/spoonacular responses by UPC
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS result_cache (
+        upc VARCHAR(20) NOT NULL,
+        cache_type VARCHAR(30) NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (upc, cache_type)
+      );
+    `);
+
     console.log('Database migrations complete');
   } catch (err) {
     console.error('Error initializing database schema:', err);

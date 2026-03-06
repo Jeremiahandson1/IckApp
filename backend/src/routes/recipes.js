@@ -148,6 +148,51 @@ router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
   try {
     const { upc } = req.params;
 
+    // ── Cache check: return cached Spoonacular result if fresh (<24h) ──
+    const CACHE_TTL_HOURS = 24;
+    try {
+      const cached = await pool.query(
+        `SELECT data FROM result_cache
+         WHERE upc = $1 AND cache_type = 'spoonacular'
+         AND created_at > NOW() - INTERVAL '${CACHE_TTL_HOURS} hours'`,
+        [upc]
+      );
+      if (cached.rows.length > 0) {
+        const cachedRecipes = cached.rows[0].data.recipes || [];
+
+        // Re-apply pantry enrichment (user-specific)
+        let pantryNames = [];
+        if (req.user) {
+          const pantryResult = await pool.query(
+            `SELECT LOWER(COALESCE(p.name, pi.custom_name, '')) as item_name
+             FROM pantry_items pi
+             LEFT JOIN products p ON pi.product_id = p.id
+             WHERE pi.user_id = $1 AND pi.status = 'active'`,
+            [req.user.id]
+          );
+          pantryNames = pantryResult.rows.map(r => r.item_name).filter(Boolean);
+        }
+
+        const enriched = cachedRecipes.map(recipe => {
+          const ingredients = (recipe.ingredients || []).map(ing => {
+            const name = (ing.name || '').toLowerCase();
+            const inPantry = pantryNames.some(p =>
+              p.includes(name) || name.includes(p)
+            );
+            return { ...ing, in_pantry: inPantry };
+          });
+          return {
+            ...recipe,
+            ingredients,
+            have_count: ingredients.filter(i => i.in_pantry || i.is_from_product).length,
+            need_count: ingredients.filter(i => !i.in_pantry && !i.is_from_product).length
+          };
+        });
+
+        return res.json({ recipes: enriched, pantry_items: pantryNames, cached: true });
+      }
+    } catch (e) { /* cache table may not exist — fall through */ }
+
     // Get product ingredients
     const productResult = await pool.query(
       'SELECT ingredients FROM products WHERE upc = $1',
@@ -249,6 +294,23 @@ router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
         need_count: ingredients.filter(i => !i.in_pantry && !i.is_from_product).length
       };
     });
+
+    // ── Cache store: save base recipes (without pantry enrichment) ──
+    try {
+      const baseRecipes = enriched.map(r => ({
+        ...r,
+        ingredients: r.ingredients.map(ing => ({ ...ing, in_pantry: false })),
+        have_count: r.ingredients.filter(i => i.is_from_product).length,
+        need_count: r.ingredients.filter(i => !i.is_from_product).length
+      }));
+      await pool.query(
+        `INSERT INTO result_cache (upc, cache_type, data, created_at)
+         VALUES ($1, 'spoonacular', $2, NOW())
+         ON CONFLICT (upc, cache_type) DO UPDATE SET
+           data = EXCLUDED.data, created_at = NOW()`,
+        [upc, JSON.stringify({ recipes: baseRecipes })]
+      );
+    } catch (e) { /* cache write failure is non-fatal */ }
 
     res.json({ recipes: enriched, pantry_items: pantryNames });
   } catch (err) {

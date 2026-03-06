@@ -25,6 +25,66 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     }
 
     const product = productResult.rows[0];
+
+    // ── Cache check: return cached result if fresh (<24h) ──
+    const CACHE_TTL_HOURS = 24;
+    try {
+      const cached = await pool.query(
+        `SELECT data FROM result_cache
+         WHERE upc = $1 AND cache_type = 'swaps'
+         AND created_at > NOW() - INTERVAL '${CACHE_TTL_HOURS} hours'`,
+        [upc]
+      );
+      if (cached.rows.length > 0) {
+        const { swaps: cachedSwaps, recipes: cachedRecipes } = cached.rows[0].data;
+
+        // Re-enrich recipes with user's pantry (user-specific, can't cache)
+        let pantryIngredients = [];
+        if (req.user) {
+          try {
+            const pantryResult = await pool.query(
+              `SELECT LOWER(COALESCE(p.name, pi.custom_name, '')) as item_name
+               FROM pantry_items pi
+               LEFT JOIN products p ON pi.product_id = p.id
+               WHERE pi.user_id = $1 AND pi.status = 'active'`,
+              [req.user.id]
+            );
+            pantryIngredients = pantryResult.rows.map(r => r.item_name).filter(Boolean);
+          } catch (e) { /* pantry table may not exist */ }
+        }
+
+        const enrichedRecipes = (cachedRecipes || []).map(recipe => {
+          const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+          let haveCount = 0;
+          let needCount = 0;
+          const enrichedIngredients = ingredients.map(ing => {
+            const itemName = (ing.item || ing.name || '').toLowerCase().trim();
+            const inPantry = itemName.length > 2 && pantryIngredients.some(p =>
+              p.includes(itemName) || itemName.includes(p) ||
+              itemName.split(/\s+/).some(word => word.length > 4 && p.includes(word))
+            );
+            if (inPantry) haveCount++;
+            else needCount++;
+            return { ...ing, in_pantry: inPantry };
+          });
+          return {
+            ...recipe,
+            ingredients: enrichedIngredients,
+            pantry_have_count: haveCount,
+            pantry_need_count: needCount,
+            pantry_total_count: ingredients.length
+          };
+        });
+
+        return res.json({
+          original: { ...product, ...getScoreRating(product.total_score) },
+          swaps: cachedSwaps || [],
+          homemade_alternatives: enrichedRecipes,
+          cached: true
+        });
+      }
+    } catch (e) { /* cache table may not exist yet — fall through */ }
+
     let swaps = [];
 
     // 1. Check for hand-curated direct swaps first
@@ -598,6 +658,17 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         pantry_total_count: ingredients.length
       };
     });
+
+    // ── Cache store: save swaps + raw recipes for future hits ──
+    try {
+      await pool.query(
+        `INSERT INTO result_cache (upc, cache_type, data, created_at)
+         VALUES ($1, 'swaps', $2, NOW())
+         ON CONFLICT (upc, cache_type) DO UPDATE SET
+           data = EXCLUDED.data, created_at = NOW()`,
+        [upc, JSON.stringify({ swaps: formattedSwaps, recipes: recipeResult.rows })]
+      );
+    } catch (e) { /* cache write failure is non-fatal */ }
 
     res.json({
       original: {
