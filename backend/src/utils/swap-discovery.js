@@ -15,7 +15,9 @@ const CACHE_HOURS = 72; // re-search after 3 days
 function fetchTimeout(ms) {
   if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
   const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
+  const timer = setTimeout(() => controller.abort(), ms);
+  // Clean up timer when signal is aborted (either by timeout or externally)
+  controller.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
   return controller.signal;
 }
 
@@ -460,7 +462,10 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
       }
     }
   } catch (e) {
-    // swap_discovery_type column may not exist yet
+    // swap_discovery_type column may not exist yet — only silence column-not-found errors
+    if (!e.message?.includes('does not exist')) {
+      console.warn('Swap discovery cache query error:', e.message);
+    }
   }
 
   // 3. Search OFF for alternatives
@@ -515,7 +520,9 @@ async function searchOFF(type, product, excludeUpc) {
           allCandidates.push(p);
         }
       }
-    } catch (e) { /* timeout or error — continue */ }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('OFF category search error:', e.message);
+    }
   }
 
   // Strategy 2: Product-specific keyword search (most relevant)
@@ -550,7 +557,9 @@ async function searchOFF(type, product, excludeUpc) {
           }
         }
       }
-    } catch (e) { /* continue */ }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('OFF keyword search error:', e.message);
+    }
   }
 
   // Strategy 3: Generic type keyword search (broader net)
@@ -584,7 +593,9 @@ async function searchOFF(type, product, excludeUpc) {
           }
         }
       }
-    } catch (e) { /* continue */ }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('OFF generic search error:', e.message);
+    }
   }
 
   // 5. Filter + rank candidates
@@ -739,11 +750,15 @@ function applyTypeFilter(rows, type) {
 function inferTypeFromCategory(category) {
   if (!category) return null;
   const cat = category.toLowerCase().replace(/^en:/, '');
-  
+  // Require minimum length to prevent short strings like "bars" matching everything
+  if (cat.length < 4) return null;
+
   for (const type of PRODUCT_TYPES) {
     for (const offCat of type.off_categories) {
       const cleanCat = offCat.replace('en:', '');
-      if (cat.includes(cleanCat) || cleanCat.includes(cat)) {
+      // Only match if the category is a substring of the OFF category (not the reverse)
+      // This prevents "bars" from matching "cereal-bars", "granola-bars", etc.
+      if (cat === cleanCat || cat.includes(cleanCat)) {
         return type;
       }
     }

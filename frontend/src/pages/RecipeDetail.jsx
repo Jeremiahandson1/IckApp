@@ -291,15 +291,17 @@ export default function RecipeDetail() {
         )}
       </div>
 
-      {/* Made It Button */}
-      <div className="fixed bottom-20 left-4 right-4">
-        <button
-          onClick={() => setShowRating(true)}
-          className="w-full py-4 bg-[#c8f135] text-[#0d0d0d] rounded-sm font-semibold shadow-lg"
-        >
-          I Made This! 🎉
-        </button>
-      </div>
+      {/* Made It Button — only for logged-in users */}
+      {user && (
+        <div className="fixed bottom-20 left-4 right-4">
+          <button
+            onClick={() => setShowRating(true)}
+            className="w-full py-4 bg-[#c8f135] text-[#0d0d0d] rounded-sm font-semibold shadow-lg"
+          >
+            I Made This! 🎉
+          </button>
+        </div>
+      )}
 
       {/* Rating Modal */}
       {showRating && (

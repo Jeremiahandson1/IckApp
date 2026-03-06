@@ -839,8 +839,9 @@ function RecipeCard({ recipe, onClick }) {
         <div className="flex-1 min-w-0">
           <h4 className="font-semibold text-[#f4f4f0]">{recipe.name}</h4>
           <p className="text-sm text-[#888]">
-            {recipe.total_time_minutes || recipe.prep_time_minutes} min • {recipe.difficulty}
-            {recipe.servings && ` • ${recipe.servings} servings`}
+            {recipe.total_time_minutes || recipe.prep_time_minutes || '?'} min
+            {recipe.difficulty ? ` • ${recipe.difficulty}` : ''}
+            {recipe.servings ? ` • ${recipe.servings} servings` : ''}
           </p>
         </div>
         <ChefHat className="w-6 h-6 text-violet-500 flex-shrink-0" />

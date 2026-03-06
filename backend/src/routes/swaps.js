@@ -362,70 +362,99 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     }
 
     // Format swaps with score improvement + nearby store availability
-    const formattedSwaps = [];
-    for (const swap of swaps) {
-      let nearbyStores = [];
+    // Batch all store/link queries by collecting UPCs first (avoids N+1)
+    const swapUpcList = swaps.map(s => s.upc).filter(Boolean);
 
-      // Layer 1: Community sightings (most recent, verified)
+    // Batch Layer 1: Community sightings
+    let allSightings = {};
+    if (swapUpcList.length > 0) {
       try {
         const sightingResult = await pool.query(
-          `SELECT store_name, store_address, store_zip, price, aisle, 
+          `SELECT upc, store_name, store_address, store_zip, price, aisle,
                   verified_count, 'community' as source
            FROM local_sightings
-           WHERE upc = $1 AND in_stock = true
+           WHERE upc = ANY($1::text[]) AND in_stock = true
            AND last_verified_at > NOW() - INTERVAL '90 days'
-           ORDER BY verified_count DESC LIMIT 3`,
-          [swap.upc]
+           ORDER BY verified_count DESC`,
+          [swapUpcList]
         );
-        nearbyStores = sightingResult.rows;
+        for (const row of sightingResult.rows) {
+          (allSightings[row.upc] ??= []).push(row);
+        }
       } catch (e) { /* table may not exist yet */ }
+    }
 
-      // Layer 2: Flyer crawler (nationwide, price data)
-      if (nearbyStores.length < 3) {
-        try {
-          const flyerResult = await pool.query(
-            `SELECT DISTINCT ON (merchant) 
-               merchant as store_name, price, price_text, crawled_at, 'flyer' as source
-             FROM flyer_availability
-             WHERE upc = $1 AND expires_at > NOW()
-             ORDER BY merchant, crawled_at DESC LIMIT 5`,
-            [swap.upc]
-          );
-          const flyerStores = flyerResult.rows.map(r => ({
-            store_name: r.store_name, price: r.price, price_text: r.price_text,
+    // Batch Layer 2: Flyer availability
+    let allFlyers = {};
+    if (swapUpcList.length > 0) {
+      try {
+        const flyerResult = await pool.query(
+          `SELECT DISTINCT ON (upc, merchant)
+             upc, merchant as store_name, price, price_text, crawled_at, 'flyer' as source
+           FROM flyer_availability
+           WHERE upc = ANY($1::text[]) AND expires_at > NOW()
+           ORDER BY upc, merchant, crawled_at DESC`,
+          [swapUpcList]
+        );
+        for (const row of flyerResult.rows) {
+          (allFlyers[row.upc] ??= []).push({
+            store_name: row.store_name, price: row.price, price_text: row.price_text,
             source: 'flyer',
-            disclaimer: `Price as of ${new Date(r.crawled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-          }));
-          const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
-          const flyerUnique = flyerStores.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
-          nearbyStores = [...nearbyStores, ...flyerUnique].slice(0, 5);
-        } catch (e) { /* flyer table may not exist yet */ }
-      }
+            disclaimer: `Price as of ${new Date(row.crawled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          });
+        }
+      } catch (e) { /* flyer table may not exist yet */ }
+    }
 
-      // Layer 3: Curated ground-truth (always available for top swap products)
-      if (nearbyStores.length < 3) {
-        try {
-          const curatedResult = await pool.query(
-            `SELECT store_name, 'curated' as source FROM curated_availability WHERE upc = $1 ORDER BY store_name LIMIT 8`,
-            [swap.upc]
-          );
-          const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
-          const curatedUnique = curatedResult.rows.filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
-          nearbyStores = [...nearbyStores, ...curatedUnique].slice(0, 5);
-        } catch (e) { /* curated table may not exist yet */ }
-      }
+    // Batch Layer 3: Curated availability
+    let allCurated = {};
+    if (swapUpcList.length > 0) {
+      try {
+        const curatedResult = await pool.query(
+          `SELECT upc, store_name, 'curated' as source FROM curated_availability
+           WHERE upc = ANY($1::text[]) ORDER BY store_name`,
+          [swapUpcList]
+        );
+        for (const row of curatedResult.rows) {
+          (allCurated[row.upc] ??= []).push(row);
+        }
+      } catch (e) { /* curated table may not exist yet */ }
+    }
 
-      // Layer 4: Online purchase links (Amazon, Thrive Market, brand DTC)
-      let onlineLinks = [];
+    // Batch Layer 4: Online links
+    let allLinks = {};
+    if (swapUpcList.length > 0) {
       try {
         const linksResult = await pool.query(
-          `SELECT name, url, link_type FROM online_links WHERE upc = $1 AND active = true ORDER BY link_type LIMIT 5`,
-          [swap.upc]
+          `SELECT upc, name, url, link_type FROM online_links
+           WHERE upc = ANY($1::text[]) AND active = true ORDER BY link_type`,
+          [swapUpcList]
         );
-        onlineLinks = linksResult.rows;
+        for (const row of linksResult.rows) {
+          (allLinks[row.upc] ??= []).push(row);
+        }
       } catch (e) { /* online_links table may not exist yet */ }
+    }
 
-      // Fallback: generate retail search links so every alternative is buyable
+    // Assemble per-swap results from batched data
+    const formattedSwaps = [];
+    for (const swap of swaps) {
+      // Merge store layers with dedup
+      let nearbyStores = (allSightings[swap.upc] || []).slice(0, 3);
+
+      if (nearbyStores.length < 3) {
+        const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+        const flyerUnique = (allFlyers[swap.upc] || []).filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+        nearbyStores = [...nearbyStores, ...flyerUnique].slice(0, 5);
+      }
+
+      if (nearbyStores.length < 3) {
+        const seen = new Set(nearbyStores.map(s => s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+        const curatedUnique = (allCurated[swap.upc] || []).filter(s => !seen.has(s.store_name?.toLowerCase()?.replace(/[^a-z]/g, '')));
+        nearbyStores = [...nearbyStores, ...curatedUnique].slice(0, 5);
+      }
+
+      let onlineLinks = (allLinks[swap.upc] || []).slice(0, 5);
       if (onlineLinks.length === 0 && swap.name) {
         const q = encodeURIComponent(`${swap.brand || ''} ${swap.name}`.trim());
         onlineLinks = [
@@ -449,7 +478,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
 
     // Get homemade alternatives (recipes)
     // Build recipe category candidates from product data + name keywords
-    const recipeCategories = [product.category, product.subcategory || ''];
+    const recipeCategories = [product.category, product.subcategory].filter(Boolean);
 
     // Map product name/category keywords to recipe categories
     const nameAndCat = `${product.name || ''} ${product.category || ''} ${product.subcategory || ''}`.toLowerCase();
@@ -744,45 +773,83 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
 
     const recommendations = [];
 
+    // Batch-fetch all curated swap targets in one query (avoids N+1)
+    const allSwapUpcs = [];
+    for (const item of sourceItems) {
+      if (item.swaps_to && item.swaps_to.length > 0) {
+        let parsed;
+        try { parsed = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { parsed = []; }
+        if (Array.isArray(parsed)) allSwapUpcs.push(...parsed.filter(Boolean));
+      }
+    }
+    let swapProductsMap = {};
+    if (allSwapUpcs.length > 0) {
+      const uniqueUpcs = [...new Set(allSwapUpcs)];
+      const swapResult = await pool.query(
+        `SELECT * FROM products WHERE upc = ANY($1::text[]) AND total_score IS NOT NULL`,
+        [uniqueUpcs]
+      );
+      for (const row of swapResult.rows) {
+        swapProductsMap[row.upc] = row;
+      }
+    }
+
+    // Batch-fetch category alternatives for items without curated swaps
+    // Group by category to avoid duplicate queries
+    const categoryGroups = {};
+    for (const item of sourceItems) {
+      if (!item.category) continue;
+      let hasSwap = false;
+      if (item.swaps_to && item.swaps_to.length > 0) {
+        let parsed;
+        try { parsed = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { parsed = []; }
+        if (Array.isArray(parsed) && parsed.some(u => swapProductsMap[u])) hasSwap = true;
+      }
+      if (!hasSwap) {
+        const catKey = item.category;
+        if (!categoryGroups[catKey]) categoryGroups[catKey] = [];
+        categoryGroups[catKey].push(item);
+      }
+    }
+    let categoryResultsMap = {};
+    for (const [cat, items] of Object.entries(categoryGroups)) {
+      const excludeUpcs = items.map(i => i.upc);
+      const categoryResult = await pool.query(
+        `SELECT * FROM products
+         WHERE (category = $1 OR category ILIKE $3)
+         AND total_score > 50
+         AND total_score IS NOT NULL
+         AND upc != ALL($2::text[])
+         ORDER BY is_clean_alternative DESC, total_score DESC
+         LIMIT 20`,
+        [cat, excludeUpcs, `%${cat.split(':').pop().replace(/-/g, '%')}%`]
+      );
+      categoryResultsMap[cat] = categoryResult.rows;
+    }
+
+    // Assemble recommendations from batched data
     for (const item of sourceItems) {
       let bestSwap = null;
-      
+
+      // Check curated swaps first
       if (item.swaps_to && item.swaps_to.length > 0) {
-        let swapUpcs;
-        try { swapUpcs = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { swapUpcs = []; }
-        if (!Array.isArray(swapUpcs)) swapUpcs = [];
-        if (swapUpcs.length > 0) {
-          const swapResult = await pool.query(
-            `SELECT * FROM products WHERE upc = ANY($1::text[]) ORDER BY total_score DESC LIMIT 1`,
-            [swapUpcs]
-          );
-          if (swapResult.rows.length > 0) bestSwap = swapResult.rows[0];
+        let parsed;
+        try { parsed = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { parsed = []; }
+        if (Array.isArray(parsed)) {
+          // Pick best-scored curated swap
+          let best = null;
+          for (const u of parsed) {
+            const p = swapProductsMap[u];
+            if (p && (!best || (p.total_score || 0) > (best.total_score || 0))) best = p;
+          }
+          if (best) bestSwap = best;
         }
       }
 
-      if (!bestSwap && item.category) {
-        // Use type-aware matching: identify what this product is, then find same type
+      // Fall back to category match with type-aware filtering
+      if (!bestSwap && item.category && categoryResultsMap[item.category]) {
         const itemType = getProductType(item);
-        const categoryResult = await pool.query(
-          `SELECT * FROM products
-           WHERE (
-             category = $1
-             OR category ILIKE $4
-           )
-           AND total_score > $2
-           AND total_score IS NOT NULL
-           AND upc != $3
-           ORDER BY is_clean_alternative DESC, total_score DESC
-           LIMIT 20`,
-          [
-            item.category,
-            50,
-            item.upc,
-            `%${item.category.split(':').pop().replace(/-/g, '%')}%`
-          ]
-        );
-        // Filter to same product type if identifiable
-        let candidates = categoryResult.rows;
+        let candidates = categoryResultsMap[item.category];
         if (itemType) {
           const typed = candidates.filter(r => {
             const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
@@ -792,7 +859,9 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
           });
           if (typed.length > 0) candidates = typed;
         }
-        if (candidates.length > 0) bestSwap = candidates[0];
+        // Exclude this item's own UPC
+        const match = candidates.find(c => c.upc !== item.upc);
+        if (match) bestSwap = match;
       }
 
       if (bestSwap) {
