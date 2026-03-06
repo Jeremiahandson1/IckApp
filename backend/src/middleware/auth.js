@@ -80,9 +80,9 @@ export async function storeRefreshToken(userId, token) {
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30d
   await pool.query(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     SELECT $1, $2, $3
+     SELECT $1, $2::varchar(64), $3
      WHERE NOT EXISTS (
-       SELECT 1 FROM refresh_tokens WHERE token_hash = $2
+       SELECT 1 FROM refresh_tokens WHERE token_hash = $2::varchar(64)
      )`,
     [userId, hash, expiresAt]
   );
