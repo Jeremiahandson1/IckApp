@@ -619,6 +619,21 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
     `);
 
+    // Ensure refresh_tokens.token_hash has a UNIQUE constraint
+    // (CREATE TABLE IF NOT EXISTS won't add it to a pre-existing table)
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'refresh_tokens'::regclass
+          AND contype = 'u'
+          AND conname LIKE '%token_hash%'
+        ) THEN
+          ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_token_hash_key UNIQUE (token_hash);
+        END IF;
+      END $$;
+    `);
+
     // Check if total_score still uses old formula (5 columns)
     // If so, drop and recreate with new 3-column formula
     const colCheck = await pool.query(`
