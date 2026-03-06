@@ -19,8 +19,11 @@ export default function RecipeDetail() {
 
   useEffect(() => {
     loadRecipe();
-    if (user) loadPantry();
   }, [id]);
+
+  useEffect(() => {
+    if (user) loadPantry();
+  }, [id, user]);
 
   const loadRecipe = async () => {
     try {
@@ -50,10 +53,11 @@ export default function RecipeDetail() {
   const isIngredientInPantry = (ingredient) => {
     if (ingredient.in_pantry) return true; // already enriched from swaps endpoint
     if (pantryItems.length === 0) return false;
-    const itemName = (ingredient.item || ingredient.name || '').toLowerCase();
+    const itemName = (ingredient.item || ingredient.name || '').toLowerCase().trim();
+    if (itemName.length < 3) return false; // avoid empty/short string false positives
     return pantryItems.some(p =>
       p.includes(itemName) || itemName.includes(p) ||
-      itemName.split(/\s+/).some(word => word.length > 3 && p.includes(word))
+      itemName.split(/\s+/).some(word => word.length > 4 && p.includes(word))
     );
   };
 
@@ -138,7 +142,7 @@ export default function RecipeDetail() {
         
         {/* Meta */}
         <div className="flex flex-wrap items-center gap-2 text-sm text-[#666] mb-3">
-          <span>⏱ {recipe.prep_time_minutes || 0} prep + {(recipe.total_time_minutes || 0) - (recipe.prep_time_minutes || 0)} cook</span>
+          <span>⏱ {recipe.prep_time_minutes || 0} prep + {Math.max(0, (recipe.total_time_minutes || 0) - (recipe.prep_time_minutes || 0))} cook</span>
           <span>•</span>
           <span>🍽 {recipe.servings} servings</span>
           <span>•</span>
@@ -278,8 +282,8 @@ export default function RecipeDetail() {
               <span>{checkedSteps.size} of {recipe.instructions.length}</span>
             </div>
             <div className="h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-[rgba(200,241,53,0.06)] transition-all duration-300"
+              <div
+                className="h-full bg-[#c8f135] transition-all duration-300"
                 style={{ width: `${(checkedSteps.size / recipe.instructions.length) * 100}%` }}
               />
             </div>
@@ -291,7 +295,7 @@ export default function RecipeDetail() {
       <div className="fixed bottom-20 left-4 right-4">
         <button
           onClick={() => setShowRating(true)}
-          className="w-full py-4 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-semibold shadow-lg"
+          className="w-full py-4 bg-[#c8f135] text-[#0d0d0d] rounded-sm font-semibold shadow-lg"
         >
           I Made This! 🎉
         </button>
@@ -326,7 +330,7 @@ export default function RecipeDetail() {
               <button
                 onClick={submitMadeIt}
                 disabled={submitting || rating === 0}
-                className="flex-1 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-[#c8f135] text-[#0d0d0d] rounded-sm font-medium disabled:opacity-50"
               >
                 {submitting ? 'Saving...' : 'Submit'}
               </button>

@@ -29,7 +29,9 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
 
     // 1. Check for hand-curated direct swaps first
     if (product.swaps_to && product.swaps_to.length > 0) {
-      const swapUpcs = Array.isArray(product.swaps_to) ? product.swaps_to : JSON.parse(product.swaps_to);
+      let swapUpcs;
+      try { swapUpcs = Array.isArray(product.swaps_to) ? product.swaps_to : JSON.parse(product.swaps_to); } catch { swapUpcs = []; }
+      if (!Array.isArray(swapUpcs)) swapUpcs = [];
       const validUpcs = swapUpcs.filter(u => u && u.length > 0);
       if (validUpcs.length > 0) {
         const swapResult = await pool.query(
@@ -84,9 +86,9 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
           
           // Try each match — pick the first one whose swap targets actually exist
           for (const match of nameMatch.rows) {
-            const swapUpcs = Array.isArray(match.swaps_to) 
-              ? match.swaps_to 
-              : JSON.parse(match.swaps_to);
+            let swapUpcs;
+            try { swapUpcs = Array.isArray(match.swaps_to) ? match.swaps_to : JSON.parse(match.swaps_to); } catch { swapUpcs = []; }
+            if (!Array.isArray(swapUpcs)) swapUpcs = [];
             const validUpcs = swapUpcs.filter(u => u && u.length > 0);
             if (validUpcs.length === 0) continue;
             
@@ -132,7 +134,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         'organic', 'natural', 'free', 'low', 'reduced', 'lite', 'light',
         'fat', 'sugar', 'sodium', 'calorie', 'zero', 'diet', 'gluten',
         'non', 'gmo', 'vegan', 'whole', 'grain', 'real', 'made',
-        (product.brand || '').toLowerCase()
+        // Add each brand word individually so multi-word brands like "Nature Valley" are filtered
+        ...(product.brand || '').toLowerCase().split(/\s+/).filter(w => w.length > 0)
       ]);
       const productWords = (product.name || '')
         .toLowerCase()
@@ -531,11 +534,11 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       let needCount = 0;
 
       const enrichedIngredients = ingredients.map(ing => {
-        const itemName = (ing.item || ing.name || '').toLowerCase();
+        const itemName = (ing.item || ing.name || '').toLowerCase().trim();
         // Check if user has this ingredient in their pantry
-        const inPantry = pantryIngredients.some(p =>
+        const inPantry = itemName.length > 2 && pantryIngredients.some(p =>
           p.includes(itemName) || itemName.includes(p) ||
-          itemName.split(/\s+/).some(word => word.length > 3 && p.includes(word))
+          itemName.split(/\s+/).some(word => word.length > 4 && p.includes(word))
         );
         if (inPantry) haveCount++;
         else needCount++;
@@ -745,12 +748,16 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
       let bestSwap = null;
       
       if (item.swaps_to && item.swaps_to.length > 0) {
-        const swapUpcs = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to);
-        const swapResult = await pool.query(
-          `SELECT * FROM products WHERE upc = ANY($1::text[]) ORDER BY total_score DESC LIMIT 1`,
-          [swapUpcs]
-        );
-        if (swapResult.rows.length > 0) bestSwap = swapResult.rows[0];
+        let swapUpcs;
+        try { swapUpcs = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { swapUpcs = []; }
+        if (!Array.isArray(swapUpcs)) swapUpcs = [];
+        if (swapUpcs.length > 0) {
+          const swapResult = await pool.query(
+            `SELECT * FROM products WHERE upc = ANY($1::text[]) ORDER BY total_score DESC LIMIT 1`,
+            [swapUpcs]
+          );
+          if (swapResult.rows.length > 0) bestSwap = swapResult.rows[0];
+        }
       }
 
       if (!bestSwap && item.category) {

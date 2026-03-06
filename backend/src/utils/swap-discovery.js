@@ -639,7 +639,7 @@ async function saveDiscoveries(candidates, type) {
 
   for (const p of candidates) {
     try {
-      const upc = p.code.padStart(13, '0'); // normalize UPC
+      const upc = String(p.code).padStart(13, '0'); // normalize UPC
       const ingredients = p.ingredients_text || '';
       const brand = p.brands || 'Unknown';
       const name = p.product_name || 'Unknown';
