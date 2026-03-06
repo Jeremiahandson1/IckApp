@@ -26,7 +26,7 @@ async function ensureAlertLogTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS velocity_alert_log (
       id SERIAL PRIMARY KEY,
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL,
       upcs_alerted JSONB DEFAULT '[]',
       sent_at TIMESTAMP DEFAULT NOW()
     );
