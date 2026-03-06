@@ -146,6 +146,91 @@ export function getSeverityColor(severity) {
   return 'text-gray-400 bg-gray-800';
 }
 
+// Score explanation generator — tells users WHY their score is what it is
+export function getScoreExplanation(product) {
+  if (!product) return { summary: '', nutrition_detail: '', additive_detail: '', positives: [] };
+
+  const reasons = [];
+  const positives = [];
+
+  // Parse nutrition facts
+  const nf = typeof product.nutrition_facts === 'string'
+    ? (() => { try { return JSON.parse(product.nutrition_facts); } catch { return {}; } })()
+    : (product.nutrition_facts || {});
+
+  // Nutrition red flags
+  if (nf.sugars != null && nf.sugars > 12) reasons.push(`high sugar (${Math.round(nf.sugars)}g/100g)`);
+  if (nf.sodium != null && nf.sodium > 600) reasons.push(`high sodium (${Math.round(nf.sodium)}mg/100g)`);
+  if (nf.saturated_fat != null && nf.saturated_fat > 5) reasons.push(`high saturated fat (${nf.saturated_fat}g/100g)`);
+  if (nf.calories != null && nf.calories > 400) reasons.push('high calorie density');
+  if (nf.fiber != null && nf.fiber < 1) reasons.push('very low fiber');
+  if (nf.protein != null && nf.protein < 2) reasons.push('very low protein');
+
+  // Nutrition positives
+  if (nf.fiber != null && nf.fiber > 3) positives.push('good fiber');
+  if (nf.protein != null && nf.protein > 8) positives.push('good protein');
+
+  // Processing level
+  if (product.nova_group === 4) reasons.push('ultra-processed (NOVA 4)');
+  else if (product.nova_group === 3) reasons.push('processed food');
+  else if (product.nova_group === 1) positives.push('minimally processed');
+
+  // Nutri-Score
+  const grade = product.nutriscore_grade?.toUpperCase();
+  if (grade === 'D' || grade === 'E') reasons.push(`Nutri-Score ${grade}`);
+  else if (grade === 'A') positives.push('Nutri-Score A');
+  else if (grade === 'B') positives.push('Nutri-Score B');
+
+  // Additives
+  let harmful = product.harmful_ingredients_found;
+  if (typeof harmful === 'string') { try { harmful = JSON.parse(harmful); } catch { harmful = []; } }
+  if (!Array.isArray(harmful)) harmful = [];
+
+  const additiveNames = harmful.map(h =>
+    h.severity >= 8 ? `${h.name} (high risk)` : h.name
+  );
+
+  // Banned ingredients
+  const banned = harmful.filter(h => h.banned_in && h.banned_in.length > 0);
+  if (banned.length > 0) {
+    const countries = [...new Set(banned.flatMap(h => h.banned_in))];
+    reasons.push(`contains ingredients banned in ${countries.slice(0, 3).join(', ')}`);
+  }
+
+  // Organic
+  if (product.is_organic) positives.push('certified organic');
+
+  // Build nutrition detail (for ScoreItem)
+  const nutritionReasons = reasons.filter(r =>
+    !r.startsWith('contains ingredients banned') && !r.includes('NOVA')
+  );
+  const nutritionDetail = nutritionReasons.length > 0
+    ? nutritionReasons.slice(0, 3).join(', ')
+    : (positives.filter(p => p.includes('Nutri-Score') || p.includes('fiber') || p.includes('protein')).join(', ') || null);
+
+  // Build additive detail
+  const additiveDetail = additiveNames.length > 0
+    ? additiveNames.slice(0, 3).join(', ')
+    : 'None detected';
+
+  // Build overall summary
+  const allIssues = [...reasons, ...additiveNames];
+  let summary;
+  if (allIssues.length === 0) {
+    summary = positives.length > 0
+      ? positives.join(', ')
+      : 'No major concerns detected';
+  } else {
+    summary = allIssues.slice(0, 4).join(', ');
+    if (positives.length > 0) {
+      summary += `. Plus: ${positives.join(', ')}`;
+    }
+  }
+  summary = summary.charAt(0).toUpperCase() + summary.slice(1);
+
+  return { summary, nutrition_detail: nutritionDetail, additive_detail: additiveDetail, positives };
+}
+
 // UPC validation
 export function isValidUPC(code) {
   // UPC-A (12 digits), UPC-E (8 digits), EAN-13, EAN-8

@@ -117,12 +117,31 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     if (swaps.length === 0) {
       const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
 
-      // Helper: check if a candidate matches the product type (must_contain + exclude)
-      const matchesType = (candidateName, type) => {
-        const name = candidateName.toLowerCase();
-        const hasRequired = type.must_contain.some(kw => name.includes(kw));
-        const hasExcluded = (type.exclude || []).some(kw => name.includes(kw));
-        return hasRequired && !hasExcluded;
+      // Get the comprehensive product type for cross-type rejection
+      const discoveryType = getProductType(product);
+      const discoveryTypeId = discoveryType?.id || '_NONE_';
+
+      // Helper: check if a candidate matches the product type.
+      // Uses cross-type rejection to prevent unrelated products
+      // (e.g., "Chips Ahoy" won't match potato-chips because it's detected as cookies)
+      const matchesType = (candidate, type) => {
+        const rName = `${candidate.name || ''} ${candidate.subcategory || ''}`.toLowerCase();
+
+        // 1. Exclude check (always applies)
+        if ((type.exclude || []).some(kw => rName.includes(kw))) return false;
+
+        // 2. Cross-type rejection: if candidate is detected as a different product family, reject
+        if (discoveryType) {
+          const candidateType = getProductType({
+            name: candidate.name || '',
+            subcategory: candidate.subcategory || '',
+            category: candidate.category || ''
+          });
+          if (candidateType && candidateType.id !== discoveryType.id) return false;
+        }
+
+        // 3. Must contain at least one required keyword
+        return type.must_contain.some(kw => rName.includes(kw));
       };
 
       // Extract meaningful keywords from product name for relevance scoring.
@@ -267,10 +286,6 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         }
       }
 
-      // Get the discovery type ID for matching cached dynamic discoveries
-      const discoveryType = getProductType(product);
-      const discoveryTypeId = discoveryType?.id || '_NONE_';
-
       if (matchedType) {
         // Single combined query: subcategory + category + FTS + cached discoveries in one pass
         // Fetches a broad pool, then filters by type and ranks by relevance
@@ -306,10 +321,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
 
           // Filter to same product type, then rank by relevance + score
           swaps = combinedResult.rows
-            .filter(r => {
-              const rName = `${r.name || ''} ${r.subcategory || ''}`;
-              return matchesType(rName, matchedType);
-            })
+            .filter(r => matchesType(r, matchedType))
             .map(r => ({ ...r, _relevance: scoreRelevance(r) }))
             .sort((a, b) => {
               // Primary: relevance (same subtype/flavor first)
@@ -338,7 +350,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
               [product.category, swapScoreFloor, upc]
             );
             swaps = catResult.rows
-              .filter(r => matchesType(`${r.name || ''} ${r.subcategory || ''}`, matchedType))
+              .filter(r => matchesType(r, matchedType))
               .map(r => ({ ...r, _relevance: scoreRelevance(r) }))
               .sort((a, b) => b._relevance - a._relevance || (b.total_score || 0) - (a.total_score || 0))
               .slice(0, 5);
@@ -855,13 +867,18 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
         const itemType = getProductType(item);
         let candidates = categoryResultsMap[item.category];
         if (itemType) {
-          const typed = candidates.filter(r => {
+          // Always filter by type — never fall back to untyped candidates
+          // (0 results is better than recommending cookies for a chips scan)
+          candidates = candidates.filter(r => {
             const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-            const hasRequired = itemType.must_contain.some(kw => rName.includes(kw));
-            const hasExcluded = (itemType.exclude || []).some(kw => rName.includes(kw));
-            return hasRequired && !hasExcluded;
+            // Cross-type rejection
+            const candidateType = getProductType({
+              name: r.name || '', subcategory: r.subcategory || '', category: r.category || ''
+            });
+            if (candidateType && candidateType.id !== itemType.id) return false;
+            if ((itemType.exclude || []).some(kw => rName.includes(kw))) return false;
+            return itemType.must_contain.some(kw => rName.includes(kw));
           });
-          if (typed.length > 0) candidates = typed;
         }
         // Exclude this item's own UPC
         const match = candidates.find(c => c.upc !== item.upc);

@@ -14,9 +14,9 @@ import { shareProduct } from '../utils/nativeShare';
 import FamilyProfileSwitcher from '../components/common/FamilyProfileSwitcher';
 import ScoreRing from '../components/common/ScoreRing';
 import ScoreBadge, { ScoreBar } from '../components/common/ScoreBadge';
-import { 
+import {
   getScoreLabel, getScoreLightBgClass, getScoreTextClass,
-  getSeverityColor, capitalize 
+  getSeverityColor, capitalize, getScoreExplanation
 } from '../utils/helpers';
 
 export default function ProductResult() {
@@ -400,34 +400,48 @@ export default function ProductResult() {
       })()}
 
       {/* Score Breakdown — the 3 real dimensions */}
-      <div className="px-4 mt-6">
-        <div className="card p-4">
-          <h2 className="mb-4" style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--muted)' }}>Score Breakdown</h2>
-          <div className="space-y-4">
-            <ScoreItem 
-              icon={Apple} 
-              label="Nutritional Quality" 
-              score={product.nutrition_score ?? product.banned_elsewhere_score ?? 50}
-              weight="60%"
-              detail={product.nutriscore_grade ? `Nutri-Score ${product.nutriscore_grade.toUpperCase()}` : null}
-            />
-            <ScoreItem 
-              icon={Beaker} 
-              label="Additives" 
-              score={product.additives_score ?? product.harmful_ingredients_score ?? 50}
-              weight="30%"
-              detail={harmfulIngredients.length > 0 ? `${harmfulIngredients.length} found` : 'None detected'}
-            />
-            <ScoreItem 
-              icon={Leaf} 
-              label="Organic Bonus" 
-              score={product.organic_bonus ?? product.transparency_score ?? 0}
-              weight="10%"
-              detail={product.is_organic ? 'Certified organic' : 'Not organic'}
-            />
+      {(() => {
+        const explanation = getScoreExplanation(product);
+        return (
+          <div className="px-4 mt-6">
+            <div className="card p-4">
+              <h2 className="mb-4" style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--muted)' }}>Score Breakdown</h2>
+
+              {/* Plain-language summary */}
+              {explanation.summary && (
+                <p className="text-sm text-[#aaa] mb-4 pb-3 border-b border-[#2a2a2a]" style={{ fontWeight: 300, lineHeight: 1.5 }}>
+                  {explanation.summary}
+                </p>
+              )}
+
+              <div className="space-y-4">
+                <ScoreItem
+                  icon={Apple}
+                  label="Nutritional Quality"
+                  score={product.nutrition_score ?? 50}
+                  weight="60%"
+                  detail={explanation.nutrition_detail
+                    || (product.nutriscore_grade ? `Nutri-Score ${product.nutriscore_grade.toUpperCase()}` : null)}
+                />
+                <ScoreItem
+                  icon={Beaker}
+                  label="Additives"
+                  score={product.additives_score ?? 50}
+                  weight="30%"
+                  detail={explanation.additive_detail}
+                />
+                <ScoreItem
+                  icon={Leaf}
+                  label="Organic Bonus"
+                  score={product.organic_bonus ?? 0}
+                  weight="10%"
+                  detail={product.is_organic ? 'Certified organic' : 'Not organic'}
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Nutrition Facts */}
       {hasNutrition && (
@@ -628,17 +642,19 @@ function NutrientRow({ label, value, unit, warn, good, highlight }) {
 
 function ScoreItem({ icon: Icon, label, score, weight, detail }) {
   return (
-    <div className="flex items-center gap-3">
-      <Icon className="w-5 h-5 text-[#888] flex-shrink-0" />
+    <div className="flex items-start gap-3">
+      <Icon className="w-5 h-5 text-[#888] flex-shrink-0 mt-0.5" />
       <div className="flex-1">
         <div className="flex justify-between text-sm mb-1">
           <span className="text-[#ccc]">{label}</span>
-          <div className="flex items-center gap-2">
-            {detail && <span className="text-[#888] text-xs">{detail}</span>}
-            <span className="text-[#888] text-xs">{weight}</span>
-          </div>
+          <span className="text-[#888] text-xs">{weight}</span>
         </div>
         <ScoreBar score={score} />
+        {detail && (
+          <p className="text-xs mt-1" style={{ color: score >= 60 ? '#6b8a5e' : '#b08a5e', fontWeight: 300 }}>
+            {detail}
+          </p>
+        )}
       </div>
     </div>
   );

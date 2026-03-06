@@ -8,7 +8,7 @@ A food scanner app targeting kids' food with corporate accountability. Scan a ba
 
 ### Core Functionality
 - **Barcode Scanning** - Scan any food product to get instant health analysis
-- **Health Scoring** - 5-dimension algorithm (Harmful Ingredients 35%, Banned Elsewhere 20%, Transparency 15%, Processing 15%, Company Behavior 15%)
+- **Health Scoring** - 3-dimension algorithm aligned with Yuka methodology (Nutritional Quality 60%, Additives 30%, Organic Bonus 10%)
 - **Pantry Management** - Track everything in your home with health reports
 - **Smart Swaps** - Get personalized recommendations for healthier alternatives
 - **Homemade Recipes** - DIY alternatives with cost comparisons

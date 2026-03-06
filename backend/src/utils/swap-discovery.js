@@ -594,14 +594,20 @@ async function searchOFF(type, product, excludeUpc) {
   const scoredCandidates = allCandidates
     .filter(p => {
       const name = (p.product_name || '').toLowerCase();
-      // Must match product type
+      // Must not match exclude keywords
+      if (type.exclude.some(kw => name.includes(kw))) return false;
+      // Cross-type rejection: if OFF product clearly belongs to a different type, reject
+      const candidateType = getProductType({
+        name: p.product_name || '',
+        category: p.categories_tags?.[0] || ''
+      });
+      if (candidateType && candidateType.id !== type.id) return false;
+      // Must match product type keywords
       if (!type.must_contain.some(kw => name.includes(kw))) {
         // Also check categories
         const cats = (p.categories_tags || []).join(' ').toLowerCase();
         if (!type.must_contain.some(kw => cats.includes(kw))) return false;
       }
-      // Must not match exclude keywords
-      if (type.exclude.some(kw => name.includes(kw))) return false;
       // Must have a nutriscore (quality signal)
       if (!p.nutriscore_grade) return false;
       return true;
@@ -669,7 +675,7 @@ async function saveDiscoveries(candidates, type) {
           sodium_100g: nm.sodium_100g || null,
         };
 
-        const nutriscoreMap = { a: 90, b: 70, c: 50, d: 30, e: 10 };
+        const nutriscoreMap = { a: 95, b: 75, c: 50, d: 25, e: 10 };
         const nutritionScore = nutriscoreMap[nutriscoreGrade?.toLowerCase()] || 50;
         const novaAdditiveMap = { 1: 90, 2: 70, 3: 50, 4: 25 };
         const additivesScore = novaAdditiveMap[novaGroup] || 50;
@@ -733,13 +739,16 @@ async function saveDiscoveries(candidates, type) {
 function applyTypeFilter(rows, type) {
   return rows.filter(r => {
     const name = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-    if (!type.must_contain.some(kw => name.includes(kw))) {
-      // Check category
-      const cat = (r.category || '').toLowerCase();
-      if (!type.must_contain.some(kw => cat.includes(kw))) return false;
-    }
     if (type.exclude.some(kw => name.includes(kw))) return false;
-    return true;
+    // Cross-type rejection: if candidate is clearly a different product type, reject
+    const candidateType = getProductType({
+      name: r.name || '', subcategory: r.subcategory || '', category: r.category || ''
+    });
+    if (candidateType && candidateType.id !== type.id) return false;
+    if (type.must_contain.some(kw => name.includes(kw))) return true;
+    // Also check category
+    const cat = (r.category || '').toLowerCase();
+    return type.must_contain.some(kw => cat.includes(kw));
   });
 }
 
