@@ -83,12 +83,22 @@ export default function Pantry() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-[#f4f4f0]">My Pantry</h1>
-        <Link
-          to="/pantry/audit"
-          className="px-4 py-2 bg-[rgba(200,241,53,0.06)] text-white rounded-sm text-sm font-medium"
-        >
-          + Add Items
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            to="/scan"
+            className="px-4 py-2 bg-[#c8f135] text-[#0d0d0d] rounded-sm text-sm font-semibold"
+          >
+            + Scan Item
+          </Link>
+          {pantryItems.length > 0 && (
+            <Link
+              to="/pantry/audit"
+              className="px-4 py-2 bg-[#1e1e1e] text-[#888] rounded-sm text-sm font-medium"
+            >
+              Audit
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Damage Report Summary */}
