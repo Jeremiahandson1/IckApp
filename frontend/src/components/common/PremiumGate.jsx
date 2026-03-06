@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { Lock, Crown } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -7,7 +8,9 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 export default function PremiumGate({ feature, children }) {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
+  const [starting, setStarting] = useState(false);
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
 
   useEffect(() => {
     checkPremiumStatus();
@@ -41,17 +44,19 @@ export default function PremiumGate({ feature, children }) {
   };
 
   const handleStartTrial = async () => {
+    setStarting(true);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subscription/start-trial`, {
         method: 'POST',
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
       if (res.ok) {
+        await refreshProfile();
         setIsPremium(true);
       } else {
         const data = await res.json();
@@ -62,6 +67,8 @@ export default function PremiumGate({ feature, children }) {
     } catch (err) {
       console.error('Start trial error:', err);
       navigate('/subscription');
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -90,10 +97,17 @@ export default function PremiumGate({ feature, children }) {
       </p>
       <button
         onClick={handleStartTrial}
-        className="flex items-center gap-2 bg-[#c8f135] hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-sm transition-colors w-full max-w-xs justify-center"
+        disabled={starting}
+        className="flex items-center gap-2 bg-[#c8f135] hover:bg-[#b5d930] text-[#0d0d0d] font-semibold px-8 py-3 rounded-sm transition-colors w-full max-w-xs justify-center disabled:opacity-50"
       >
-        <Crown className="w-5 h-5" />
-        Start Free Trial
+        {starting ? (
+          <div className="w-5 h-5 border-2 border-[#0d0d0d] border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <>
+            <Crown className="w-5 h-5" />
+            Start Free 30-Day Trial
+          </>
+        )}
       </button>
     </div>
   );

@@ -131,6 +131,8 @@ router.post('/register', validate(registerSchema), async (req, res) => {
       sendVerificationEmail({ to: user.email, name: user.name, token: verificationToken }),
     ]).catch(e => console.warn('[Email] Post-registration email failed (non-fatal):', e.message));
 
+    // Auto-start 30-day free trial for new users (no card required)
+    await startTrial(user.id);
     const subscription = await getSubscriptionStatus(user.id);
     const accessToken = generateToken(user);
     const refreshToken = generateRefreshToken(user);

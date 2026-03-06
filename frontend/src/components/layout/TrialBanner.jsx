@@ -9,7 +9,7 @@ export default function TrialBanner() {
 
   if (!sub) return null;
 
-  const isTrialing = sub.status === 'trialing';
+  const isTrialing = sub.plan === 'trial' && sub.status === 'active';
 
   // Trial active — show days remaining
   if (isTrialing && sub.days_remaining > 0) {
