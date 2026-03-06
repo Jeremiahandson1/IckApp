@@ -105,13 +105,21 @@ const PRODUCT_TYPES = [
     exclude: ['cereal', 'granola'],
     label: 'Protein Bar' },
   
-  { id: 'chips',
-    test: /chip|crisp|tortilla\s*chip|dorito|cheeto|lay's|pringles|frito/i,
-    off_categories: ['en:chips-and-fries', 'en:tortilla-chips', 'en:potato-chips'],
-    search_terms: 'organic chips',
-    must_contain: ['chip', 'crisp', 'tortilla'],
-    exclude: ['dip', 'salsa', 'chocolate'],
-    label: 'Chips' },
+  { id: 'tortilla-chips',
+    test: /tortilla\s*chip|corn\s*chip|nacho|dorito|tostito/i,
+    off_categories: ['en:tortilla-chips', 'en:corn-chips'],
+    search_terms: 'organic tortilla chips',
+    must_contain: ['tortilla', 'corn chip', 'nacho'],
+    exclude: ['dip', 'salsa', 'chocolate', 'cracker', 'cookie'],
+    label: 'Tortilla Chips' },
+
+  { id: 'potato-chips',
+    test: /potato\s*chip|chip|crisp|lay'?s|pringle|cheeto|frito|kettle/i,
+    off_categories: ['en:chips-and-fries', 'en:potato-chips', 'en:crisps'],
+    search_terms: 'organic potato chips',
+    must_contain: ['potato', 'chip', 'crisp', 'kettle'],
+    exclude: ['dip', 'salsa', 'chocolate', 'tortilla', 'corn'],
+    label: 'Potato Chips' },
   
   { id: 'crackers',
     test: /cracker|goldfish|cheez-?it|ritz/i,
@@ -169,14 +177,30 @@ const PRODUCT_TYPES = [
     exclude: ['pizza', 'sauce'],
     label: 'Mac & Cheese' },
   
+  { id: 'yogurt-greek',
+    test: /greek\s*yogurt|greek\s*yoghurt|strained\s*yogurt|chobani|fage/i,
+    off_categories: ['en:greek-yogurts', 'en:yogurts'],
+    search_terms: 'organic greek yogurt whole milk',
+    must_contain: ['yogurt', 'yoghurt', 'greek'],
+    exclude: ['bar', 'drink', 'tube', 'smoothie'],
+    label: 'Greek Yogurt' },
+
+  { id: 'yogurt-kids',
+    test: /yogurt.*tube|gogurt|danimals|yogurt.*kids|yogurt.*squeeze/i,
+    off_categories: ['en:yogurts'],
+    search_terms: 'organic kids yogurt tube',
+    must_contain: ['yogurt', 'yoghurt'],
+    exclude: ['bar', 'protein'],
+    label: 'Kids Yogurt' },
+
   { id: 'yogurt',
-    test: /yogurt|yoghurt|yoplait|dannon|activia|chobani/i,
+    test: /yogurt|yoghurt|yoplait|dannon|activia/i,
     off_categories: ['en:yogurts'],
     search_terms: 'organic whole milk yogurt',
     must_contain: ['yogurt', 'yoghurt'],
     exclude: ['bar', 'drink', 'tube'],
     label: 'Yogurt' },
-  
+
   { id: 'ice-cream',
     test: /ice\s*cream|gelato|frozen\s*dessert|haagen|ben.*jerry/i,
     off_categories: ['en:ice-creams'],
@@ -242,12 +266,20 @@ const PRODUCT_TYPES = [
     label: 'Ramen' },
   
   { id: 'soup',
-    test: /soup|broth|stock|campbell|progresso/i,
+    test: /soup|campbell|progresso|chowder|bisque|stew/i,
     off_categories: ['en:soups'],
     search_terms: 'organic soup low sodium',
-    must_contain: ['soup', 'broth', 'stock', 'stew', 'chowder'],
-    exclude: ['cracker', 'noodle'],
+    must_contain: ['soup', 'stew', 'chowder', 'bisque'],
+    exclude: ['cracker', 'broth', 'stock', 'base', 'bouillon'],
     label: 'Soup' },
+
+  { id: 'broth',
+    test: /broth|stock|bouillon|bone\s*broth/i,
+    off_categories: ['en:broths', 'en:stocks'],
+    search_terms: 'organic broth low sodium',
+    must_contain: ['broth', 'stock', 'bouillon'],
+    exclude: ['cracker', 'soup'],
+    label: 'Broth & Stock' },
   
   { id: 'hot-dog',
     test: /hot\s*dog|frank|wiener|oscar\s*mayer/i,
@@ -342,6 +374,43 @@ const PRODUCT_TYPES = [
 const NUTRISCORE_RANK = { a: 5, b: 4, c: 3, d: 2, e: 1 };
 
 // ============================================================
+// Extract meaningful keywords from a product name for relevance scoring.
+// Filters out generic filler words to keep only flavor/subtype descriptors.
+// ============================================================
+const GENERIC_WORDS = new Set([
+  'original', 'classic', 'regular', 'the', 'and', 'with', 'flavor',
+  'flavored', 'style', 'brand', 'new', 'size', 'pack', 'count',
+  'organic', 'natural', 'free', 'low', 'reduced', 'lite', 'light',
+  'fat', 'sugar', 'sodium', 'calorie', 'zero', 'diet', 'gluten',
+  'non', 'gmo', 'vegan', 'whole', 'grain', 'real', 'made',
+]);
+
+function extractProductWords(name, brand) {
+  const brandLower = (brand || '').toLowerCase();
+  return (name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !GENERIC_WORDS.has(w) && w !== brandLower);
+}
+
+// Score how relevant a candidate is to the original product.
+// Considers shared name keywords (flavor, subtype) and brand diversity.
+function scoreRelevance(candidateName, candidateBrand, productWords, productBrand) {
+  let score = 0;
+  const cWords = (candidateName || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
+  for (const w of productWords) {
+    if (cWords.includes(w)) score += 10;
+  }
+  // Prefer different brands (user wants to discover alternatives)
+  if (productBrand && candidateBrand &&
+      candidateBrand.toLowerCase() === productBrand.toLowerCase()) {
+    score -= 5;
+  }
+  return score;
+}
+
+// ============================================================
 // MAIN: Find dynamic swaps for a product
 // ============================================================
 export async function findDynamicSwaps(product, upc, limit = 5) {
@@ -357,10 +426,11 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
   }
 
   if (!matchedType) {
-    // Can't identify product type — try to match from OFF category tags
     matchedType = inferTypeFromCategory(product.category);
-    if (!matchedType) return []; // truly unknown — return empty rather than garbage
+    if (!matchedType) return [];
   }
+
+  const productWords = extractProductWords(product.name, product.brand);
 
   // 2. Check cache — have we searched this type recently?
   try {
@@ -375,26 +445,36 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
        AND p.swap_discovered_at > NOW() - INTERVAL '1 hour' * $4
        ORDER BY p.total_score DESC
        LIMIT $5`,
-      [matchedType.id, 50, upc, CACHE_HOURS, limit * 2]
+      [matchedType.id, 50, upc, CACHE_HOURS, limit * 3]
     );
 
     if (cached.rows.length >= limit) {
-      // Apply type filter and return
       const filtered = applyTypeFilter(cached.rows, matchedType);
-      if (filtered.length > 0) return filtered.slice(0, limit);
+      if (filtered.length > 0) {
+        // Rank by relevance, then score
+        return filtered
+          .map(r => ({ ...r, _rel: scoreRelevance(r.name, r.brand, productWords, product.brand) }))
+          .sort((a, b) => b._rel - a._rel || (b.total_score || 0) - (a.total_score || 0))
+          .slice(0, limit)
+          .map(({ _rel, ...r }) => r);
+      }
     }
   } catch (e) {
-    // swap_discovery_type column may not exist yet — that's OK, we'll search
+    // swap_discovery_type column may not exist yet
   }
 
   // 3. Search OFF for alternatives
   const candidates = await searchOFF(matchedType, product, upc);
-  
+
   if (candidates.length === 0) return [];
 
-  // 4. Save discoveries to DB and return
+  // 4. Save discoveries to DB and return, ranked by relevance
   const saved = await saveDiscoveries(candidates, matchedType);
-  return saved.slice(0, limit);
+  return saved
+    .map(r => ({ ...r, _rel: scoreRelevance(r.name, r.brand, productWords, product.brand) }))
+    .sort((a, b) => b._rel - a._rel || (b.total_score || 0) - (a.total_score || 0))
+    .slice(0, limit)
+    .map(({ _rel, ...r }) => r);
 }
 
 // ============================================================
@@ -402,6 +482,7 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
 // ============================================================
 async function searchOFF(type, product, excludeUpc) {
   const allCandidates = [];
+  const productWords = extractProductWords(product.name, product.brand);
 
   // Strategy 1: Category-based search (most targeted)
   for (const category of type.off_categories.slice(0, 2)) {
@@ -437,7 +518,42 @@ async function searchOFF(type, product, excludeUpc) {
     } catch (e) { /* timeout or error — continue */ }
   }
 
-  // Strategy 2: Keyword search (broader net)
+  // Strategy 2: Product-specific keyword search (most relevant)
+  // Use the actual product's flavor/subtype words for targeted results
+  if (allCandidates.length < 10 && productWords.length > 0) {
+    const specificTerms = productWords.slice(0, 3).join(' ') + ' organic';
+    try {
+      const url = `${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
+        search_terms: specificTerms,
+        search_simple: '1',
+        action: 'process',
+        json: 'true',
+        page_size: '15',
+        tagtype_0: 'countries',
+        tag_contains_0: 'contains',
+        tag_0: 'united-states',
+        sort_by: 'nutriscore_score',
+        fields: 'code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags,ingredients_text,allergens_tags,labels_tags,nutriments'
+      });
+
+      const res = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT },
+        signal: fetchTimeout(4000)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        for (const p of (data.products || [])) {
+          if (!p.code || p.code === excludeUpc || !p.product_name) continue;
+          if (!allCandidates.some(c => c.code === p.code)) {
+            allCandidates.push(p);
+          }
+        }
+      }
+    } catch (e) { /* continue */ }
+  }
+
+  // Strategy 3: Generic type keyword search (broader net)
   if (allCandidates.length < 10) {
     try {
       const url = `${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
@@ -490,11 +606,13 @@ async function searchOFF(type, product, excludeUpc) {
     .map(p => ({
       ...p,
       nutri_rank: NUTRISCORE_RANK[p.nutriscore_grade?.toLowerCase()] || 0,
-      nova_rank: p.nova_group ? (5 - p.nova_group) : 0, // lower NOVA = better
+      nova_rank: p.nova_group ? (5 - p.nova_group) : 0,
       has_organic: (p.labels_tags || []).some(l => l.includes('organic')),
+      relevance: scoreRelevance(p.product_name, p.brands, productWords, product.brand),
     }))
     .sort((a, b) => {
-      // Sort by: nutriscore desc, then organic, then NOVA asc
+      // Sort by: relevance first, then nutriscore, then organic, then NOVA
+      if (b.relevance !== a.relevance) return b.relevance - a.relevance;
       if (b.nutri_rank !== a.nutri_rank) return b.nutri_rank - a.nutri_rank;
       if (a.has_organic !== b.has_organic) return a.has_organic ? -1 : 1;
       return b.nova_rank - a.nova_rank;

@@ -107,20 +107,14 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       } catch (e) { /* non-fatal */ }
     }
 
-    // 2. Smart subcategory + name matching
-    //    The old approach matched on OFF's broad categories like "en:snacks" which
-    //    returned chia seeds as swaps for fruit snacks. Now we:
-    //    a) Match subcategory first (most specific)
-    //    b) Match product TYPE via name keywords
-    //    c) Return NOTHING rather than garbage — 0 results > 5 wrong results
-    //
-    //    Threshold: we want alternatives BETTER than the scanned product, but
-    //    use a fixed floor of 50 so low-scored products still find good swaps
-    //    and we don't accidentally filter out all our clean alternatives.
+    // 2. Smart relevance-based matching
+    //    Matches product TYPE first (soup → soup, not soup → cracker),
+    //    then ranks by RELEVANCE (chicken noodle soup → other chicken noodle soups
+    //    before tomato soup). Uses a single combined query for speed.
     const swapScoreFloor = 50;
     if (swaps.length === 0) {
       const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
-      
+
       // Helper: check if a candidate matches the product type (must_contain + exclude)
       const matchesType = (candidateName, type) => {
         const name = candidateName.toLowerCase();
@@ -128,86 +122,133 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         const hasExcluded = (type.exclude || []).some(kw => name.includes(kw));
         return hasRequired && !hasExcluded;
       };
-      
+
+      // Extract meaningful keywords from product name for relevance scoring.
+      // Filters out generic filler words to keep only words that describe
+      // what the product actually IS (e.g., "chicken", "noodle", "tomato").
+      const genericWords = new Set([
+        'original', 'classic', 'regular', 'the', 'and', 'with', 'flavor',
+        'flavored', 'style', 'brand', 'new', 'size', 'pack', 'count',
+        'organic', 'natural', 'free', 'low', 'reduced', 'lite', 'light',
+        'fat', 'sugar', 'sodium', 'calorie', 'zero', 'diet', 'gluten',
+        'non', 'gmo', 'vegan', 'whole', 'grain', 'real', 'made',
+        (product.brand || '').toLowerCase()
+      ]);
+      const productWords = (product.name || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !genericWords.has(w));
+
+      // Score a candidate's relevance to the original product.
+      // Higher = more relevant (same flavor, same subtype, shared keywords).
+      const scoreRelevance = (candidate) => {
+        let score = 0;
+        const cName = (candidate.name || '').toLowerCase();
+        const cWords = cName.replace(/[^a-z0-9\s]/g, '').split(/\s+/);
+
+        // Shared keyword bonus: each shared meaningful word = +10
+        for (const w of productWords) {
+          if (cWords.includes(w)) score += 10;
+        }
+
+        // Subcategory match bonus
+        if (product.subcategory && candidate.subcategory &&
+            candidate.subcategory.toLowerCase() === product.subcategory.toLowerCase()) {
+          score += 15;
+        }
+
+        // Same brand penalty (user wants to discover NEW brands, not the same one)
+        if (product.brand && candidate.brand &&
+            candidate.brand.toLowerCase() === product.brand.toLowerCase()) {
+          score -= 5;
+        }
+
+        return score;
+      };
+
       // Identify what TYPE of product this is and build targeted search
-      // Each entry has: test (regex), search terms, must_contain keywords, exclude keywords
       const productTypeMap = [
-        { test: /fruit\s*snack|fruit\s*roll|fruit\s*leather|fruit\s*gumm/i, 
+        { test: /fruit\s*snack|fruit\s*roll|fruit\s*leather|fruit\s*gumm/i,
           search: "fruit snack organic", must_contain: ['fruit snack', 'fruit roll', 'fruit leather', 'fruit bite'],
           exclude: ['nut', 'seed', 'chip'] },
-        { test: /granola\s*bar|chewy\s*bar|oat\s*bar|snack\s*bar/i, 
+        { test: /granola\s*bar|chewy\s*bar|oat\s*bar|snack\s*bar/i,
           search: "organic granola bar clean", must_contain: ['bar', 'granola'],
           exclude: ['cereal', 'cookie'] },
-        { test: /protein\s*bar|energy\s*bar/i, 
+        { test: /protein\s*bar|energy\s*bar/i,
           search: "organic protein bar", must_contain: ['bar', 'protein'],
           exclude: ['cereal', 'cookie'] },
-        { test: /cookie|biscuit/i, 
+        { test: /cookie|biscuit/i,
           search: "organic cookies clean", must_contain: ['cookie', 'biscuit'],
           exclude: ['chip', 'cracker'] },
-        { test: /cracker|goldfish|cheez-?it/i, 
+        { test: /cracker|goldfish|cheez-?it/i,
           search: "organic crackers clean", must_contain: ['cracker'],
           exclude: ['cookie', 'chip'] },
-        { test: /tortilla\s*chip|corn\s*chip|nacho|dorito|tostito/i, 
+        { test: /tortilla\s*chip|corn\s*chip|nacho|dorito|tostito/i,
           search: "organic tortilla chips", must_contain: ['tortilla', 'corn chip', 'nacho'],
           exclude: ['cookie', 'cracker', 'chocolate'] },
-        { test: /potato\s*chip|chip|crisp|lay'?s|pringle|cheeto|frito/i, 
+        { test: /potato\s*chip|chip|crisp|lay'?s|pringle|cheeto|frito/i,
           search: "organic potato chips", must_contain: ['potato', 'chip', 'crisp', 'kettle'],
           exclude: ['cookie', 'chocolate', 'tortilla'] },
-        { test: /cereal|loops|flakes|puffs|crunch|charms/i, 
+        { test: /cereal|loops|flakes|puffs|crunch|charms/i,
           search: "organic cereal clean", must_contain: ['cereal', 'flake', 'puff', 'crunch', 'loop', 'o\'s', 'grain'],
           exclude: ['bar', 'cookie'] },
-        { test: /candy|skittle|gumm|sour|jelly/i, 
+        { test: /candy|skittle|gumm|sour|jelly/i,
           search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'],
           exclude: ['chocolate', 'bar', 'chip'] },
-        { test: /chocolate\s*(bar|candy)|cocoa/i, 
+        { test: /chocolate\s*(bar|candy)|cocoa/i,
           search: "organic dark chocolate bar", must_contain: ['chocolate', 'cocoa'],
           exclude: ['cookie', 'cereal', 'milk', 'chip'] },
-        { test: /mac.*cheese|macaroni/i, 
+        { test: /mac.*cheese|macaroni/i,
           search: "organic mac cheese", must_contain: ['mac', 'cheese', 'macaroni'],
           exclude: ['pizza', 'sauce'] },
-        { test: /yogurt|yoghurt/i, 
+        { test: /yogurt|yoghurt/i,
           search: "organic yogurt", must_contain: ['yogurt', 'yoghurt'],
           exclude: ['bar', 'drink'] },
-        { test: /ice\s*cream|frozen\s*dessert/i, 
+        { test: /ice\s*cream|frozen\s*dessert/i,
           search: "organic ice cream", must_contain: ['ice cream', 'frozen'],
           exclude: ['sandwich', 'bar'] },
-        { test: /juice|lemonade|fruit\s*drink/i, 
+        { test: /juice|lemonade|fruit\s*drink/i,
           search: "organic juice 100", must_contain: ['juice', 'lemonade'],
           exclude: ['snack', 'bar', 'candy'] },
-        { test: /soda|cola|sprite|pop/i, 
+        { test: /soda|cola|sprite|pop/i,
           search: "sparkling water prebiotic soda", must_contain: ['sparkling', 'soda', 'cola', 'water'],
           exclude: ['candy', 'gummy'] },
-        { test: /bread|bun|roll/i, 
+        { test: /bread|bun|roll/i,
           search: "organic whole grain bread", must_contain: ['bread', 'grain', 'wheat'],
           exclude: ['crumb', 'stick'] },
-        { test: /pasta\s*sauce|marinara|tomato\s*sauce/i, 
+        { test: /pasta\s*sauce|marinara|tomato\s*sauce/i,
           search: "organic pasta sauce marinara", must_contain: ['sauce', 'marinara'],
           exclude: ['pizza', 'salsa'] },
-        { test: /ketchup/i, 
+        { test: /ketchup/i,
           search: "organic ketchup unsweetened", must_contain: ['ketchup'],
           exclude: [] },
-        { test: /dressing|vinaigrette|ranch/i, 
+        { test: /dressing|vinaigrette|ranch/i,
           search: "organic dressing clean", must_contain: ['dressing', 'ranch', 'vinaigrette'],
           exclude: [] },
-        { test: /peanut\s*butter|nut\s*butter|almond\s*butter/i, 
+        { test: /peanut\s*butter|nut\s*butter|almond\s*butter/i,
           search: "organic peanut butter", must_contain: ['peanut', 'almond', 'butter'],
           exclude: ['cup', 'candy', 'bar'] },
-        { test: /ramen|instant\s*noodle/i, 
+        { test: /ramen|instant\s*noodle/i,
           search: "organic ramen noodles", must_contain: ['ramen', 'noodle'],
           exclude: [] },
-        { test: /soup|broth|stock/i, 
-          search: "organic soup low sodium", must_contain: ['soup', 'broth', 'stock'],
-          exclude: ['cracker'] },
-        { test: /hot\s*dog|frank|wiener/i, 
+        // Soup and broth/stock are SEPARATE types — chicken noodle soup ≠ beef broth
+        { test: /soup(?!.*(?:broth|stock|base))/i,
+          search: "organic soup low sodium", must_contain: ['soup', 'stew', 'chowder', 'bisque'],
+          exclude: ['cracker', 'broth', 'stock', 'base', 'bouillon'] },
+        { test: /broth|stock|bouillon|bone\s*broth/i,
+          search: "organic broth low sodium", must_contain: ['broth', 'stock', 'bouillon'],
+          exclude: ['cracker', 'soup'] },
+        { test: /hot\s*dog|frank|wiener/i,
           search: "uncured hot dogs organic", must_contain: ['hot dog', 'frank', 'wiener', 'uncured'],
           exclude: [] },
-        { test: /frozen\s*pizza|pizza/i, 
+        { test: /frozen\s*pizza|pizza/i,
           search: "organic frozen pizza", must_contain: ['pizza'] },
-        { test: /popcorn/i, 
+        { test: /popcorn/i,
           search: "organic popcorn", must_contain: ['popcorn'] },
-        { test: /pretzel/i, 
+        { test: /pretzel/i,
           search: "organic pretzels", must_contain: ['pretzel'] },
-        { test: /oatmeal|oats/i, 
+        { test: /oatmeal|oats/i,
           search: "organic oats oatmeal", must_contain: ['oat'] },
       ];
 
@@ -219,88 +260,87 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         }
       }
 
-      if (matchedType) {
-        // Try subcategory match first (tightest)
-        if (product.subcategory) {
-          const subResult = await pool.query(
-            `SELECT p.*, c.name as company_name 
-             FROM products p 
-             LEFT JOIN companies c ON p.company_id = c.id
-             WHERE p.subcategory ILIKE $1
-             AND p.total_score > $2
-             AND p.total_score IS NOT NULL
-             AND p.upc != $3
-             ORDER BY p.total_score DESC
-             LIMIT 10`,
-            [`%${product.subcategory}%`, swapScoreFloor, upc]
-          );
-          // Filter to same product type
-          swaps = subResult.rows.filter(r => {
-            const rName = `${r.name || ''} ${r.subcategory || ''}`;
-            return matchesType(rName, matchedType);
-          }).slice(0, 5);
-        }
+      // Get the discovery type ID for matching cached dynamic discoveries
+      const discoveryType = getProductType(product);
+      const discoveryTypeId = discoveryType?.id || '_NONE_';
 
-        // If subcategory didn't work, try full-text search
-        if (swaps.length === 0) {
-          try {
-            const ftsResult = await pool.query(
-              `SELECT p.*, c.name as company_name,
-                      ts_rank(to_tsvector('english', p.name || ' ' || COALESCE(p.subcategory, '')), 
-                              plainto_tsquery('english', $1)) as rank
-               FROM products p 
+      if (matchedType) {
+        // Single combined query: subcategory + category + FTS + cached discoveries in one pass
+        // Fetches a broad pool, then filters by type and ranks by relevance
+        const searchKeywords = productWords.slice(0, 3).join(' ');
+        try {
+          const combinedResult = await pool.query(
+            `SELECT DISTINCT ON (p.upc) p.*, c.name as company_name
+             FROM products p
+             LEFT JOIN companies c ON p.company_id = c.id
+             WHERE p.total_score > $1
+             AND p.total_score IS NOT NULL
+             AND p.upc != $2
+             AND (
+               p.subcategory ILIKE $3
+               OR p.category = $4
+               OR p.category ILIKE $5
+               OR p.swap_discovery_type = $6
+               ${searchKeywords ? `OR to_tsvector('english', p.name || ' ' || COALESCE(p.subcategory, ''))
+                     @@ plainto_tsquery('english', $7)` : ''}
+             )
+             ORDER BY p.upc, p.total_score DESC
+             LIMIT 40`,
+            [
+              swapScoreFloor,
+              upc,
+              `%${product.subcategory || '_NONE_'}%`,
+              product.category || '_NONE_',
+              `%${(product.category || '_NONE_').split(':').pop().replace(/-/g, '%')}%`,
+              discoveryTypeId,
+              ...(searchKeywords ? [matchedType.search] : [])
+            ]
+          );
+
+          // Filter to same product type, then rank by relevance + score
+          swaps = combinedResult.rows
+            .filter(r => {
+              const rName = `${r.name || ''} ${r.subcategory || ''}`;
+              return matchesType(rName, matchedType);
+            })
+            .map(r => ({ ...r, _relevance: scoreRelevance(r) }))
+            .sort((a, b) => {
+              // Primary: relevance (same subtype/flavor first)
+              // Secondary: health score (better products first)
+              const relDiff = b._relevance - a._relevance;
+              if (relDiff !== 0) return relDiff;
+              return (b.total_score || 0) - (a.total_score || 0);
+            })
+            .slice(0, 5);
+
+          // Clean up internal field
+          swaps.forEach(s => delete s._relevance);
+        } catch (e) {
+          // Fallback: simple category query if combined query fails
+          if (product.category) {
+            const catResult = await pool.query(
+              `SELECT p.*, c.name as company_name
+               FROM products p
                LEFT JOIN companies c ON p.company_id = c.id
-               WHERE to_tsvector('english', p.name || ' ' || COALESCE(p.subcategory, '')) 
-                     @@ plainto_tsquery('english', $1)
+               WHERE p.category = $1
                AND p.total_score > $2
                AND p.total_score IS NOT NULL
                AND p.upc != $3
-               ORDER BY rank DESC, p.total_score DESC
-               LIMIT 15`,
-              [matchedType.search, swapScoreFloor, upc]
+               ORDER BY p.total_score DESC
+               LIMIT 20`,
+              [product.category, swapScoreFloor, upc]
             );
-            // Strict filter: must actually be the same type of product
-            swaps = ftsResult.rows.filter(r => {
-              const rName = `${r.name || ''} ${r.subcategory || ''}`;
-              return matchesType(rName, matchedType);
-            }).slice(0, 5);
-          } catch (e) { /* FTS may fail */ }
+            swaps = catResult.rows
+              .filter(r => matchesType(`${r.name || ''} ${r.subcategory || ''}`, matchedType))
+              .map(r => ({ ...r, _relevance: scoreRelevance(r) }))
+              .sort((a, b) => b._relevance - a._relevance || (b.total_score || 0) - (a.total_score || 0))
+              .slice(0, 5);
+            swaps.forEach(s => delete s._relevance);
+          }
         }
       }
 
-      // Last resort: category match with STRICT type filtering
-      // Only if we identified a product type but FTS found nothing
-      if (swaps.length === 0 && matchedType && product.category) {
-        const catResult = await pool.query(
-          `SELECT p.*, c.name as company_name 
-           FROM products p 
-           LEFT JOIN companies c ON p.company_id = c.id
-           WHERE (
-             p.category = $1 
-             OR p.category ILIKE $4
-           )
-           AND p.total_score > $2
-           AND p.total_score IS NOT NULL
-           AND p.upc != $3
-           ORDER BY p.total_score DESC
-           LIMIT 30`,
-          [
-            product.category,
-            swapScoreFloor,
-            upc,
-            `%${product.category.split(':').pop().replace(/-/g, '%')}%`
-          ]
-        );
-        // STRICT filter — only same type
-        swaps = catResult.rows.filter(r => {
-          const rName = `${r.name || ''} ${r.subcategory || ''}`;
-          return matchesType(rName, matchedType);
-        }).slice(0, 5);
-      }
-
-      // If STILL nothing and we couldn't even identify the type, 
-      // do NOT return random category matches — return empty
-      // 0 results > 5 garbage results
+      // If we couldn't identify the type, return empty — 0 results > 5 garbage results
     }
 
     // 3. DYNAMIC DISCOVERY — search OFF in real-time for alternatives
@@ -407,7 +447,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     // Get homemade alternatives (recipes)
     // Build recipe category candidates from product data + name keywords
     const recipeCategories = [product.category, product.subcategory || ''];
-    
+
     // Map product name/category keywords to recipe categories
     const nameAndCat = `${product.name || ''} ${product.category || ''} ${product.subcategory || ''}`.toLowerCase();
     const recipeKeywordMap = {
@@ -446,7 +486,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       'hummus': ['Hummus'],
       'peanut butter|nut butter|almond butter': ['Nut Butter Alternatives'],
       'broth|bouillon|stock': ['Broth & Bouillon'],
-      'soup': ['Canned Soup'],
+      'soup(?!.*(?:broth|stock))': ['Canned Soup'],
       'creamer|coffee mate': ['Coffee Creamer'],
       'chocolate milk': ['Chocolate Milk'],
       'lunchable': ['Lunchables'],
@@ -459,12 +499,57 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       }
     }
 
+    // Also match by product name keywords for broader recipe discovery
+    const productNameWords = (product.name || '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+
     const recipeResult = await pool.query(
-      `SELECT * FROM recipes 
+      `SELECT * FROM recipes
        WHERE replaces_category = ANY($1::text[])
-       OR replaces_products @> $2::jsonb`,
+       OR replaces_products @> $2::jsonb
+       ORDER BY total_time_minutes ASC`,
       [[...new Set(recipeCategories)], JSON.stringify([upc])]
     );
+
+    // Enrich recipes with pantry cross-reference if user is logged in
+    let pantryIngredients = [];
+    if (req.user) {
+      try {
+        const pantryResult = await pool.query(
+          `SELECT LOWER(COALESCE(p.name, pi.custom_name, '')) as item_name
+           FROM pantry_items pi
+           LEFT JOIN products p ON pi.product_id = p.id
+           WHERE pi.user_id = $1 AND pi.status = 'active'`,
+          [req.user.id]
+        );
+        pantryIngredients = pantryResult.rows.map(r => r.item_name).filter(Boolean);
+      } catch (e) { /* pantry table may not exist */ }
+    }
+
+    const enrichedRecipes = recipeResult.rows.map(recipe => {
+      const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+      let haveCount = 0;
+      let needCount = 0;
+
+      const enrichedIngredients = ingredients.map(ing => {
+        const itemName = (ing.item || ing.name || '').toLowerCase();
+        // Check if user has this ingredient in their pantry
+        const inPantry = pantryIngredients.some(p =>
+          p.includes(itemName) || itemName.includes(p) ||
+          itemName.split(/\s+/).some(word => word.length > 3 && p.includes(word))
+        );
+        if (inPantry) haveCount++;
+        else needCount++;
+        return { ...ing, in_pantry: inPantry };
+      });
+
+      return {
+        ...recipe,
+        ingredients: enrichedIngredients,
+        pantry_have_count: haveCount,
+        pantry_need_count: needCount,
+        pantry_total_count: ingredients.length
+      };
+    });
 
     res.json({
       original: {
@@ -472,7 +557,7 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         ...getScoreRating(product.total_score)
       },
       swaps: formattedSwaps,
-      homemade_alternatives: recipeResult.rows
+      homemade_alternatives: enrichedRecipes
     });
 
   } catch (err) {
@@ -669,9 +754,10 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
       }
 
       if (!bestSwap && item.category) {
-        // Try curated clean alternatives first, then any higher-scored product in category
+        // Use type-aware matching: identify what this product is, then find same type
+        const itemType = getProductType(item);
         const categoryResult = await pool.query(
-          `SELECT * FROM products 
+          `SELECT * FROM products
            WHERE (
              category = $1
              OR category ILIKE $4
@@ -679,8 +765,8 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
            AND total_score > $2
            AND total_score IS NOT NULL
            AND upc != $3
-           ORDER BY is_clean_alternative DESC, total_score DESC 
-           LIMIT 1`,
+           ORDER BY is_clean_alternative DESC, total_score DESC
+           LIMIT 20`,
           [
             item.category,
             50,
@@ -688,7 +774,18 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
             `%${item.category.split(':').pop().replace(/-/g, '%')}%`
           ]
         );
-        if (categoryResult.rows.length > 0) bestSwap = categoryResult.rows[0];
+        // Filter to same product type if identifiable
+        let candidates = categoryResult.rows;
+        if (itemType) {
+          const typed = candidates.filter(r => {
+            const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
+            const hasRequired = itemType.must_contain.some(kw => rName.includes(kw));
+            const hasExcluded = (itemType.exclude || []).some(kw => rName.includes(kw));
+            return hasRequired && !hasExcluded;
+          });
+          if (typed.length > 0) candidates = typed;
+        }
+        if (candidates.length > 0) bestSwap = candidates[0];
       }
 
       if (bestSwap) {

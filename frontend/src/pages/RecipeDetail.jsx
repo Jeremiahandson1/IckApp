@@ -1,27 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../utils/api';
+import api, { pantry as pantryApi } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
 export default function RecipeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checkedSteps, setCheckedSteps] = useState(new Set());
   const [showRating, setShowRating] = useState(false);
   const [rating, setRating] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [pantryItems, setPantryItems] = useState([]);
 
   useEffect(() => {
     loadRecipe();
+    if (user) loadPantry();
   }, [id]);
 
   const loadRecipe = async () => {
     try {
       const res = await api.get(`/recipes/${id}`);
-      // api.get might return error objects without throwing
       if (!res || res.error || !res.name) {
         throw new Error(res?.error || 'Recipe not found');
       }
@@ -33,6 +36,25 @@ export default function RecipeDetail() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadPantry = async () => {
+    try {
+      const items = await pantryApi.list();
+      if (Array.isArray(items)) {
+        setPantryItems(items.map(i => (i.name || i.custom_name || '').toLowerCase()).filter(Boolean));
+      }
+    } catch (e) { /* non-fatal */ }
+  };
+
+  const isIngredientInPantry = (ingredient) => {
+    if (ingredient.in_pantry) return true; // already enriched from swaps endpoint
+    if (pantryItems.length === 0) return false;
+    const itemName = (ingredient.item || ingredient.name || '').toLowerCase();
+    return pantryItems.some(p =>
+      p.includes(itemName) || itemName.includes(p) ||
+      itemName.split(/\s+/).some(word => word.length > 3 && p.includes(word))
+    );
   };
 
   const toggleStep = (index) => {
@@ -155,12 +177,23 @@ export default function RecipeDetail() {
         {recipe.estimated_cost && (
           <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm">
             <div className="text-2xl font-bold text-[#c8f135]">${Number(recipe.estimated_cost).toFixed(2)}</div>
-            <div className="text-xs text-[#666]">Per Batch</div>
+            <div className="text-xs text-[#666]">Per Batch ({recipe.servings} servings)</div>
+            {recipe.cost_per_serving && (
+              <div className="text-xs text-[#888] mt-1">${Number(recipe.cost_per_serving).toFixed(2)}/serving</div>
+            )}
           </div>
         )}
-        {recipe.health_benefits && (
-          <div className="bg-[rgba(200,241,53,0.06)] rounded-sm p-4">
-            <div className="text-sm text-[#7a8e00]">{recipe.health_benefits}</div>
+        {Array.isArray(recipe.health_benefits) && recipe.health_benefits.length > 0 && (
+          <div className="bg-green-500/5 rounded-sm p-4">
+            <h3 className="text-xs font-semibold text-green-400 mb-2">Healthier Because</h3>
+            <ul className="space-y-1">
+              {recipe.health_benefits.slice(0, 3).map((benefit, i) => (
+                <li key={i} className="text-xs text-green-400/80 flex items-start gap-1">
+                  <span className="text-green-400 mt-0.5">✓</span>
+                  <span>{benefit}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
@@ -175,19 +208,39 @@ export default function RecipeDetail() {
 
       {/* Ingredients */}
       <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
-        <h2 className="font-semibold text-[#f4f4f0] mb-3">Ingredients</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-[#f4f4f0]">Ingredients</h2>
+          {pantryItems.length > 0 && recipe.ingredients && (() => {
+            const haveCount = recipe.ingredients.filter(ing => isIngredientInPantry(ing)).length;
+            return haveCount > 0 ? (
+              <span className="text-xs text-emerald-400 font-medium">
+                You have {haveCount} of {recipe.ingredients.length}
+              </span>
+            ) : null;
+          })()}
+        </div>
         <ul className="space-y-2">
-          {recipe.ingredients?.map((ingredient, index) => (
-            <li key={index} className="flex items-start gap-3 text-sm">
-              <span className="w-5 h-5 rounded-full bg-[rgba(200,241,53,0.1)] text-[#c8f135] flex items-center justify-center flex-shrink-0 text-xs">
-                {index + 1}
-              </span>
-              <span className="text-[#bbb]">
-                <strong>{ingredient.amount} {ingredient.unit}</strong> {ingredient.item}
-                {ingredient.notes && <span className="text-[#888]"> ({ingredient.notes})</span>}
-              </span>
-            </li>
-          ))}
+          {recipe.ingredients?.map((ingredient, index) => {
+            const inPantry = isIngredientInPantry(ingredient);
+            return (
+              <li key={index} className="flex items-start gap-3 text-sm">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs ${
+                  inPantry
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-[rgba(200,241,53,0.1)] text-[#c8f135]'
+                }`}>
+                  {inPantry ? '✓' : index + 1}
+                </span>
+                <span className={inPantry ? 'text-emerald-300' : 'text-[#bbb]'}>
+                  <strong>{ingredient.amount} {ingredient.unit}</strong> {ingredient.item}
+                  {ingredient.notes && <span className="text-[#888]"> ({ingredient.notes})</span>}
+                </span>
+                {inPantry && (
+                  <span className="text-[10px] text-emerald-500 font-medium ml-auto whitespace-nowrap">IN PANTRY</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
 
