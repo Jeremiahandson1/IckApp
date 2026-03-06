@@ -246,13 +246,17 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
           search: "uncured hot dogs organic", must_contain: ['hot dog', 'frank', 'wiener', 'uncured'],
           exclude: [] },
         { test: /frozen\s*pizza|pizza/i,
-          search: "organic frozen pizza", must_contain: ['pizza'] },
+          search: "organic frozen pizza", must_contain: ['pizza'],
+          exclude: ['roll', 'bite', 'sauce', 'cutter'] },
         { test: /popcorn/i,
-          search: "organic popcorn", must_contain: ['popcorn'] },
+          search: "organic popcorn", must_contain: ['popcorn'],
+          exclude: ['seasoning', 'topping', 'oil'] },
         { test: /pretzel/i,
-          search: "organic pretzels", must_contain: ['pretzel'] },
+          search: "organic pretzels", must_contain: ['pretzel'],
+          exclude: ['dip', 'mustard', 'cheese'] },
         { test: /oatmeal|oats/i,
-          search: "organic oats oatmeal", must_contain: ['oat'] },
+          search: "organic oats oatmeal", must_contain: ['oat'],
+          exclude: ['bar', 'cookie', 'milk'] },
       ];
 
       let matchedType = null;

@@ -487,7 +487,16 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
 // ============================================================
 async function searchOFF(type, product, excludeUpc) {
   const allCandidates = [];
+  const seenCodes = new Set(); // O(1) dedup instead of O(n) .some() scans
   const productWords = extractProductWords(product.name, product.brand);
+
+  const addCandidate = (p) => {
+    if (!p.code || p.code === excludeUpc || !p.product_name) return;
+    const code = String(p.code);
+    if (seenCodes.has(code)) return;
+    seenCodes.add(code);
+    allCandidates.push(p);
+  };
 
   // Strategy 1: Category-based search (most targeted)
   for (const category of type.off_categories.slice(0, 2)) {
@@ -513,12 +522,7 @@ async function searchOFF(type, product, excludeUpc) {
 
       if (res.ok) {
         const data = await res.json();
-        const products = data.products || [];
-        for (const p of products) {
-          if (!p.code || p.code === excludeUpc) continue;
-          if (!p.product_name) continue;
-          allCandidates.push(p);
-        }
+        for (const p of (data.products || [])) addCandidate(p);
       }
     } catch (e) {
       if (e.name !== 'AbortError') console.warn('OFF category search error:', e.message);
@@ -526,7 +530,6 @@ async function searchOFF(type, product, excludeUpc) {
   }
 
   // Strategy 2: Product-specific keyword search (most relevant)
-  // Use the actual product's flavor/subtype words for targeted results
   if (allCandidates.length < 10 && productWords.length > 0) {
     const specificTerms = productWords.slice(0, 3).join(' ') + ' organic';
     try {
@@ -550,12 +553,7 @@ async function searchOFF(type, product, excludeUpc) {
 
       if (res.ok) {
         const data = await res.json();
-        for (const p of (data.products || [])) {
-          if (!p.code || p.code === excludeUpc || !p.product_name) continue;
-          if (!allCandidates.some(c => c.code === p.code)) {
-            allCandidates.push(p);
-          }
-        }
+        for (const p of (data.products || [])) addCandidate(p);
       }
     } catch (e) {
       if (e.name !== 'AbortError') console.warn('OFF keyword search error:', e.message);
@@ -585,13 +583,7 @@ async function searchOFF(type, product, excludeUpc) {
 
       if (res.ok) {
         const data = await res.json();
-        for (const p of (data.products || [])) {
-          if (!p.code || p.code === excludeUpc || !p.product_name) continue;
-          // Dedup by code
-          if (!allCandidates.some(c => c.code === p.code)) {
-            allCandidates.push(p);
-          }
-        }
+        for (const p of (data.products || [])) addCandidate(p);
       }
     } catch (e) {
       if (e.name !== 'AbortError') console.warn('OFF generic search error:', e.message);
@@ -647,84 +639,91 @@ async function searchOFF(type, product, excludeUpc) {
 // ============================================================
 async function saveDiscoveries(candidates, type) {
   const saved = [];
+  const client = await pool.connect();
 
-  for (const p of candidates) {
-    try {
-      const upc = String(p.code).padStart(13, '0'); // normalize UPC
-      const ingredients = p.ingredients_text || '';
-      const brand = p.brands || 'Unknown';
-      const name = p.product_name || 'Unknown';
-      const imageUrl = p.image_url || null;
-      const category = p.categories_tags?.[0]?.replace('en:', '') || type.label;
-      const nutriscoreGrade = p.nutriscore_grade || null;
-      const novaGroup = p.nova_group || null;
-      const isOrganic = (p.labels_tags || []).some(l => l.includes('organic'));
-      const allergensTags = p.allergens_tags || [];
+  try {
+    await client.query('BEGIN');
 
-      // Build basic nutrition facts from OFF nutriments
-      const nm = p.nutriments || {};
-      const nutritionFacts = {
-        energy_kcal_100g: nm['energy-kcal_100g'] || null,
-        fat_100g: nm.fat_100g || null,
-        saturated_fat_100g: nm['saturated-fat_100g'] || null,
-        carbohydrates_100g: nm.carbohydrates_100g || null,
-        sugars_100g: nm.sugars_100g || null,
-        fiber_100g: nm.fiber_100g || null,
-        proteins_100g: nm.proteins_100g || null,
-        sodium_100g: nm.sodium_100g || null,
-      };
+    for (const p of candidates) {
+      try {
+        const upc = String(p.code).padStart(13, '0');
+        const ingredients = p.ingredients_text || '';
+        const brand = p.brands || 'Unknown';
+        const name = p.product_name || 'Unknown';
+        const imageUrl = p.image_url || null;
+        const category = p.categories_tags?.[0]?.replace('en:', '') || type.label;
+        const nutriscoreGrade = p.nutriscore_grade || null;
+        const novaGroup = p.nova_group || null;
+        const isOrganic = (p.labels_tags || []).some(l => l.includes('organic'));
+        const allergensTags = p.allergens_tags || [];
 
-      // Compute component scores for the generated total_score column
-      // total_score = ROUND(nutrition_score * 0.60 + additives_score * 0.30 + organic_bonus * 0.10)
-      const nutriscoreMap = { a: 90, b: 70, c: 50, d: 30, e: 10 };
-      const nutritionScore = nutriscoreMap[nutriscoreGrade?.toLowerCase()] || 50;
-      // NOVA group as proxy for additives: less processing = fewer additives
-      const novaAdditiveMap = { 1: 90, 2: 70, 3: 50, 4: 25 };
-      const additivesScore = novaAdditiveMap[novaGroup] || 50;
-      const organicBonusVal = isOrganic ? 100 : 0;
+        const nm = p.nutriments || {};
+        const nutritionFacts = {
+          energy_kcal_100g: nm['energy-kcal_100g'] || null,
+          fat_100g: nm.fat_100g || null,
+          saturated_fat_100g: nm['saturated-fat_100g'] || null,
+          carbohydrates_100g: nm.carbohydrates_100g || null,
+          sugars_100g: nm.sugars_100g || null,
+          fiber_100g: nm.fiber_100g || null,
+          proteins_100g: nm.proteins_100g || null,
+          sodium_100g: nm.sodium_100g || null,
+        };
 
-      const result = await pool.query(
-        `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
-         nutriscore_grade, nova_group, is_organic, allergens_tags, nutrition_facts,
-         nutrition_score, additives_score, organic_bonus,
-         swap_discovery_type, swap_discovered_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
-         ON CONFLICT (upc) DO UPDATE SET
-           name = COALESCE(NULLIF(EXCLUDED.name, 'Unknown'), products.name),
-           image_url = COALESCE(EXCLUDED.image_url, products.image_url),
-           nutriscore_grade = COALESCE(EXCLUDED.nutriscore_grade, products.nutriscore_grade),
-           nova_group = COALESCE(EXCLUDED.nova_group, products.nova_group),
-           is_organic = EXCLUDED.is_organic OR products.is_organic,
-           swap_discovery_type = EXCLUDED.swap_discovery_type,
-           swap_discovered_at = NOW(),
-           nutrition_score = CASE
-             WHEN products.nutrition_score != 50 THEN products.nutrition_score
-             ELSE EXCLUDED.nutrition_score
-           END,
-           additives_score = CASE
-             WHEN products.additives_score != 50 THEN products.additives_score
-             ELSE EXCLUDED.additives_score
-           END,
-           organic_bonus = GREATEST(EXCLUDED.organic_bonus, products.organic_bonus)
-         RETURNING *`,
-        [
-          upc, name, brand, category, imageUrl, ingredients,
-          nutriscoreGrade, novaGroup, isOrganic,
-          JSON.stringify(allergensTags), JSON.stringify(nutritionFacts),
-          nutritionScore, additivesScore, organicBonusVal, type.id
-        ]
-      );
+        const nutriscoreMap = { a: 90, b: 70, c: 50, d: 30, e: 10 };
+        const nutritionScore = nutriscoreMap[nutriscoreGrade?.toLowerCase()] || 50;
+        const novaAdditiveMap = { 1: 90, 2: 70, 3: 50, 4: 25 };
+        const additivesScore = novaAdditiveMap[novaGroup] || 50;
+        const organicBonusVal = isOrganic ? 100 : 0;
 
-      if (result.rows.length > 0) {
-        saved.push(result.rows[0]);
+        const result = await client.query(
+          `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
+           nutriscore_grade, nova_group, is_organic, allergens_tags, nutrition_facts,
+           nutrition_score, additives_score, organic_bonus,
+           swap_discovery_type, swap_discovered_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+           ON CONFLICT (upc) DO UPDATE SET
+             name = COALESCE(NULLIF(EXCLUDED.name, 'Unknown'), products.name),
+             image_url = COALESCE(EXCLUDED.image_url, products.image_url),
+             nutriscore_grade = COALESCE(EXCLUDED.nutriscore_grade, products.nutriscore_grade),
+             nova_group = COALESCE(EXCLUDED.nova_group, products.nova_group),
+             is_organic = EXCLUDED.is_organic OR products.is_organic,
+             swap_discovery_type = EXCLUDED.swap_discovery_type,
+             swap_discovered_at = NOW(),
+             nutrition_score = CASE
+               WHEN products.nutrition_score != 50 THEN products.nutrition_score
+               ELSE EXCLUDED.nutrition_score
+             END,
+             additives_score = CASE
+               WHEN products.additives_score != 50 THEN products.additives_score
+               ELSE EXCLUDED.additives_score
+             END,
+             organic_bonus = GREATEST(EXCLUDED.organic_bonus, products.organic_bonus)
+           RETURNING *`,
+          [
+            upc, name, brand, category, imageUrl, ingredients,
+            nutriscoreGrade, novaGroup, isOrganic,
+            JSON.stringify(allergensTags), JSON.stringify(nutritionFacts),
+            nutritionScore, additivesScore, organicBonusVal, type.id
+          ]
+        );
+
+        if (result.rows.length > 0) {
+          saved.push(result.rows[0]);
+        }
+      } catch (e) {
+        // Duplicate or constraint error — skip this candidate, continue with others
+        console.error('Swap discovery save error:', e.message);
       }
-    } catch (e) {
-      // Duplicate or constraint error — skip
-      console.error('Swap discovery save error:', e.message);
     }
+
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('Swap discovery transaction error:', e.message);
+  } finally {
+    client.release();
   }
 
-  // Return sorted by total_score desc
   return saved.sort((a, b) => (b.total_score || 0) - (a.total_score || 0));
 }
 
