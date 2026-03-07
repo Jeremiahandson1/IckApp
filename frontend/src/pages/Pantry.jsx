@@ -79,9 +79,9 @@ export default function Pantry() {
   }
 
   return (
-    <div className="pb-4">
+    <div className="px-4 pb-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 pt-2">
         <h1 className="text-xl font-bold text-[#f4f4f0]">My Pantry</h1>
         <div className="flex gap-2">
           <Link

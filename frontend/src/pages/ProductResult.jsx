@@ -135,13 +135,18 @@ export default function ProductResult() {
     return () => { cancelled = true; };
   }, [product?.total_score, product?.ingredients, upc]);
 
+  const [addingToPantry, setAddingToPantry] = useState(false);
   const handleAddToPantry = async () => {
+    if (addingToPantry || addedToPantry) return;
+    setAddingToPantry(true);
     try {
       await pantry.add({ upc, quantity: 1 });
       setAddedToPantry(true);
-      toast.success('Added to pantry');
+      toast.success('Added to pantry!');
     } catch (error) {
       toast.error('Failed to add to pantry');
+    } finally {
+      setAddingToPantry(false);
     }
   };
 
@@ -319,15 +324,17 @@ export default function ProductResult() {
           {user ? (
             <button
               onClick={handleAddToPantry}
-              disabled={addedToPantry}
+              disabled={addedToPantry || addingToPantry}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-sm font-semibold transition-colors ${
-                addedToPantry 
-                  ? 'bg-[rgba(200,241,53,0.1)] text-[#c8f135]' 
+                addedToPantry
+                  ? 'bg-[rgba(200,241,53,0.1)] text-[#c8f135]'
                   : 'bg-[#1e1e1e] text-[#ccc] active:bg-[#2a2a2a]'
-              }`}
+              } disabled:opacity-60`}
             >
-              {addedToPantry ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-              {addedToPantry ? 'In Pantry' : 'Add to Pantry'}
+              {addingToPantry ? (
+                <div className="w-5 h-5 border-2 border-[#c8f135] border-t-transparent rounded-full animate-spin" />
+              ) : addedToPantry ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+              {addingToPantry ? 'Adding...' : addedToPantry ? 'In Pantry' : 'Add to Pantry'}
             </button>
           ) : (
             <button
