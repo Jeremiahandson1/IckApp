@@ -90,9 +90,20 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 
+// Database readiness flag — starts false, set to true once initDatabase() completes
+let dbReady = false;
+
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({ status: dbReady ? 'healthy' : 'starting', dbReady, timestamp: new Date().toISOString() });
+});
+
+// Gate API routes until DB is initialized (return 503 while starting up)
+app.use('/api', (req, res, next) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: 'Server is starting up, please retry shortly' });
+  }
+  next();
 });
 
 // VAPID public key — frontend needs this to register for web push
@@ -153,73 +164,75 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Initialize database tables then start server
-initDatabase()
-  .then(async () => {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Ick API running on port ${PORT}`);
-    });
+// Bind port IMMEDIATELY so Render detects a listening service (avoids 5-min timeout)
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Ick API listening on port ${PORT} (DB init in progress…)`);
+});
 
-    // Apply curated swap mappings (100 top products get verified swaps_to)
+// Initialize database in the background — don't block port binding
+(async () => {
+  try {
+    await initDatabase();
+    dbReady = true;
+    console.log('✓ Database initialized — API routes are now live');
+  } catch (err) {
+    console.error('✗ Database initialization failed:', err);
+    // Server stays up returning 503 on /api via the gate middleware
+    return;
+  }
+
+  // --- Post-init background tasks (all non-fatal) ---
+
+  try {
+    const { seedCuratedSwaps } = await import('./db/seed-swaps.js');
+    await seedCuratedSwaps();
+  } catch (e) {
+    console.warn('⚠ Curated swaps seed skipped (non-fatal):', e.message);
+  }
+
+  try {
+    const { initCuratedAvailability } = await import('./services/curatedStores.js');
+    await initCuratedAvailability();
+  } catch (e) {
+    console.warn('⚠ Curated availability seed failed (non-fatal):', e.message);
+  }
+
+  setTimeout(async () => {
     try {
-      const { seedCuratedSwaps } = await import('./db/seed-swaps.js');
-      await seedCuratedSwaps();
-    } catch (e) {
-      console.warn('⚠ Curated swaps seed skipped (non-fatal):', e.message);
-    }
-
-    // Seed curated store availability (ground truth — always runs)
-    try {
-      const { initCuratedAvailability } = await import('./services/curatedStores.js');
-      await initCuratedAvailability();
-    } catch (e) {
-      console.warn('⚠ Curated availability seed failed (non-fatal):', e.message);
-    }
-
-    // Start flyer crawler (30s delay, then daily at 3AM UTC)
-    // Skip if products table is empty — nothing to crawl on a fresh deploy
-    setTimeout(async () => {
-      try {
-        const countResult = await pool.query('SELECT COUNT(*) FROM products WHERE total_score IS NOT NULL');
-        const productCount = parseInt(countResult.rows[0].count);
-        if (productCount === 0) {
-          console.log('▸ Flyer crawler skipped — no scored products in DB yet');
-          return;
-        }
-        const { startCrawlScheduler } = await import('./services/flyerCrawler.js');
-        startCrawlScheduler();
-        console.log(`▸ Flyer crawler scheduled (${productCount} products to crawl)`);
-      } catch (e) {
-        console.warn('⚠ Flyer crawler start failed (non-fatal):', e.message);
+      const countResult = await pool.query('SELECT COUNT(*) FROM products WHERE total_score IS NOT NULL');
+      const productCount = parseInt(countResult.rows[0].count);
+      if (productCount === 0) {
+        console.log('▸ Flyer crawler skipped — no scored products in DB yet');
+        return;
       }
-    }, 30000);
-
-    // Start velocity alert scheduler (5min delay, then daily)
-    try {
-      const { startVelocityAlertScheduler } = await import('./services/velocityAlerts.js');
-      startVelocityAlertScheduler();
+      const { startCrawlScheduler } = await import('./services/flyerCrawler.js');
+      startCrawlScheduler();
+      console.log(`▸ Flyer crawler scheduled (${productCount} products to crawl)`);
     } catch (e) {
-      console.warn('⚠ Velocity alert scheduler failed (non-fatal):', e.message);
+      console.warn('⚠ Flyer crawler start failed (non-fatal):', e.message);
     }
+  }, 30000);
 
-    // Daily maintenance cleanup — runs every 24 hours
-    setInterval(async () => {
-      try {
-        await pool.query(`
-          DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
-          DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
-          DELETE FROM refresh_tokens WHERE created_at < NOW() - INTERVAL '90 days';
-          DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '7 days';
-        `);
-        console.log('▸ Daily maintenance cleanup complete');
-      } catch (e) {
-        console.warn('⚠ Daily cleanup failed (non-fatal):', e.message);
-      }
-    }, 24 * 60 * 60 * 1000);
-  })
-  .catch((err) => {
-    console.error('Failed to initialize database:', err);
-    process.exit(1);
-  });
+  try {
+    const { startVelocityAlertScheduler } = await import('./services/velocityAlerts.js');
+    startVelocityAlertScheduler();
+  } catch (e) {
+    console.warn('⚠ Velocity alert scheduler failed (non-fatal):', e.message);
+  }
+
+  setInterval(async () => {
+    try {
+      await pool.query(`
+        DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days';
+        DELETE FROM scan_logs WHERE scanned_at < NOW() - INTERVAL '1 year';
+        DELETE FROM refresh_tokens WHERE created_at < NOW() - INTERVAL '90 days';
+        DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '7 days';
+      `);
+      console.log('▸ Daily maintenance cleanup complete');
+    } catch (e) {
+      console.warn('⚠ Daily cleanup failed (non-fatal):', e.message);
+    }
+  }, 24 * 60 * 60 * 1000);
+})();
 
 export default app;
