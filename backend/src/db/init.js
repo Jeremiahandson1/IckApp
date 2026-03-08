@@ -517,29 +517,17 @@ export async function initDatabase() {
     await pool.query(schema);
     console.log(`  schema created (${Date.now() - t0}ms)`);
 
-    // Step 2: All migrations + extra tables in ONE round trip
-    // Guard the ALTER COLUMN TYPE so it doesn't rewrite the table every startup
+    // Step 2: Lightweight column additions + extra tables (all IF NOT EXISTS / IF NOT EXISTS — no data rewrites)
     const t1 = Date.now();
     await pool.query(`
-      -- Add scoring columns
       ALTER TABLE products ADD COLUMN IF NOT EXISTS nutrition_score INT DEFAULT 50;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS additives_score INT DEFAULT 50;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS organic_bonus INT DEFAULT 0;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS allergens_tags JSONB DEFAULT '[]';
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
 
       ALTER TABLE harmful_ingredients ADD COLUMN IF NOT EXISTS source_url TEXT;
-
-      -- Only convert health_effects to TEXT if it isn't TEXT already
-      DO $$ BEGIN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'harmful_ingredients'
-            AND column_name = 'health_effects'
-            AND data_type <> 'text'
-        ) THEN
-          ALTER TABLE harmful_ingredients ALTER COLUMN health_effects TYPE TEXT USING health_effects::TEXT;
-        END IF;
-      END $$;
 
       ALTER TABLE users ADD COLUMN IF NOT EXISTS allergen_alerts JSONB DEFAULT '[]';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
@@ -571,9 +559,6 @@ export async function initDatabase() {
         END IF;
       END $$;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_online_links_upc_name ON online_links(upc, name);
-
-      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);
-      ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
 
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS price_paid DECIMAL(8,2);
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS store_name VARCHAR(255);
@@ -614,7 +599,6 @@ export async function initDatabase() {
       );
       CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
 
-      -- Ensure refresh_tokens.token_hash UNIQUE constraint
       DO $$ BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM pg_constraint
@@ -626,7 +610,6 @@ export async function initDatabase() {
         END IF;
       END $$;
 
-      -- Result cache
       CREATE TABLE IF NOT EXISTS result_cache (
         upc VARCHAR(20) NOT NULL,
         cache_type VARCHAR(30) NOT NULL,
@@ -635,7 +618,6 @@ export async function initDatabase() {
         PRIMARY KEY (upc, cache_type)
       );
 
-      -- Health condition tables
       CREATE TABLE IF NOT EXISTS conditions (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -667,7 +649,6 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_pcs_product ON product_condition_scores(product_id);
       CREATE INDEX IF NOT EXISTS idx_pcs_slug ON product_condition_scores(condition_slug);
 
-      -- Seed conditions (idempotent)
       INSERT INTO conditions (name, slug, description, sub_types) VALUES
         ('Thyroid Disease', 'thyroid', 'Scoring accounts for goitrogens, iodine content, and soy — with separate rules for hypo, hyper, and Hashimoto''s variants.', '["hypo","hyper","hashimotos"]'),
         ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, fiber content, and refined carbohydrate load to help manage blood glucose.', NULL),
@@ -677,35 +658,6 @@ export async function initDatabase() {
       ON CONFLICT (slug) DO NOTHING;
     `);
     console.log(`  migrations applied (${Date.now() - t1}ms)`);
-
-    // Step 3: Check if total_score needs migration (only round trip that can't be merged — conditional DDL)
-    const colCheck = await pool.query(`
-      SELECT pg_get_expr(adbin, adrelid) as expr
-      FROM pg_attrdef
-      JOIN pg_attribute ON pg_attribute.attnum = pg_attrdef.adnum
-        AND pg_attribute.attrelid = pg_attrdef.adrelid
-      WHERE pg_attribute.attrelid = 'products'::regclass
-        AND pg_attribute.attname = 'total_score'
-    `);
-
-    const currentExpr = colCheck.rows[0]?.expr || '';
-    if (currentExpr.includes('nutrition_score') || currentExpr.includes('additives_score') || currentExpr.includes('organic_bonus')) {
-      console.log('Migrating total_score to 5-dimension formula...');
-      await pool.query(`
-        ALTER TABLE products DROP COLUMN total_score;
-        ALTER TABLE products ADD COLUMN total_score INT GENERATED ALWAYS AS (
-          ROUND(
-            harmful_ingredients_score * 0.40 +
-            banned_elsewhere_score * 0.20 +
-            transparency_score * 0.15 +
-            processing_score * 0.15 +
-            company_behavior_score * 0.10
-          )
-        ) STORED;
-        CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score);
-      `);
-      console.log('  ✓ total_score migrated to 5-dimension formula');
-    }
 
     console.log(`Database initialized in ${Date.now() - t0}ms`);
   } catch (err) {
