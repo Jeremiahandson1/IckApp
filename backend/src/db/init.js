@@ -517,6 +517,33 @@ export async function initDatabase() {
     await pool.query(schema);
     console.log(`  schema created (${Date.now() - t0}ms)`);
 
+    // Ensure users.id has a PRIMARY KEY constraint.
+    // If the users table was created by old code (or a partial migration) without PK,
+    // CREATE TABLE IF NOT EXISTS silently skips it, leaving id without a unique
+    // constraint. Then every REFERENCES users(id) in later tables fails with:
+    //   "there is no unique constraint matching given keys for referenced table users"
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'users'::regclass AND contype = 'p'
+        ) THEN
+          ALTER TABLE users ADD PRIMARY KEY (id);
+        END IF;
+      END $$;
+    `);
+    // Same guard for products — many tables reference products(id)
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'products'::regclass AND contype = 'p'
+        ) THEN
+          ALTER TABLE products ADD PRIMARY KEY (id);
+        END IF;
+      END $$;
+    `);
+
     // Step 2: Lightweight column additions + extra tables (all IF NOT EXISTS / IF NOT EXISTS — no data rewrites)
     const t1 = Date.now();
     await pool.query(`
