@@ -6,7 +6,7 @@ import {
   ShieldAlert, Check, ExternalLink, Apple, Heart, Share2,
   UtensilsCrossed, ShoppingCart
 } from 'lucide-react';
-import { products, pantry, swaps as swapsApi, recipes as recipesApi } from '../utils/api';
+import { products, pantry, swaps as swapsApi, recipes as recipesApi, conditions as conditionsApi } from '../utils/api';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -40,6 +40,14 @@ export default function ProductResult() {
       try { return JSON.parse(localStorage.getItem('ick_allergens') || '[]'); } catch { return []; }
     })()
   );
+
+  // Condition scoring
+  const [conditionViewOn, setConditionViewOn] = useState(() => {
+    try { return localStorage.getItem('ick_condition_view') === 'on'; } catch { return false; }
+  });
+  const [conditionScores, setConditionScores] = useState([]);
+  const [userConditions, setUserConditions] = useState([]);
+  const [conditionLoading, setConditionLoading] = useState(false);
 
   // Reset state and fetch full product data whenever UPC changes (e.g. tapping an alternative)
   useEffect(() => {
@@ -123,6 +131,34 @@ export default function ProductResult() {
     } catch (error) {
       console.error('Error fetching swaps:', error);
     }
+  };
+
+  // Load user conditions once
+  useEffect(() => {
+    if (!user) return;
+    conditionsApi.getUserConditions().then(setUserConditions).catch(() => {});
+  }, [user]);
+
+  // Fetch condition scores when toggle is on and product is loaded
+  useEffect(() => {
+    if (!conditionViewOn || !product?.id || userConditions.length === 0) {
+      setConditionScores([]);
+      return;
+    }
+    let cancelled = false;
+    setConditionLoading(true);
+    const param = userConditions.map(uc => uc.sub_type ? `${uc.slug}:${uc.sub_type}` : uc.slug).join(',');
+    conditionsApi.scoreProduct(product.id, param)
+      .then(data => { if (!cancelled) setConditionScores(data.conditionScores || []); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setConditionLoading(false); });
+    return () => { cancelled = true; };
+  }, [conditionViewOn, product?.id, userConditions]);
+
+  const toggleConditionView = () => {
+    const next = !conditionViewOn;
+    setConditionViewOn(next);
+    localStorage.setItem('ick_condition_view', next ? 'on' : 'off');
   };
 
   // Fetch Spoonacular "Make It Yourself" recipes when score is bad
@@ -269,6 +305,78 @@ export default function ProductResult() {
         <ScoreRing score={product.total_score} name={product.name} />
       </div>
 
+      {/* Condition View Toggle + Scores */}
+      {user && (
+        <div className="px-4 mt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-[#888]" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '2px', textTransform: 'uppercase' }}>
+              Condition View
+            </span>
+            <button
+              onClick={toggleConditionView}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                conditionViewOn ? 'bg-[#c8f135]' : 'bg-[#333]'
+              }`}
+            >
+              <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${
+                conditionViewOn ? 'translate-x-7 bg-[#0d0d0d]' : 'translate-x-1 bg-[#888]'
+              }`} />
+            </button>
+          </div>
+
+          {conditionViewOn && userConditions.length === 0 && (
+            <div className="bg-[#1e1e1e] rounded-sm p-3 text-center">
+              <p className="text-sm text-[#888]">No health conditions set.</p>
+              <button
+                onClick={() => navigate('/profile')}
+                className="text-xs text-[#c8f135] font-medium mt-1"
+              >
+                Set conditions in your profile →
+              </button>
+            </div>
+          )}
+
+          {conditionViewOn && userConditions.length > 0 && (
+            <div className="space-y-2">
+              {/* Score pills */}
+              <div className="flex flex-wrap gap-2">
+                <div className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${
+                  product.total_score >= 75 ? 'bg-green-500/10 text-green-400' :
+                  product.total_score >= 50 ? 'bg-amber-500/10 text-amber-400' :
+                  product.total_score >= 25 ? 'bg-orange-500/10 text-orange-400' :
+                  'bg-red-500/10 text-red-400'
+                }`}>
+                  Normal: {Math.round(product.total_score ?? 0)}
+                </div>
+                {conditionLoading ? (
+                  <div className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm text-[#888]">
+                    Scoring...
+                  </div>
+                ) : conditionScores.map(cs => {
+                  const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
+                  const scoreColor = cs.score >= 75 ? 'bg-green-500/10 text-green-400' :
+                    cs.score >= 50 ? 'bg-amber-500/10 text-amber-400' :
+                    cs.score >= 25 ? 'bg-orange-500/10 text-orange-400' :
+                    'bg-red-500/10 text-red-400';
+                  return (
+                    <div key={cs.slug} className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${scoreColor}`}>
+                      {CONDITION_ICONS[cs.slug] || ''} {cs.label}: {cs.score}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Expandable flags per condition */}
+              {!conditionLoading && conditionScores.map(cs => (
+                cs.flags.length > 0 && (
+                  <ConditionFlagsSection key={cs.slug} conditionScore={cs} />
+                )
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Inline Swap Preview — show immediately, don't bury */}
       {!isClean && swapOptions.length > 0 && (
         <div className="px-4 mt-3">
@@ -406,7 +514,7 @@ export default function ProductResult() {
         );
       })()}
 
-      {/* Score Breakdown — the 3 real dimensions */}
+      {/* Score Breakdown — 5 dimensions */}
       {(() => {
         const explanation = getScoreExplanation(product);
         return (
@@ -423,26 +531,39 @@ export default function ProductResult() {
 
               <div className="space-y-4">
                 <ScoreItem
-                  icon={Apple}
-                  label="Nutritional Quality"
-                  score={product.nutrition_score ?? 50}
-                  weight="60%"
-                  detail={explanation.nutrition_detail
-                    || (product.nutriscore_grade ? `Nutri-Score ${product.nutriscore_grade.toUpperCase()}` : null)}
+                  icon={ShieldAlert}
+                  label="Harmful Ingredients"
+                  score={product.harmful_ingredients_score ?? 50}
+                  weight="40%"
+                  detail={explanation.harmful_detail}
+                />
+                <ScoreItem
+                  icon={AlertTriangle}
+                  label="Banned Elsewhere"
+                  score={product.banned_elsewhere_score ?? 50}
+                  weight="20%"
+                  detail={explanation.banned_detail}
+                />
+                <ScoreItem
+                  icon={Info}
+                  label="Transparency"
+                  score={product.transparency_score ?? 50}
+                  weight="15%"
+                  detail={explanation.transparency_detail}
                 />
                 <ScoreItem
                   icon={Beaker}
-                  label="Additives"
-                  score={product.additives_score ?? 50}
-                  weight="30%"
-                  detail={explanation.additive_detail}
+                  label="Processing"
+                  score={product.processing_score ?? 50}
+                  weight="15%"
+                  detail={explanation.processing_detail}
                 />
                 <ScoreItem
-                  icon={Leaf}
-                  label="Organic Bonus"
-                  score={product.organic_bonus ?? 0}
+                  icon={ShoppingCart}
+                  label="Company Behavior"
+                  score={product.company_behavior_score ?? 50}
                   weight="10%"
-                  detail={product.is_organic ? 'Certified organic' : 'Not organic'}
+                  detail={explanation.company_detail}
                 />
               </div>
             </div>
@@ -844,6 +965,46 @@ function SpoonacularRecipeCard({ recipe }) {
               {ing.is_from_product && !ing.in_pantry && (
                 <span className="text-[10px] text-violet-400 font-medium ml-auto">IN PRODUCT</span>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConditionFlagsSection({ conditionScore }) {
+  const [expanded, setExpanded] = useState(false);
+  const cs = conditionScore;
+  const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
+  const SEVERITY_ICONS = { good: '\u2705', warn: '\u26A0\uFE0F', avoid: '\uD83D\uDEAB' };
+
+  return (
+    <div className="bg-[#111] rounded-sm overflow-hidden border border-[#2a2a2a]">
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between p-3 text-left">
+        <div className="flex items-center gap-2">
+          <span>{CONDITION_ICONS[cs.slug] || ''}</span>
+          <span className="text-sm font-medium text-[#ccc]">
+            Why this {cs.label} score?
+          </span>
+        </div>
+        {expanded ? <ChevronUp className="w-4 h-4 text-[#888]" /> : <ChevronDown className="w-4 h-4 text-[#888]" />}
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2 border-t border-[#2a2a2a] pt-2">
+          {cs.flags.map((flag, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="text-sm flex-shrink-0 mt-0.5">{SEVERITY_ICONS[flag.severity] || ''}</span>
+              <div className="min-w-0">
+                <p className={`text-sm font-medium ${
+                  flag.severity === 'avoid' ? 'text-red-400' :
+                  flag.severity === 'warn' ? 'text-amber-400' :
+                  'text-green-400'
+                }`}>
+                  {flag.ingredient || flag.nutrient || ''}
+                </p>
+                <p className="text-xs text-[#888]">{flag.reason}</p>
+              </div>
             </div>
           ))}
         </div>

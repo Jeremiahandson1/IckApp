@@ -1,15 +1,18 @@
 import pool from '../db/init.js';
 
 /**
- * Ick Scoring Engine v2
- * 
- * Aligned with Yuka methodology:
- *   Nutrition:  60%  (Nutri-Score / nutritional data)
- *   Additives:  30%  (harmful ingredient detection)
- *   Organic:    10%  (organic certification bonus)
+ * Ick Scoring Engine — 5-Dimension Model
  *
- * Key rule: if any high-risk additive (severity >= 8) is present,
- * additives_score is capped at 25 — matching Yuka's cap at 49/100.
+ * | Dimension             | Weight | Column                     |
+ * |-----------------------|--------|----------------------------|
+ * | Harmful Ingredients   | 40%    | harmful_ingredients_score  |
+ * | Banned Elsewhere      | 20%    | banned_elsewhere_score     |
+ * | Transparency          | 15%    | transparency_score         |
+ * | Processing            | 15%    | processing_score           |
+ * | Company Behavior      | 10%    | company_behavior_score     |
+ *
+ * total_score = weighted sum of the 5 above (computed column in DB).
+ * Nutri-Score and NOVA are stored for display only — they do NOT drive total_score.
  */
 
 // ============================================================
@@ -41,66 +44,7 @@ async function getCompanies() {
 }
 
 // ============================================================
-// NUTRI-SCORE
-// ============================================================
-
-/** Convert Nutri-Score grade (a-e) to 0-100 */
-function nutriscoreGradeToScore(grade) {
-  if (!grade) return null;
-  const map = { a: 95, b: 75, c: 50, d: 25, e: 10 };
-  return map[grade.toLowerCase()] ?? null;
-}
-
-/**
- * Compute nutrition score from raw nutrient values (per 100g).
- * Simplified Nutri-Score: negative points for energy/sugar/satfat/sodium,
- * positive points for fiber/protein.
- */
-function computeNutritionFromNutrients(nutriments) {
-  if (!nutriments) return null;
-
-  const energy = nutriments.energy_kcal_100g ?? nutriments['energy-kcal_100g'] ?? null;
-  const sugars = nutriments.sugars_100g ?? null;
-  const satFat = nutriments['saturated-fat_100g'] ?? nutriments.saturated_fat_100g ?? null;
-  const sodium = nutriments.sodium_100g ?? null;
-  const fiber = nutriments.fiber_100g ?? null;
-  const protein = nutriments.proteins_100g ?? null;
-
-  // Need at least 3 of the 4 negative components
-  let dataPoints = 0;
-  if (energy !== null) dataPoints++;
-  if (sugars !== null) dataPoints++;
-  if (satFat !== null) dataPoints++;
-  if (sodium !== null) dataPoints++;
-  if (dataPoints < 3) return null;
-
-  // Negative points (each 0-10)
-  const energyPts = energy !== null ? Math.min(10, Math.floor(energy / 335)) : 5;
-  const sugarPts = sugars !== null ? Math.min(10, Math.floor(sugars / 4.5)) : 5;
-  const satFatPts = satFat !== null ? Math.min(10, Math.floor(satFat / 1)) : 5;
-  const sodiumPts = sodium !== null ? Math.min(10, Math.floor((sodium * 1000) / 90)) : 5;
-
-  // Positive points (each 0-5)
-  const fiberPts = fiber !== null ? Math.min(5, Math.floor(fiber / 0.9)) : 0;
-  const proteinPts = protein !== null ? Math.min(5, Math.floor(protein / 1.6)) : 0;
-
-  const negativeTotal = energyPts + sugarPts + satFatPts + sodiumPts; // 0-40
-  const positiveTotal = fiberPts + proteinPts; // 0-10
-  const rawScore = negativeTotal - positiveTotal; // -10 to 40
-
-  // Map to 0-100 (lower raw = better)
-  return Math.max(0, Math.min(100, Math.round(100 - (rawScore + 10) * 2)));
-}
-
-/** Adjust nutrition score based on NOVA processing group */
-function adjustForNova(nutritionScore, novaGroup) {
-  if (!novaGroup || nutritionScore === null) return nutritionScore;
-  const adj = { 1: 5, 2: 0, 3: -5, 4: -10 };
-  return Math.max(0, Math.min(100, nutritionScore + (adj[novaGroup] ?? 0)));
-}
-
-// ============================================================
-// ADDITIVE MATCHING
+// SHARED HELPERS
 // ============================================================
 
 function matchesIngredient(ingredientsLower, term) {
@@ -108,7 +52,15 @@ function matchesIngredient(ingredientsLower, term) {
   return new RegExp(`\\b${escaped}\\b`, 'i').test(ingredientsLower);
 }
 
-async function computeAdditivesScore(ingredientsText) {
+function clamp(val) {
+  return Math.max(0, Math.min(100, Math.round(val)));
+}
+
+// ============================================================
+// DIMENSION 1: HARMFUL INGREDIENTS (40%)
+// ============================================================
+
+async function computeHarmfulIngredientsScore(ingredientsText) {
   if (!ingredientsText || ingredientsText.length < 3) {
     return { score: 75, found: [] };
   }
@@ -149,7 +101,7 @@ async function computeAdditivesScore(ingredientsText) {
     penalty += f.severity * 4 * (1 / (1 + i * 0.3));
   });
 
-  let score = Math.max(0, Math.min(100, Math.round(100 - penalty)));
+  let score = clamp(100 - penalty);
 
   // Cap rule: high-risk additive → max 25; medium-risk → max 55
   if (found.some(f => f.severity >= 8)) score = Math.min(score, 25);
@@ -159,18 +111,180 @@ async function computeAdditivesScore(ingredientsText) {
 }
 
 // ============================================================
-// ORGANIC & ALLERGENS
+// DIMENSION 2: BANNED ELSEWHERE (20%)
 // ============================================================
 
+function computeBannedElsewhereScore(harmfulFound) {
+  if (!harmfulFound || harmfulFound.length === 0) return 100;
+
+  const bannedIngredients = harmfulFound.filter(h => {
+    const bans = Array.isArray(h.banned_in) ? h.banned_in : [];
+    return bans.length > 0;
+  });
+
+  if (bannedIngredients.length === 0) return 100;
+
+  // Each banned ingredient deducts points based on how many countries banned it
+  let penalty = 0;
+  for (const h of bannedIngredients) {
+    const banCount = h.banned_in.length;
+    // More bans = worse. 1 ban = -10, 2 = -18, 3+ = -25 per ingredient
+    const ingredientPenalty = banCount >= 3 ? 25 : banCount >= 2 ? 18 : 10;
+    // Scale by severity
+    penalty += ingredientPenalty * (h.severity / 10);
+  }
+
+  return clamp(100 - penalty);
+}
+
+// ============================================================
+// DIMENSION 3: TRANSPARENCY (15%)
+// ============================================================
+
+function computeTransparencyScore(opts) {
+  const { ingredients, nutriments, allergens_tags, image_url, brand, nutriscore_grade } = opts;
+  let score = 0;
+
+  // Has ingredients listed? (+35)
+  if (ingredients && ingredients.length > 10) score += 35;
+  else if (ingredients && ingredients.length > 0) score += 15;
+
+  // Has nutrition data? (+30)
+  if (nutriments) {
+    let nutrientCount = 0;
+    const n = nutriments;
+    if (n.energy_kcal_100g != null || n['energy-kcal_100g'] != null) nutrientCount++;
+    if (n.fat_100g != null) nutrientCount++;
+    if (n['saturated-fat_100g'] != null || n.saturated_fat_100g != null) nutrientCount++;
+    if (n.sugars_100g != null) nutrientCount++;
+    if (n.fiber_100g != null) nutrientCount++;
+    if (n.proteins_100g != null) nutrientCount++;
+    if (n.sodium_100g != null) nutrientCount++;
+
+    if (nutrientCount >= 5) score += 30;
+    else if (nutrientCount >= 3) score += 20;
+    else if (nutrientCount >= 1) score += 10;
+  }
+
+  // Has allergen data? (+10)
+  if (allergens_tags && allergens_tags.length > 0) score += 10;
+
+  // Has image? (+10)
+  if (image_url) score += 10;
+
+  // Has brand? (+5)
+  if (brand && brand !== 'Unknown Brand' && brand !== 'Unknown') score += 5;
+
+  // Has Nutri-Score grade? (+10)
+  if (nutriscore_grade) score += 10;
+
+  return clamp(score);
+}
+
+// ============================================================
+// DIMENSION 4: PROCESSING (15%)
+// ============================================================
+
+function computeProcessingScore(opts) {
+  const { nova_group, ingredients } = opts;
+
+  // If we have NOVA group, use it directly
+  if (nova_group) {
+    const novaScores = { 1: 95, 2: 75, 3: 45, 4: 15 };
+    let score = novaScores[nova_group] ?? 50;
+
+    // Fine-tune within NOVA 4 based on ingredients
+    if (nova_group === 4 && ingredients) {
+      const il = ingredients.toLowerCase();
+      const ultraMarkers = [
+        'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
+        'modified starch', 'maltodextrin', 'dextrose', 'artificial flavor',
+        'artificial colour', 'artificial color', 'sodium benzoate',
+        'potassium sorbate', 'polysorbate', 'carrageenan',
+        'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
+      ];
+      const markerCount = ultraMarkers.filter(m => il.includes(m)).length;
+      // More markers = even worse within NOVA 4
+      if (markerCount >= 4) score = 5;
+      else if (markerCount >= 2) score = 10;
+    }
+
+    return clamp(score);
+  }
+
+  // No NOVA group — estimate from ingredients
+  if (!ingredients || ingredients.length < 3) return 50;
+
+  const il = ingredients.toLowerCase();
+  const ultraMarkers = [
+    'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
+    'modified starch', 'maltodextrin', 'dextrose', 'artificial flavor',
+    'artificial colour', 'artificial color', 'sodium benzoate',
+    'potassium sorbate', 'polysorbate', 'carrageenan',
+    'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
+    'mono and diglycerides', 'soy lecithin', 'xanthan gum',
+    'cellulose', 'propylene glycol',
+  ];
+
+  const markerCount = ultraMarkers.filter(m => il.includes(m)).length;
+
+  if (markerCount >= 5) return 10;
+  if (markerCount >= 3) return 25;
+  if (markerCount >= 2) return 40;
+  if (markerCount >= 1) return 55;
+
+  // Count total ingredient count as a proxy
+  const commaCount = (ingredients.match(/,/g) || []).length;
+  if (commaCount > 20) return 35;
+  if (commaCount > 12) return 55;
+  if (commaCount > 5) return 70;
+  return 85;
+}
+
+// ============================================================
+// DIMENSION 5: COMPANY BEHAVIOR (10%)
+// ============================================================
+
+function computeCompanyBehaviorScore(brand, companies) {
+  const company = matchCompany(brand, companies);
+  if (!company) return 50; // Unknown company = neutral
+
+  // Use the behavior_score from the companies table (0-100)
+  if (company.behavior_score != null) {
+    return clamp(company.behavior_score);
+  }
+
+  // If no behavior_score, check controversies
+  if (company.controversies) {
+    const controversies = typeof company.controversies === 'string'
+      ? company.controversies : JSON.stringify(company.controversies);
+    if (controversies.length > 200) return 25;
+    if (controversies.length > 50) return 40;
+  }
+
+  return 50;
+}
+
+// ============================================================
+// DISPLAY-ONLY: Nutri-Score, NOVA, Organic, Allergens, Nutrition Facts
+// ============================================================
+
+/** Convert Nutri-Score grade (a-e) to 0-100 — for display only */
+function nutriscoreGradeToScore(grade) {
+  if (!grade) return null;
+  const map = { a: 95, b: 75, c: 50, d: 25, e: 10 };
+  return map[grade.toLowerCase()] ?? null;
+}
+
 function detectOrganic(labelsArr, isOrganic) {
-  if (isOrganic) return 100;
-  if (!labelsArr || !Array.isArray(labelsArr)) return 0;
+  if (isOrganic) return true;
+  if (!labelsArr || !Array.isArray(labelsArr)) return false;
   const kw = ['en:organic', 'en:usda-organic', 'en:eu-organic', 'en:ab-agriculture-biologique', 'fr:bio'];
   for (const label of labelsArr) {
     const lower = (typeof label === 'string') ? label.toLowerCase() : '';
-    if (kw.some(k => lower.includes(k))) return 100;
+    if (kw.some(k => lower.includes(k))) return true;
   }
-  return 0;
+  return false;
 }
 
 function extractAllergens(allergenTags) {
@@ -195,7 +309,7 @@ function extractAllergens(allergenTags) {
 }
 
 // ============================================================
-// COMPANY MATCHING (for display only)
+// COMPANY MATCHING
 // ============================================================
 
 function matchCompany(brand, companies) {
@@ -224,41 +338,45 @@ function matchCompany(brand, companies) {
  * @param {Object} opts
  * @param {string} opts.ingredients
  * @param {string} opts.brand
- * @param {string} opts.nutriscore_grade  - a-e from OFF
+ * @param {string} opts.nutriscore_grade  - a-e from OFF (display only)
  * @param {number} opts.nova_group        - 1-4 from OFF
  * @param {Object} opts.nutriments        - Raw nutrient values from OFF
  * @param {Array}  opts.labels            - Label tags from OFF
  * @param {Array}  opts.allergens_tags    - Allergen tags from OFF
  * @param {boolean} opts.is_organic
+ * @param {string} opts.image_url
  */
 export async function scoreProduct(opts = {}) {
   const {
     ingredients = '', brand = '', nutriscore_grade = null,
     nova_group = null, nutriments = null, labels = [],
-    allergens_tags = [], is_organic = false,
+    allergens_tags = [], is_organic = false, image_url = null,
   } = opts;
 
   const companies = await getCompanies();
 
-  // ── 1. NUTRITION SCORE (60%) ──
-  let nutritionScore = nutriscoreGradeToScore(nutriscore_grade);
-  if (nutritionScore === null && nutriments) {
-    nutritionScore = computeNutritionFromNutrients(nutriments);
-  }
-  if (nutritionScore === null) nutritionScore = 50;
-  nutritionScore = adjustForNova(nutritionScore, nova_group);
+  // ── DIMENSION 1: Harmful Ingredients (40%) ──
+  const { score: harmfulIngredientsScore, found: harmfulFound } =
+    await computeHarmfulIngredientsScore(ingredients);
 
-  // ── 2. ADDITIVES SCORE (30%) ──
-  const { score: additivesScore, found: harmfulFound } = await computeAdditivesScore(ingredients);
+  // ── DIMENSION 2: Banned Elsewhere (20%) ──
+  const bannedElsewhereScore = computeBannedElsewhereScore(harmfulFound);
 
-  // ── 3. ORGANIC BONUS (10%) ──
-  const organicBonus = detectOrganic(labels, is_organic);
+  // ── DIMENSION 3: Transparency (15%) ──
+  const transparencyScore = computeTransparencyScore({
+    ingredients, nutriments, allergens_tags, image_url, brand, nutriscore_grade,
+  });
 
-  // ── Company (display only) ──
+  // ── DIMENSION 4: Processing (15%) ──
+  const processingScore = computeProcessingScore({ nova_group, ingredients });
+
+  // ── DIMENSION 5: Company Behavior (10%) ──
+  const companyBehaviorScore = computeCompanyBehaviorScore(brand, companies);
+
+  // ── Display-only data ──
   const company = matchCompany(brand, companies);
-
-  // ── Allergens ──
   const allergens = extractAllergens(allergens_tags);
+  const isOrganic = detectOrganic(labels, is_organic);
 
   // ── Nutrition facts for display ──
   const nutritionFacts = {};
@@ -275,27 +393,28 @@ export async function scoreProduct(opts = {}) {
     if (n.proteins_100g != null) nutritionFacts.protein = Math.round(n.proteins_100g * 10) / 10;
     if (n.sodium_100g != null) nutritionFacts.sodium = Math.round(n.sodium_100g * 1000);
     if (n.salt_100g != null) nutritionFacts.salt = Math.round(n.salt_100g * 10) / 10;
+    const tf = n['trans-fat_100g'] ?? n.trans_fat_100g;
+    if (tf != null) nutritionFacts.trans_fat = Math.round(tf * 10) / 10;
+    if (n.potassium_100g != null) nutritionFacts.potassium = Math.round(n.potassium_100g);
+    if (n.added_sugars_100g != null) nutritionFacts.added_sugars = Math.round(n.added_sugars_100g * 10) / 10;
   }
 
   return {
-    // New scoring model
-    nutrition_score: nutritionScore,
-    additives_score: additivesScore,
-    organic_bonus: organicBonus,
+    // 5-dimension scores (these drive total_score via DB generated column)
+    harmful_ingredients_score: harmfulIngredientsScore,
+    banned_elsewhere_score: bannedElsewhereScore,
+    transparency_score: transparencyScore,
+    processing_score: processingScore,
+    company_behavior_score: companyBehaviorScore,
 
     // Data
     harmful_ingredients_found: harmfulFound,
     nutrition_facts: nutritionFacts,
     nutriscore_grade: nutriscore_grade || null,
     nova_group: nova_group || null,
-    is_organic: organicBonus > 0,
+    is_organic: isOrganic,
     allergens_tags: allergens,
     company_name: company?.name || null,
     company_controversies: company?.controversies || null,
   };
-}
-
-/** Backward-compatible wrapper for old 3-arg call sites */
-export async function scoreProductLegacy(ingredients, brand, category) {
-  return scoreProduct({ ingredients, brand });
 }

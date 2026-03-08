@@ -675,18 +675,18 @@ async function saveDiscoveries(candidates, type) {
           sodium_100g: nm.sodium_100g || null,
         };
 
-        const nutriscoreMap = { a: 95, b: 75, c: 50, d: 25, e: 10 };
-        const nutritionScore = nutriscoreMap[nutriscoreGrade?.toLowerCase()] || 50;
-        const novaAdditiveMap = { 1: 90, 2: 70, 3: 50, 4: 25 };
-        const additivesScore = novaAdditiveMap[novaGroup] || 50;
-        const organicBonusVal = isOrganic ? 100 : 0;
+        // Estimate 5-dimension scores for swap discovery
+        const novaProcessingMap = { 1: 95, 2: 75, 3: 45, 4: 15 };
+        const estProcessing = novaProcessingMap[novaGroup] || 50;
+        // Quick transparency estimate
+        const estTransparency = (ingredients.length > 10 ? 35 : 0) + (nutriscoreGrade ? 10 : 0) + (imageUrl ? 10 : 0) + 15;
 
         const result = await client.query(
           `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
            nutriscore_grade, nova_group, is_organic, allergens_tags, nutrition_facts,
-           nutrition_score, additives_score, organic_bonus,
+           processing_score, transparency_score,
            swap_discovery_type, swap_discovered_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
            ON CONFLICT (upc) DO UPDATE SET
              name = COALESCE(NULLIF(EXCLUDED.name, 'Unknown'), products.name),
              image_url = COALESCE(EXCLUDED.image_url, products.image_url),
@@ -695,21 +695,20 @@ async function saveDiscoveries(candidates, type) {
              is_organic = EXCLUDED.is_organic OR products.is_organic,
              swap_discovery_type = EXCLUDED.swap_discovery_type,
              swap_discovered_at = NOW(),
-             nutrition_score = CASE
-               WHEN products.nutrition_score != 50 THEN products.nutrition_score
-               ELSE EXCLUDED.nutrition_score
+             processing_score = CASE
+               WHEN products.processing_score != 50 THEN products.processing_score
+               ELSE EXCLUDED.processing_score
              END,
-             additives_score = CASE
-               WHEN products.additives_score != 50 THEN products.additives_score
-               ELSE EXCLUDED.additives_score
-             END,
-             organic_bonus = GREATEST(EXCLUDED.organic_bonus, products.organic_bonus)
+             transparency_score = CASE
+               WHEN products.transparency_score != 50 THEN products.transparency_score
+               ELSE EXCLUDED.transparency_score
+             END
            RETURNING *`,
           [
             upc, name, brand, category, imageUrl, ingredients,
             nutriscoreGrade, novaGroup, isOrganic,
             JSON.stringify(allergensTags), JSON.stringify(nutritionFacts),
-            nutritionScore, additivesScore, organicBonusVal, type.id
+            estProcessing, estTransparency, type.id
           ]
         );
 

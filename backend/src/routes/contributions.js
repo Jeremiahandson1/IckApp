@@ -55,23 +55,27 @@ router.put('/:id/approve', async (req, res) => {
 
     await pool.query(
       `INSERT INTO products (upc, name, brand, ingredients,
-         nutrition_score, additives_score, organic_bonus,
+         harmful_ingredients_score, banned_elsewhere_score, transparency_score, processing_score, company_behavior_score,
          harmful_ingredients_found, nutrition_facts, allergens_tags)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (upc) DO UPDATE SET
          name = COALESCE(EXCLUDED.name, products.name),
          brand = COALESCE(EXCLUDED.brand, products.brand),
          ingredients = COALESCE(EXCLUDED.ingredients, products.ingredients),
-         nutrition_score = COALESCE(EXCLUDED.nutrition_score, products.nutrition_score),
-         additives_score = COALESCE(EXCLUDED.additives_score, products.additives_score),
-         organic_bonus = COALESCE(EXCLUDED.organic_bonus, products.organic_bonus),
+         harmful_ingredients_score = COALESCE(EXCLUDED.harmful_ingredients_score, products.harmful_ingredients_score),
+         banned_elsewhere_score = COALESCE(EXCLUDED.banned_elsewhere_score, products.banned_elsewhere_score),
+         transparency_score = COALESCE(EXCLUDED.transparency_score, products.transparency_score),
+         processing_score = COALESCE(EXCLUDED.processing_score, products.processing_score),
+         company_behavior_score = COALESCE(EXCLUDED.company_behavior_score, products.company_behavior_score),
          harmful_ingredients_found = COALESCE(EXCLUDED.harmful_ingredients_found, products.harmful_ingredients_found),
-         image_url = COALESCE($11, products.image_url)`,
+         image_url = COALESCE($13, products.image_url)`,
       [
         c.upc, c.name, c.brand, c.ingredients_text,
-        scores?.nutrition_score ?? 50,
-        scores?.additives_score ?? 50,
-        scores?.organic_bonus ?? 0,
+        scores?.harmful_ingredients_score ?? 50,
+        scores?.banned_elsewhere_score ?? 50,
+        scores?.transparency_score ?? 50,
+        scores?.processing_score ?? 50,
+        scores?.company_behavior_score ?? 50,
         scores?.harmful_ingredients_found ? JSON.stringify(scores.harmful_ingredients_found) : '[]',
         scores?.nutrition_facts ? JSON.stringify(scores.nutrition_facts) : '{}',
         scores?.allergens_tags ? JSON.stringify(scores.allergens_tags) : '[]',

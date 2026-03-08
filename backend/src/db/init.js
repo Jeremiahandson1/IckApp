@@ -90,21 +90,27 @@ export async function initDatabase() {
       subcategory VARCHAR(100),
       image_url TEXT,
       
-      -- OLD scoring components (kept for backward compat, no longer in total_score formula)
+      -- 5-dimension scoring model
       harmful_ingredients_score INT DEFAULT 50,
       banned_elsewhere_score INT DEFAULT 50,
       transparency_score INT DEFAULT 50,
       processing_score INT DEFAULT 50,
       company_behavior_score INT DEFAULT 50,
-      
-      -- NEW scoring model: Nutrition 60% + Additives 30% + Organic 10%
+
+      -- Legacy columns (kept for backward compat, not used in total_score)
       nutrition_score INT DEFAULT 50,
       additives_score INT DEFAULT 50,
       organic_bonus INT DEFAULT 0,
-      
-      -- Final weighted score (Yuka-aligned: nutrition 60%, additives 30%, organic 10%)
+
+      -- Final weighted score: 5-dimension model
       total_score INT GENERATED ALWAYS AS (
-        ROUND(nutrition_score * 0.60 + additives_score * 0.30 + organic_bonus * 0.10)
+        ROUND(
+          harmful_ingredients_score * 0.40 +
+          banned_elsewhere_score * 0.20 +
+          transparency_score * 0.15 +
+          processing_score * 0.15 +
+          company_behavior_score * 0.10
+        )
       ) STORED,
       
       -- Raw data
@@ -634,8 +640,7 @@ export async function initDatabase() {
       END $$;
     `);
 
-    // Check if total_score still uses old formula (5 columns)
-    // If so, drop and recreate with new 3-column formula
+    // Migrate total_score to 5-dimension formula if still using old Yuka formula
     const colCheck = await pool.query(`
       SELECT pg_get_expr(adbin, adrelid) as expr
       FROM pg_attrdef
@@ -646,17 +651,22 @@ export async function initDatabase() {
     `);
 
     const currentExpr = colCheck.rows[0]?.expr || '';
-    if (currentExpr.includes('harmful_ingredients_score') || currentExpr.includes('banned_elsewhere_score')) {
-      console.log('Migrating total_score to new formula (nutrition 60% + additives 30% + organic 10%)...');
+    if (currentExpr.includes('nutrition_score') || currentExpr.includes('additives_score') || currentExpr.includes('organic_bonus')) {
+      console.log('Migrating total_score to 5-dimension formula...');
       await pool.query(`
         ALTER TABLE products DROP COLUMN total_score;
         ALTER TABLE products ADD COLUMN total_score INT GENERATED ALWAYS AS (
-          ROUND(nutrition_score * 0.60 + additives_score * 0.30 + organic_bonus * 0.10)
+          ROUND(
+            harmful_ingredients_score * 0.40 +
+            banned_elsewhere_score * 0.20 +
+            transparency_score * 0.15 +
+            processing_score * 0.15 +
+            company_behavior_score * 0.10
+          )
         ) STORED;
       `);
-      // Recreate the index
       await pool.query('CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score)');
-      console.log('  ✓ total_score migrated to new formula');
+      console.log('  ✓ total_score migrated to 5-dimension formula');
     }
 
     // Result cache — stores full swaps/recipes/spoonacular responses by UPC
@@ -668,6 +678,58 @@ export async function initDatabase() {
         created_at TIMESTAMP DEFAULT NOW(),
         PRIMARY KEY (upc, cache_type)
       );
+    `);
+
+    // ============================================================
+    // MIGRATION: Health condition scoring tables
+    // ============================================================
+    await pool.query(`
+      -- Health conditions reference table
+      CREATE TABLE IF NOT EXISTS conditions (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(50) UNIQUE NOT NULL,
+        description TEXT,
+        sub_types JSONB,
+        scoring_config JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      -- User's selected health conditions
+      CREATE TABLE IF NOT EXISTS user_conditions (
+        id SERIAL PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        condition_id INT REFERENCES conditions(id) ON DELETE CASCADE,
+        sub_type VARCHAR(50),
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, condition_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_conditions_user ON user_conditions(user_id);
+
+      -- Cached condition scores per product
+      CREATE TABLE IF NOT EXISTS product_condition_scores (
+        id SERIAL PRIMARY KEY,
+        product_id INT REFERENCES products(id) ON DELETE CASCADE,
+        condition_slug VARCHAR(50) NOT NULL,
+        sub_type VARCHAR(50),
+        score INT CHECK (score >= 0 AND score <= 100),
+        flags JSONB DEFAULT '[]',
+        cached_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pcs_product ON product_condition_scores(product_id);
+      CREATE INDEX IF NOT EXISTS idx_pcs_slug ON product_condition_scores(condition_slug);
+    `);
+
+    // Seed conditions table (idempotent — ON CONFLICT DO NOTHING)
+    await pool.query(`
+      INSERT INTO conditions (name, slug, description, sub_types) VALUES
+        ('Thyroid Disease', 'thyroid', 'Scoring accounts for goitrogens, iodine content, and soy — with separate rules for hypo, hyper, and Hashimoto''s variants.', '["hypo","hyper","hashimotos"]'),
+        ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, fiber content, and refined carbohydrate load to help manage blood glucose.', NULL),
+        ('Heart Disease / Cholesterol', 'heart', 'Evaluates saturated fat, trans fat, sodium, and beneficial heart-healthy ingredients like omega-3s and soluble fiber.', NULL),
+        ('Kidney Disease', 'kidney', 'Flags phosphate additives, high potassium, sodium, and protein levels that can strain kidney function.', NULL),
+        ('Celiac / Gluten Intolerance', 'celiac', 'Detects wheat, barley, rye, and cross-contamination risk ingredients in the ingredient list.', NULL)
+      ON CONFLICT (slug) DO NOTHING;
     `);
 
     console.log('Database migrations complete');

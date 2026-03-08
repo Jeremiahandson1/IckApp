@@ -148,87 +148,87 @@ export function getSeverityColor(severity) {
 
 // Score explanation generator — tells users WHY their score is what it is
 export function getScoreExplanation(product) {
-  if (!product) return { summary: '', nutrition_detail: '', additive_detail: '', positives: [] };
+  if (!product) return { summary: '', harmful_detail: '', banned_detail: '', transparency_detail: '', processing_detail: '', company_detail: '' };
 
   const reasons = [];
   const positives = [];
 
-  // Parse nutrition facts
-  const nf = typeof product.nutrition_facts === 'string'
-    ? (() => { try { return JSON.parse(product.nutrition_facts); } catch { return {}; } })()
-    : (product.nutrition_facts || {});
-
-  // Nutrition red flags
-  if (nf.sugars != null && nf.sugars > 12) reasons.push(`high sugar (${Math.round(nf.sugars)}g/100g)`);
-  if (nf.sodium != null && nf.sodium > 600) reasons.push(`high sodium (${Math.round(nf.sodium)}mg/100g)`);
-  if (nf.saturated_fat != null && nf.saturated_fat > 5) reasons.push(`high saturated fat (${nf.saturated_fat}g/100g)`);
-  if (nf.calories != null && nf.calories > 400) reasons.push('high calorie density');
-  if (nf.fiber != null && nf.fiber < 1) reasons.push('very low fiber');
-  if (nf.protein != null && nf.protein < 2) reasons.push('very low protein');
-
-  // Nutrition positives
-  if (nf.fiber != null && nf.fiber > 3) positives.push('good fiber');
-  if (nf.protein != null && nf.protein > 8) positives.push('good protein');
-
-  // Processing level
-  if (product.nova_group === 4) reasons.push('ultra-processed (NOVA 4)');
-  else if (product.nova_group === 3) reasons.push('processed food');
-  else if (product.nova_group === 1) positives.push('minimally processed');
-
-  // Nutri-Score
-  const grade = product.nutriscore_grade?.toUpperCase();
-  if (grade === 'D' || grade === 'E') reasons.push(`Nutri-Score ${grade}`);
-  else if (grade === 'A') positives.push('Nutri-Score A');
-  else if (grade === 'B') positives.push('Nutri-Score B');
-
-  // Additives
+  // Parse harmful ingredients
   let harmful = product.harmful_ingredients_found;
   if (typeof harmful === 'string') { try { harmful = JSON.parse(harmful); } catch { harmful = []; } }
   if (!Array.isArray(harmful)) harmful = [];
 
+  // ── Harmful Ingredients detail ──
   const additiveNames = harmful.map(h =>
     h.severity >= 8 ? `${h.name} (high risk)` : h.name
   );
+  const harmful_detail = additiveNames.length > 0
+    ? `${additiveNames.length} found: ${additiveNames.slice(0, 3).join(', ')}`
+    : 'None detected';
+  if (additiveNames.length > 0) reasons.push(...additiveNames.slice(0, 2));
 
-  // Banned ingredients
+  // ── Banned Elsewhere detail ──
   const banned = harmful.filter(h => h.banned_in && h.banned_in.length > 0);
+  let banned_detail;
   if (banned.length > 0) {
     const countries = [...new Set(banned.flatMap(h => h.banned_in))];
-    reasons.push(`contains ingredients banned in ${countries.slice(0, 3).join(', ')}`);
+    banned_detail = `${banned.length} ingredient${banned.length > 1 ? 's' : ''} banned in ${countries.slice(0, 3).join(', ')}`;
+    reasons.push(`banned in ${countries.slice(0, 2).join(', ')}`);
+  } else {
+    banned_detail = 'No banned ingredients found';
   }
 
-  // Organic
+  // ── Transparency detail ──
+  const hasIngredients = product.ingredients && product.ingredients.length > 10;
+  const nf = typeof product.nutrition_facts === 'string'
+    ? (() => { try { return JSON.parse(product.nutrition_facts); } catch { return {}; } })()
+    : (product.nutrition_facts || {});
+  const hasNutrition = Object.keys(nf).length >= 3;
+  const transparencyParts = [];
+  if (hasIngredients) transparencyParts.push('ingredients listed');
+  if (hasNutrition) transparencyParts.push('nutrition data');
+  if (product.nutriscore_grade) transparencyParts.push(`Nutri-Score ${product.nutriscore_grade.toUpperCase()}`);
+  const transparency_detail = transparencyParts.length > 0
+    ? transparencyParts.join(', ')
+    : 'Limited product data available';
+
+  // ── Processing detail ──
+  let processing_detail;
+  if (product.nova_group === 1) { processing_detail = 'Minimally processed (NOVA 1)'; positives.push('minimally processed'); }
+  else if (product.nova_group === 2) { processing_detail = 'Processed culinary ingredient (NOVA 2)'; }
+  else if (product.nova_group === 3) { processing_detail = 'Processed food (NOVA 3)'; reasons.push('processed'); }
+  else if (product.nova_group === 4) { processing_detail = 'Ultra-processed (NOVA 4)'; reasons.push('ultra-processed'); }
+  else { processing_detail = product.processing_score >= 70 ? 'Low processing indicators' : 'Processing level estimated from ingredients'; }
+
+  // ── Company Behavior detail ──
+  let company_detail;
+  if (product.company_name) {
+    company_detail = product.company_behavior_score >= 70
+      ? `${product.company_name}`
+      : product.company_behavior_score <= 30
+        ? `${product.company_name} — known controversies`
+        : `${product.company_name}`;
+  } else {
+    company_detail = 'Company not identified';
+  }
+
+  // ── Overall summary ──
   if (product.is_organic) positives.push('certified organic');
 
-  // Build nutrition detail (for ScoreItem)
-  const nutritionReasons = reasons.filter(r =>
-    !r.startsWith('contains ingredients banned') && !r.includes('NOVA')
-  );
-  const nutritionDetail = nutritionReasons.length > 0
-    ? nutritionReasons.slice(0, 3).join(', ')
-    : (positives.filter(p => p.includes('Nutri-Score') || p.includes('fiber') || p.includes('protein')).join(', ') || null);
-
-  // Build additive detail
-  const additiveDetail = additiveNames.length > 0
-    ? additiveNames.slice(0, 3).join(', ')
-    : 'None detected';
-
-  // Build overall summary
-  const allIssues = [...reasons, ...additiveNames];
   let summary;
-  if (allIssues.length === 0) {
+  if (reasons.length === 0) {
     summary = positives.length > 0
       ? positives.join(', ')
       : 'No major concerns detected';
   } else {
-    summary = allIssues.slice(0, 4).join(', ');
+    summary = reasons.slice(0, 3).join(', ');
     if (positives.length > 0) {
       summary += `. Plus: ${positives.join(', ')}`;
     }
   }
   summary = summary.charAt(0).toUpperCase() + summary.slice(1);
 
-  return { summary, nutrition_detail: nutritionDetail, additive_detail: additiveDetail, positives };
+  return { summary, harmful_detail, banned_detail, transparency_detail, processing_detail, company_detail };
 }
 
 // UPC validation

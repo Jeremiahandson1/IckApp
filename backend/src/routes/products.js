@@ -95,16 +95,12 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
         // Save to our database
         const fsInsert = await pool.query(
           `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
-           nutrition_score, additives_score, organic_bonus,
            harmful_ingredients_score, banned_elsewhere_score, transparency_score, processing_score, company_behavior_score,
            harmful_ingredients_found, nutrition_facts, allergens_tags,
            nutriscore_grade, nova_group, is_organic)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
            ON CONFLICT (upc) DO UPDATE SET
              name = EXCLUDED.name,
-             nutrition_score = EXCLUDED.nutrition_score,
-             additives_score = EXCLUDED.additives_score,
-             organic_bonus = EXCLUDED.organic_bonus,
              harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
              banned_elsewhere_score = EXCLUDED.banned_elsewhere_score,
              transparency_score = EXCLUDED.transparency_score,
@@ -123,14 +119,11 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
             fsProduct.category,
             null,
             fsProduct.ingredients || '',
-            fsScores?.nutrition_score ?? null,
-            fsScores?.additives_score ?? null,
-            fsScores?.organic_bonus ?? 0,
-            fsScores?.harmful_ingredients_score ?? null,
-            fsScores?.banned_elsewhere_score ?? null,
-            fsScores?.transparency_score ?? null,
-            fsScores?.processing_score ?? null,
-            fsScores?.company_behavior_score ?? null,
+            fsScores?.harmful_ingredients_score ?? 50,
+            fsScores?.banned_elsewhere_score ?? 50,
+            fsScores?.transparency_score ?? 50,
+            fsScores?.processing_score ?? 50,
+            fsScores?.company_behavior_score ?? 50,
             fsScores?.harmful_ingredients_found ? JSON.stringify(fsScores.harmful_ingredients_found) : null,
             fsScores?.nutrition_facts ? JSON.stringify(fsScores.nutrition_facts) : JSON.stringify(fsProduct.nutrition_facts || {}),
             '[]',
@@ -192,16 +185,12 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
       // Save to our database
       const usdaInsert = await pool.query(
         `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
-         nutrition_score, additives_score, organic_bonus,
          harmful_ingredients_score, banned_elsewhere_score, transparency_score, processing_score, company_behavior_score,
          harmful_ingredients_found, nutrition_facts, allergens_tags,
          nutriscore_grade, nova_group, is_organic)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          ON CONFLICT (upc) DO UPDATE SET
            name = EXCLUDED.name,
-           nutrition_score = EXCLUDED.nutrition_score,
-           additives_score = EXCLUDED.additives_score,
-           organic_bonus = EXCLUDED.organic_bonus,
            harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
            banned_elsewhere_score = EXCLUDED.banned_elsewhere_score,
            transparency_score = EXCLUDED.transparency_score,
@@ -218,16 +207,13 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
           usdaProduct.name,
           usdaProduct.brand,
           usdaProduct.category,
-          null, // USDA doesn't provide images
+          null,
           usdaProduct.ingredients,
-          usdaScores?.nutrition_score ?? null,
-          usdaScores?.additives_score ?? null,
-          usdaScores?.organic_bonus ?? 0,
-          usdaScores?.harmful_ingredients_score ?? null,
-          usdaScores?.banned_elsewhere_score ?? null,
-          usdaScores?.transparency_score ?? null,
-          usdaScores?.processing_score ?? null,
-          usdaScores?.company_behavior_score ?? null,
+          usdaScores?.harmful_ingredients_score ?? 50,
+          usdaScores?.banned_elsewhere_score ?? 50,
+          usdaScores?.transparency_score ?? 50,
+          usdaScores?.processing_score ?? 50,
+          usdaScores?.company_behavior_score ?? 50,
           usdaScores?.harmful_ingredients_found ? JSON.stringify(usdaScores.harmful_ingredients_found) : null,
           usdaScores?.nutrition_facts ? JSON.stringify(usdaScores.nutrition_facts) : JSON.stringify(usdaProduct.nutrition_facts || {}),
           usdaProduct.allergens_tags ? JSON.stringify(usdaProduct.allergens_tags) : '[]',
@@ -270,7 +256,7 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
     const ingredients = offProduct.ingredients_text || offProduct.ingredients_text_en || '';
     const brand = offProduct.brands || 'Unknown Brand';
 
-    // Calculate scores using full OFF data (v2 scoring engine)
+    // Calculate scores using full OFF data (5-dimension scoring engine)
     const scores = await calculateProductScore({
       ingredients,
       brand,
@@ -279,21 +265,18 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
       nutriments: offProduct.nutriments || null,
       labels: offProduct.labels_tags || [],
       allergens_tags: offProduct.allergens_tags || [],
+      image_url: offProduct.image_url || offProduct.image_front_url || null,
     });
 
     // Save to our database with full nutritional data
     const insertResult = await pool.query(
       `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
-       nutrition_score, additives_score, organic_bonus,
        harmful_ingredients_score, banned_elsewhere_score, transparency_score, processing_score, company_behavior_score,
        harmful_ingredients_found, nutrition_facts, allergens_tags,
        nutriscore_grade, nova_group, is_organic)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT (upc) DO UPDATE SET
          name = EXCLUDED.name,
-         nutrition_score = EXCLUDED.nutrition_score,
-         additives_score = EXCLUDED.additives_score,
-         organic_bonus = EXCLUDED.organic_bonus,
          harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
          banned_elsewhere_score = EXCLUDED.banned_elsewhere_score,
          transparency_score = EXCLUDED.transparency_score,
@@ -314,14 +297,11 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
         offProduct.categories_tags?.[0]?.replace('en:', '') || 'Unknown',
         offProduct.image_url || offProduct.image_front_url,
         ingredients,
-        scores?.nutrition_score ?? null,
-        scores?.additives_score ?? null,
-        scores?.organic_bonus ?? 0,
-        scores?.harmful_ingredients_score ?? null,
-        scores?.banned_elsewhere_score ?? null,
-        scores?.transparency_score ?? null,
-        scores?.processing_score ?? null,
-        scores?.company_behavior_score ?? null,
+        scores?.harmful_ingredients_score ?? 50,
+        scores?.banned_elsewhere_score ?? 50,
+        scores?.transparency_score ?? 50,
+        scores?.processing_score ?? 50,
+        scores?.company_behavior_score ?? 50,
         scores?.harmful_ingredients_found ? JSON.stringify(scores.harmful_ingredients_found) : null,
         scores?.nutrition_facts ? JSON.stringify(scores.nutrition_facts) : '{}',
         scores?.allergens_tags ? JSON.stringify(scores.allergens_tags) : '[]',
@@ -400,7 +380,7 @@ router.get('/history', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `SELECT sl.upc, sl.scanned_at,
               p.name, p.brand, p.image_url, p.total_score, p.category,
-              p.nutrition_score, p.additives_score
+              p.harmful_ingredients_score, p.processing_score
        FROM scan_logs sl
        LEFT JOIN products p ON sl.upc = p.upc
        WHERE sl.user_id = $1
@@ -479,11 +459,8 @@ router.get('/search', async (req, res) => {
             .filter(p => p.code && p.product_name && !existingUpcs.has(p.code))
             .slice(0, 10 - products.length)
             .map(p => {
-              // Quick-score from Nutri-Score grade so search results aren't blank
-              const nutriscoreMap = { a: 95, b: 75, c: 50, d: 25, e: 10 };
-              const quickScore = p.nutriscore_grade 
-                ? Math.round(nutriscoreMap[p.nutriscore_grade.toLowerCase()] * 0.60 + 50 * 0.30 + 0)
-                : null;
+              // Quick estimated score — default 50 for dimensions we can't compute without ingredients
+              const quickScore = p.nutriscore_grade ? 50 : null;
               return {
                 upc: p.code,
                 name: p.product_name,
@@ -597,7 +574,8 @@ router.get('/curated', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT p.upc, p.name, p.brand, p.category, p.subcategory,
-             p.total_score, p.nutrition_score, p.additives_score, p.organic_bonus,
+             p.total_score, p.harmful_ingredients_score, p.banned_elsewhere_score,
+             p.transparency_score, p.processing_score, p.company_behavior_score,
              p.nutriscore_grade, p.nova_group, p.image_url,
              p.allergens_tags, p.ingredients,
              p.is_organic, p.is_clean_alternative
@@ -879,7 +857,7 @@ router.get('/:id', async (req, res) => {
     // Get recipes that replace this product
     const recipeResult = await pool.query(
       `SELECT * FROM recipes WHERE replaces_category = $1 OR replaces_products @> $2::jsonb`,
-      [product.category, JSON.stringify(product.upc)]
+      [product.category, JSON.stringify([product.upc])]
     );
 
     res.json({
