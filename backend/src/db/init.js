@@ -102,16 +102,8 @@ export async function initDatabase() {
       additives_score INT DEFAULT 50,
       organic_bonus INT DEFAULT 0,
 
-      -- Final weighted score: 5-dimension model
-      total_score INT GENERATED ALWAYS AS (
-        ROUND(
-          harmful_ingredients_score * 0.40 +
-          banned_elsewhere_score * 0.20 +
-          transparency_score * 0.15 +
-          processing_score * 0.15 +
-          company_behavior_score * 0.10
-        )
-      ) STORED,
+      -- Final weighted score (computed by trigger on INSERT/UPDATE)
+      total_score INT,
       
       -- Raw data
       ingredients TEXT,
@@ -544,7 +536,74 @@ export async function initDatabase() {
       END $$;
     `);
 
-    // Step 2: Lightweight column additions + extra tables (all IF NOT EXISTS / IF NOT EXISTS — no data rewrites)
+    // Trigger: auto-compute total_score on every INSERT/UPDATE to products
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION compute_total_score()
+      RETURNS TRIGGER AS $fn$
+      BEGIN
+        NEW.total_score := ROUND(
+          NEW.harmful_ingredients_score * 0.40 +
+          NEW.banned_elsewhere_score * 0.20 +
+          NEW.transparency_score * 0.15 +
+          NEW.processing_score * 0.15 +
+          NEW.company_behavior_score * 0.10
+        );
+        RETURN NEW;
+      END;
+      $fn$ LANGUAGE plpgsql;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'trg_total_score'
+        ) THEN
+          CREATE TRIGGER trg_total_score
+            BEFORE INSERT OR UPDATE ON products
+            FOR EACH ROW
+            EXECUTE FUNCTION compute_total_score();
+        END IF;
+      END $$;
+    `);
+
+    // If total_score is still a GENERATED STORED column (from old schema or
+    // a CREATE TABLE that ran before we changed it), convert to regular column.
+    // DROP + ADD is metadata-only (instant). Then UPDATE backfills all rows.
+    const genCheck = await pool.query(`
+      SELECT 1 FROM pg_attrdef
+      WHERE adrelid = 'products'::regclass
+        AND adnum = (
+          SELECT attnum FROM pg_attribute
+          WHERE attrelid = 'products'::regclass AND attname = 'total_score'
+        )
+    `);
+    if (genCheck.rows.length > 0) {
+      console.log('  converting total_score from GENERATED to trigger-based...');
+      await pool.query(`
+        ALTER TABLE products DROP COLUMN total_score;
+        ALTER TABLE products ADD COLUMN total_score INT;
+      `);
+      // Re-create the trigger (it was dropped with the column)
+      await pool.query(`
+        DROP TRIGGER IF EXISTS trg_total_score ON products;
+        CREATE TRIGGER trg_total_score
+          BEFORE INSERT OR UPDATE ON products
+          FOR EACH ROW
+          EXECUTE FUNCTION compute_total_score();
+      `);
+      // Backfill — simple UPDATE, no table lock, concurrent reads OK
+      await pool.query(`
+        UPDATE products SET total_score = ROUND(
+          harmful_ingredients_score * 0.40 +
+          banned_elsewhere_score * 0.20 +
+          transparency_score * 0.15 +
+          processing_score * 0.15 +
+          company_behavior_score * 0.10
+        );
+      `);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score)');
+      console.log('  ✓ total_score converted and backfilled');
+    }
+
+    // Step 2: Lightweight column additions + extra tables (all IF NOT EXISTS — no data rewrites)
     const t1 = Date.now();
     await pool.query(`
       ALTER TABLE products ADD COLUMN IF NOT EXISTS nutrition_score INT DEFAULT 50;
