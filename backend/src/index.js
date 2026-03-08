@@ -184,6 +184,44 @@ app.listen(PORT, '0.0.0.0', () => {
 
   // --- Post-init background tasks (all non-fatal) ---
 
+  // Seed reference data (harmful_ingredients + companies) if tables are empty.
+  // These are required for the scoring engine to work — without them every
+  // product gets default/neutral scores.
+  try {
+    const hiCount = await pool.query('SELECT COUNT(*) FROM harmful_ingredients');
+    const coCount = await pool.query('SELECT COUNT(*) FROM companies');
+    if (parseInt(hiCount.rows[0].count) === 0 || parseInt(coCount.rows[0].count) === 0) {
+      const { harmfulIngredients, companies } = await import('./db/seed.js');
+      if (parseInt(hiCount.rows[0].count) === 0) {
+        for (const h of harmfulIngredients) {
+          await pool.query(
+            `INSERT INTO harmful_ingredients (name, aliases, severity, category, health_effects, banned_in, why_used)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (name) DO NOTHING`,
+            [h.name, JSON.stringify(h.aliases), h.severity, h.category,
+             Array.isArray(h.health_effects) ? h.health_effects.join('. ') : h.health_effects,
+             JSON.stringify(h.banned_in), h.why_used]
+          );
+        }
+        console.log(`✓ Seeded ${harmfulIngredients.length} harmful ingredients`);
+      }
+      if (parseInt(coCount.rows[0].count) === 0) {
+        for (const c of companies) {
+          await pool.query(
+            `INSERT INTO companies (name, parent_company, behavior_score, controversies, positive_actions, lobbying_history, transparency_rating)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (name) DO NOTHING`,
+            [c.name, c.parent_company, c.behavior_score, JSON.stringify(c.controversies),
+             JSON.stringify(c.positive_actions), c.lobbying_history, c.transparency_rating]
+          );
+        }
+        console.log(`✓ Seeded ${companies.length} companies`);
+      }
+    } else {
+      console.log(`✓ Reference data present (${hiCount.rows[0].count} harmful ingredients, ${coCount.rows[0].count} companies)`);
+    }
+  } catch (e) {
+    console.warn('⚠ Reference data seed failed (non-fatal):', e.message);
+  }
+
   try {
     const { seedCuratedSwaps } = await import('./db/seed-swaps.js');
     await seedCuratedSwaps();

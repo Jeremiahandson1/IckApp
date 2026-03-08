@@ -26,14 +26,67 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
     );
 
     if (result.rows.length > 0) {
-      const product = result.rows[0];
+      let product = result.rows[0];
+
+      // Detect stale default scores — all dimensions stuck at 50 means the product
+      // was inserted by seed-swaps or old code without real scoring. Re-score it now.
+      const isStale = product.harmful_ingredients_score === 50
+        && product.banned_elsewhere_score === 50
+        && product.transparency_score === 50
+        && product.processing_score === 50
+        && product.company_behavior_score === 50;
+
+      if (isStale && product.ingredients && product.ingredients.length > 3) {
+        try {
+          const freshScores = await calculateProductScore({
+            ingredients: product.ingredients,
+            brand: product.brand || '',
+            nutriscore_grade: product.nutriscore_grade || null,
+            nova_group: product.nova_group || null,
+            nutriments: product.nutrition_facts || null,
+            labels: product.is_organic ? ['en:organic'] : [],
+            allergens_tags: product.allergens_tags || [],
+            image_url: product.image_url || null,
+          });
+
+          if (freshScores) {
+            const updated = await pool.query(
+              `UPDATE products SET
+                harmful_ingredients_score = $1,
+                banned_elsewhere_score = $2,
+                transparency_score = $3,
+                processing_score = $4,
+                company_behavior_score = $5,
+                harmful_ingredients_found = $6,
+                updated_at = NOW()
+              WHERE id = $7
+              RETURNING *`,
+              [
+                freshScores.harmful_ingredients_score,
+                freshScores.banned_elsewhere_score,
+                freshScores.transparency_score,
+                freshScores.processing_score,
+                freshScores.company_behavior_score,
+                freshScores.harmful_ingredients_found ? JSON.stringify(freshScores.harmful_ingredients_found) : product.harmful_ingredients_found,
+                product.id,
+              ]
+            );
+            if (updated.rows.length > 0) {
+              product = { ...product, ...updated.rows[0] };
+            }
+          }
+        } catch (scoreErr) {
+          console.warn('Re-score failed for stale product', upc, scoreErr.message);
+        }
+      }
+
       const scoreInfo = getScoreRating(product.total_score);
 
       // Log scan and update engagement
       if (req.user) {
         await pool.query('INSERT INTO scan_logs (user_id, upc) VALUES ($1, $2)', [req.user.id, upc]);
         await pool.query(
-          `UPDATE user_engagement 
+          `UPDATE user_engagement
            SET total_products_scanned = total_products_scanned + 1, updated_at = NOW()
            WHERE user_id = $1`,
           [req.user.id]
