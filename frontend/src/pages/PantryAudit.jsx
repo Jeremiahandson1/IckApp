@@ -55,8 +55,7 @@ export default function PantryAudit() {
           }
         }
       );
-    } catch (err) {
-      console.error('Camera error:', err);
+    } catch {
       showToast('Could not access camera', 'error');
     }
   };

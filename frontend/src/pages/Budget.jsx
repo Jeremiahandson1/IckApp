@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  DollarSign, TrendingUp, TrendingDown, ShoppingCart, Heart,
-  Receipt, ChevronRight, BarChart3, Loader
+import {
+  DollarSign, TrendingUp, ShoppingCart, Heart,
+  Receipt, BarChart3, Loader
 } from 'lucide-react';
 import api from '../utils/api';
 

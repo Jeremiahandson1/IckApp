@@ -290,6 +290,14 @@ export const subscription = {
   features: () => api.get('/subscription/features')
 };
 
+export const conditions = {
+  list: () => api.get('/conditions'),
+  getUserConditions: () => api.get('/conditions/user'),
+  setUserConditions: (conditions) => api.post('/conditions/user', { conditions }),
+  scoreProduct: (productId, conditionsParam) =>
+    api.get(`/conditions/score/${productId}?conditions=${encodeURIComponent(conditionsParam)}`),
+};
+
 export const account = {
   changePassword: (current_password, new_password) =>
     api.put('/auth/password', { current_password, new_password }),

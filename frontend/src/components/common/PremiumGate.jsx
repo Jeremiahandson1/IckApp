@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Lock, Crown } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import api from '../../utils/api';
 
 export default function PremiumGate({ feature, children }) {
   const [loading, setLoading] = useState(true);
@@ -24,19 +23,12 @@ export default function PremiumGate({ feature, children }) {
         return;
       }
 
-      const res = await fetch(`${API_URL}/subscription/status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        // Backend returns is_premium: true when PREMIUM_ENABLED=false (gate off)
-        // Also returns premium_gate_off: true as an explicit signal
-        setIsPremium(data.is_premium || data.premium_gate_off || false);
-      }
-    } catch (err) {
+      const data = await api.get('/subscription/status');
+      // Backend returns is_premium: true when PREMIUM_ENABLED=false (gate off)
+      // Also returns premium_gate_off: true as an explicit signal
+      setIsPremium(data.is_premium || data.premium_gate_off || false);
+    } catch {
       // If check fails, deny access (fail closed) — user can retry
-      console.error('Premium check error:', err);
       setIsPremium(false);
     } finally {
       setLoading(false);
@@ -46,26 +38,15 @@ export default function PremiumGate({ feature, children }) {
   const handleStartTrial = async () => {
     setStarting(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/subscription/start-trial`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const data = await api.post('/subscription/start-trial');
 
-      if (res.ok) {
+      if (data.subscription) {
         await refreshProfile();
         setIsPremium(true);
-      } else {
-        const data = await res.json();
-        if (data.error === 'Trial already used') {
-          navigate('/subscription');
-        }
+      } else if (data.error === 'Trial already used') {
+        navigate('/subscription');
       }
-    } catch (err) {
-      console.error('Start trial error:', err);
+    } catch {
       navigate('/subscription');
     } finally {
       setStarting(false);

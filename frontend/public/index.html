@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IckThatIsh — Know What's Actually In Your Food</title>
+  <meta name="description" content="Scan any product. See what's banned in Europe. Find a better swap. IckThatIsh tells you the truth your grocery store won't." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --black: #0a0a0a;
+      --near-black: #111111;
+      --card-bg: #161616;
+      --border: #2a2a2a;
+      --ick-green: #c8f135;
+      --ick-green-dim: #a8cc20;
+      --red: #ff3b30;
+      --orange: #ff6b2b;
+      --white: #f4f4f0;
+      --muted: #888880;
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.4;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(10,10,10,0.95), transparent);
+      backdrop-filter: blur(8px);
+    }
+
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 28px;
+      letter-spacing: 2px;
+      color: var(--ick-green);
+      text-decoration: none;
+    }
+
+    .nav-logo span {
+      color: var(--white);
+      opacity: 0.5;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      letter-spacing: 3px;
+      display: block;
+      margin-top: -4px;
+    }
+
+    .nav-cta {
+      background: var(--ick-green);
+      color: var(--black);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 10px 20px;
+      border: none;
+      cursor: pointer;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .nav-cta:hover { background: #d4ff40; transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 120px 40px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-bg-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-display);
+      font-size: clamp(200px, 30vw, 500px);
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(200, 241, 53, 0.04);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: 20px;
+      animation: drift 20s ease-in-out infinite;
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -52%) scale(1.02); }
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--ick-green);
+      margin-bottom: 24px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.1s forwards;
+    }
+
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: clamp(72px, 12vw, 180px);
+      line-height: 0.9;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.2s forwards;
+    }
+
+    .hero-headline .accent {
+      color: var(--ick-green);
+      display: block;
+    }
+
+    .hero-headline .stroke {
+      color: transparent;
+      -webkit-text-stroke: 2px var(--white);
+    }
+
+    .hero-sub {
+      font-size: clamp(17px, 2vw, 22px);
+      font-weight: 300;
+      color: rgba(244, 244, 240, 0.7);
+      max-width: 560px;
+      line-height: 1.5;
+      margin-bottom: 48px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.35s forwards;
+    }
+
+    .hero-sub strong { color: var(--white); font-weight: 500; }
+
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.5s forwards;
+    }
+
+    .btn-primary {
+      background: var(--ick-green);
+      color: var(--black);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 16px 32px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+      display: inline-block;
+    }
+
+    .btn-primary:hover { background: #d4ff40; transform: translateY(-2px); box-shadow: 0 8px 30px rgba(200,241,53,0.25); }
+
+    .btn-secondary {
+      color: var(--white);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 16px 24px;
+      border: 1px solid rgba(255,255,255,0.2);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+      display: inline-block;
+    }
+
+    .btn-secondary:hover { border-color: var(--ick-green); color: var(--ick-green); }
+
+    .hero-stat-row {
+      margin-top: 80px;
+      display: flex;
+      gap: 48px;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.65s forwards;
+      border-top: 1px solid var(--border);
+      padding-top: 40px;
+    }
+
+    .hero-stat { }
+    .hero-stat-num {
+      font-family: var(--font-display);
+      font-size: 48px;
+      color: var(--ick-green);
+      line-height: 1;
+    }
+    .hero-stat-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── SCROLL MARQUEE ── */
+    .marquee-section {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 0;
+      overflow: hidden;
+      background: var(--near-black);
+    }
+
+    .marquee-track {
+      display: flex;
+      gap: 0;
+      animation: marquee 25s linear infinite;
+      width: max-content;
+    }
+
+    .marquee-item {
+      font-family: var(--font-display);
+      font-size: 20px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      padding: 0 40px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .marquee-item.hot { color: var(--ick-green); }
+
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    /* ── SCAN DEMO ── */
+    .scan-section {
+      padding: 120px 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--ick-green);
+      margin-bottom: 20px;
+    }
+
+    .section-headline {
+      font-family: var(--font-display);
+      font-size: clamp(48px, 6vw, 80px);
+      line-height: 0.95;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .section-body {
+      color: rgba(244,244,240,0.65);
+      font-size: 17px;
+      font-weight: 300;
+      line-height: 1.7;
+      max-width: 460px;
+    }
+
+    /* Fake phone mockup */
+    .phone-mockup {
+      position: relative;
+      display: flex;
+      justify-content: center;
+    }
+
+    .phone {
+      width: 280px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 36px;
+      padding: 20px 16px;
+      position: relative;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+    }
+
+    .phone::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .phone-screen {
+      margin-top: 16px;
+      border-radius: 24px;
+      overflow: hidden;
+      background: #0d0d0d;
+    }
+
+    .scan-bar {
+      background: var(--near-black);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .scan-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--ick-green);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .scan-product-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    .scan-brand {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .score-display {
+      padding: 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .score-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: conic-gradient(var(--red) 0% 18%, var(--border) 18% 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .score-circle::after {
+      content: '17';
+      position: absolute;
+      font-family: var(--font-display);
+      font-size: 22px;
+      color: var(--red);
+    }
+
+    .score-label { font-size: 11px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 1px; }
+    .score-sublabel { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .ick-flags {
+      padding: 12px 16px;
+    }
+
+    .ick-flag {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      animation: flagPulse 3s ease-in-out infinite;
+    }
+
+    .ick-flag:last-child { border-bottom: none; }
+    .ick-flag:nth-child(2) { animation-delay: 0.5s; }
+    .ick-flag:nth-child(3) { animation-delay: 1s; }
+
+    @keyframes flagPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.75; }
+    }
+
+    .flag-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .flag-dot.warn { background: var(--orange); }
+
+    .flag-name { font-size: 11px; font-weight: 600; color: var(--white); }
+    .flag-detail { font-size: 9px; color: var(--muted); margin-top: 1px; line-height: 1.4; }
+
+    .swap-section-phone {
+      background: rgba(200, 241, 53, 0.06);
+      border-top: 1px solid rgba(200,241,53,0.2);
+      padding: 12px 16px;
+    }
+
+    .swap-label { font-size: 9px; font-family: var(--font-mono); letter-spacing: 2px; text-transform: uppercase; color: var(--ick-green); margin-bottom: 8px; }
+
+    .swap-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .swap-thumb {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #1e3a0a, #2d5410);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .swap-item-name { font-size: 11px; font-weight: 600; color: var(--white); }
+    .swap-item-score { font-size: 9px; color: var(--ick-green); }
+    .swap-item-stores { font-size: 9px; color: var(--muted); }
+
+    .glow-blob {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(200,241,53,0.08) 0%, transparent 70%);
+      border-radius: 50%;
+      top: -50px;
+      right: -100px;
+      pointer-events: none;
+    }
+
+    /* ── BANNED SECTION ── */
+    .banned-section {
+      padding: 120px 40px;
+      background: var(--near-black);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .banned-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .banned-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: end;
+      margin-bottom: 64px;
+    }
+
+    .banned-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+
+    .banned-card {
+      background: var(--card-bg);
+      padding: 28px 24px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .banned-card:hover {
+      border-color: rgba(200,241,53,0.3);
+      transform: translateY(-2px);
+    }
+
+    .banned-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--red);
+    }
+
+    .banned-card.warn::before { background: var(--orange); }
+    .banned-card.caution::before { background: #ffd60a; }
+
+    .banned-ingredient {
+      font-family: var(--font-display);
+      font-size: 22px;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .banned-found-in {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      margin-bottom: 16px;
+    }
+
+    .banned-where {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .banned-tag {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      background: rgba(255,59,48,0.1);
+      border: 1px solid rgba(255,59,48,0.25);
+      color: var(--red);
+    }
+
+    .banned-tag.ok {
+      background: rgba(200,241,53,0.08);
+      border-color: rgba(200,241,53,0.2);
+      color: var(--ick-green);
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how-section {
+      padding: 120px 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      margin-top: 64px;
+    }
+
+    .step {
+      padding: 48px 36px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      position: relative;
+      transition: border-color 0.2s;
+    }
+
+    .step:hover { border-color: rgba(200,241,53,0.3); }
+
+    .step-num {
+      font-family: var(--font-display);
+      font-size: 100px;
+      line-height: 1;
+      color: rgba(200,241,53,0.08);
+      position: absolute;
+      top: 16px;
+      right: 24px;
+    }
+
+    .step-icon {
+      font-size: 36px;
+      margin-bottom: 24px;
+    }
+
+    .step-title {
+      font-family: var(--font-display);
+      font-size: 32px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .step-body {
+      font-size: 15px;
+      color: rgba(244,244,240,0.6);
+      line-height: 1.6;
+      font-weight: 300;
+    }
+
+    /* ── SOCIAL PROOF ── */
+    .social-section {
+      padding: 120px 40px;
+      background: var(--near-black);
+      border-top: 1px solid var(--border);
+    }
+
+    .social-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .social-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .tiktok-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+
+    .tiktok-card {
+      background: var(--card-bg);
+      padding: 32px 28px;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+
+    .tiktok-card::before {
+      content: '"';
+      font-family: var(--font-display);
+      font-size: 120px;
+      color: rgba(200,241,53,0.06);
+      position: absolute;
+      top: -10px;
+      left: 20px;
+      line-height: 1;
+    }
+
+    .tiktok-quote {
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--white);
+      margin-bottom: 24px;
+      font-weight: 300;
+      position: relative;
+    }
+
+    .tiktok-quote strong { color: var(--ick-green); font-weight: 600; }
+
+    .tiktok-user {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--border), #333);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .user-handle { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+    .user-platform { font-size: 10px; color: var(--muted); opacity: 0.6; }
+
+    /* ── EMAIL CAPTURE ── */
+    .email-section {
+      padding: 120px 40px;
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .email-headline {
+      font-family: var(--font-display);
+      font-size: clamp(56px, 8vw, 100px);
+      line-height: 0.95;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .email-headline .green { color: var(--ick-green); }
+
+    .email-sub {
+      color: rgba(244,244,240,0.6);
+      font-size: 18px;
+      font-weight: 300;
+      margin-bottom: 48px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .email-form {
+      display: flex;
+      gap: 0;
+      max-width: 480px;
+      margin: 0 auto 20px;
+    }
+
+    .email-input {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-right: none;
+      color: var(--white);
+      font-family: var(--font-body);
+      font-size: 15px;
+      padding: 16px 20px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .email-input::placeholder { color: var(--muted); }
+    .email-input:focus { border-color: var(--ick-green); }
+
+    .email-submit {
+      background: var(--ick-green);
+      color: var(--black);
+      border: none;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 16px 24px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .email-submit:hover { background: #d4ff40; }
+
+    .email-disclaimer {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: gap;
+    }
+
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: 24px;
+      color: var(--ick-green);
+      letter-spacing: 2px;
+    }
+
+    .footer-logo small {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-links a:hover { color: var(--ick-green); }
+
+    .footer-copy {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: rgba(136,136,128,0.5);
+      letter-spacing: 1px;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 768px) {
+      nav { padding: 16px 20px; }
+      .hero { padding: 100px 20px 60px; }
+      .scan-section { grid-template-columns: 1fr; gap: 48px; padding: 80px 20px; }
+      .phone-mockup { order: -1; }
+      .banned-header { grid-template-columns: 1fr; gap: 32px; }
+      .banned-cards { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .tiktok-grid { grid-template-columns: 1fr; }
+      .email-form { flex-direction: column; }
+      .email-input { border-right: 1px solid var(--border); border-bottom: none; }
+      footer { flex-direction: column; gap: 24px; text-align: center; }
+      .hero-stat-row { gap: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a class="nav-logo" href="#">
+      ICKTHATISH
+      <span>by Twomiah</span>
+    </a>
+    <a class="nav-cta" href="#notify">Get Early Access</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg-text">ICK</div>
+    <p class="hero-eyebrow">Food Transparency App</p>
+    <h1 class="hero-headline">
+      <span>Your</span>
+      <span class="accent">Grocery</span>
+      <span class="stroke">Store</span>
+      <span>Lied.</span>
+    </h1>
+    <p class="hero-sub">
+      Scan any product. See every ingredient <strong>banned in Europe</strong> that's still in your food. 
+      Find a clean swap you can actually buy nearby.
+    </p>
+    <div class="hero-actions">
+      <a href="#notify" class="btn-primary">Get Early Access →</a>
+      <a href="#how" class="btn-secondary">See How It Works</a>
+    </div>
+    <div class="hero-stat-row">
+      <div class="hero-stat">
+        <div class="hero-stat-num">845K+</div>
+        <div class="hero-stat-label">Products Indexed</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">53</div>
+        <div class="hero-stat-label">Flagged Ingredients</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">100+</div>
+        <div class="hero-stat-label">Clean Swaps Ready</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">0</div>
+        <div class="hero-stat-label">Brand Deals. Ever.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MARQUEE -->
+  <div class="marquee-section">
+    <div class="marquee-track">
+      <span class="marquee-item hot">Red 40</span>
+      <span class="marquee-item">Banned in EU</span>
+      <span class="marquee-item hot">BHA / BHT</span>
+      <span class="marquee-item">In Your Kids' Cereal</span>
+      <span class="marquee-item hot">Titanium Dioxide</span>
+      <span class="marquee-item">Banned in France 2020</span>
+      <span class="marquee-item hot">TBHQ</span>
+      <span class="marquee-item">Banned in Japan &amp; EU</span>
+      <span class="marquee-item hot">Brominated Veg. Oil</span>
+      <span class="marquee-item">Still in Your Sports Drink</span>
+      <span class="marquee-item hot">Potassium Bromate</span>
+      <span class="marquee-item">Banned in 20+ Countries</span>
+      <!-- dupe for seamless loop -->
+      <span class="marquee-item hot">Red 40</span>
+      <span class="marquee-item">Banned in EU</span>
+      <span class="marquee-item hot">BHA / BHT</span>
+      <span class="marquee-item">In Your Kids' Cereal</span>
+      <span class="marquee-item hot">Titanium Dioxide</span>
+      <span class="marquee-item">Banned in France 2020</span>
+      <span class="marquee-item hot">TBHQ</span>
+      <span class="marquee-item">Banned in Japan &amp; EU</span>
+      <span class="marquee-item hot">Brominated Veg. Oil</span>
+      <span class="marquee-item">Still in Your Sports Drink</span>
+      <span class="marquee-item hot">Potassium Bromate</span>
+      <span class="marquee-item">Banned in 20+ Countries</span>
+    </div>
+  </div>
+
+  <!-- SCAN DEMO -->
+  <section class="scan-section">
+    <div>
+      <p class="section-label reveal">01 — Scan</p>
+      <h2 class="section-headline reveal">Point.<br>Scan.<br><span style="color:var(--ick-green)">Know.</span></h2>
+      <p class="section-body reveal">
+        Open the app, point your camera at the barcode, and within seconds see a full breakdown — 
+        what's in it, what it does to your body, which countries refuse to allow it, and why 
+        food companies keep using it anyway. Spoiler: it's always cheaper.
+      </p>
+    </div>
+    <div class="phone-mockup reveal">
+      <div class="glow-blob"></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="scan-bar">
+            <div class="scan-icon">🧀</div>
+            <div>
+              <div class="scan-product-name">Kraft Mac &amp; Cheese</div>
+              <div class="scan-brand">Kraft Heinz · 7.25oz</div>
+            </div>
+          </div>
+          <div class="score-display">
+            <div class="score-circle"></div>
+            <div>
+              <div class="score-label">🔴 Avoid</div>
+              <div class="score-sublabel">17 / 100 Ick Score</div>
+            </div>
+          </div>
+          <div class="ick-flags">
+            <div class="ick-flag">
+              <div class="flag-dot"></div>
+              <div>
+                <div class="flag-name">Yellow 5 (Tartrazine)</div>
+                <div class="flag-detail">Banned in Norway &amp; Austria · Linked to hyperactivity in children</div>
+              </div>
+            </div>
+            <div class="ick-flag">
+              <div class="flag-dot warn"></div>
+              <div>
+                <div class="flag-name">Yellow 6</div>
+                <div class="flag-detail">Warning label required in EU · Suspected carcinogen</div>
+              </div>
+            </div>
+            <div class="ick-flag">
+              <div class="flag-dot warn"></div>
+              <div>
+                <div class="flag-name">TBHQ</div>
+                <div class="flag-detail">Banned in Japan &amp; EU · Petroleum byproduct preservative</div>
+              </div>
+            </div>
+          </div>
+          <div class="swap-section-phone">
+            <div class="swap-label">✓ Better Swap Found</div>
+            <div class="swap-item">
+              <div class="swap-thumb">🐰</div>
+              <div>
+                <div class="swap-item-name">Annie's Organic Mac &amp; Cheese</div>
+                <div class="swap-item-score">Score: 82 · Organic Certified</div>
+                <div class="swap-item-stores">At Walmart · Target · Kroger</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BANNED SECTION -->
+  <section class="banned-section">
+    <div class="banned-inner">
+      <div class="banned-header">
+        <div>
+          <p class="section-label reveal">02 — The Truth</p>
+          <h2 class="section-headline reveal">Banned<br>Everywhere<br><span style="color:var(--ick-green)">Except<br>Here.</span></h2>
+        </div>
+        <p class="section-body reveal">
+          The EU, UK, Japan, Australia — they banned these ingredients years ago. 
+          The US food industry kept using them because it's profitable and nobody forced them to stop. 
+          Until now, most people had no idea they were eating them.
+        </p>
+      </div>
+      <div class="banned-cards">
+        <div class="banned-card reveal">
+          <div class="banned-ingredient">Red Dye 40</div>
+          <div class="banned-found-in">Found in: Doritos · Fruit Loops · M&amp;Ms · Jell-O</div>
+          <div class="banned-where">
+            <span class="banned-tag">Banned: EU*</span>
+            <span class="banned-tag">Banned: UK*</span>
+            <span class="banned-tag ok">Allowed: USA</span>
+          </div>
+          <p style="font-size:10px; color: var(--muted); margin-top: 12px; line-height: 1.5;">*Requires warning label "may have adverse effect on activity and attention in children"</p>
+        </div>
+        <div class="banned-card reveal">
+          <div class="banned-ingredient">Brominated Veg. Oil</div>
+          <div class="banned-found-in">Found in: Mountain Dew · Some Citrus Sports Drinks</div>
+          <div class="banned-where">
+            <span class="banned-tag">Banned: EU</span>
+            <span class="banned-tag">Banned: Japan</span>
+            <span class="banned-tag">Banned: India</span>
+            <span class="banned-tag ok">Allowed: USA</span>
+          </div>
+          <p style="font-size:10px; color: var(--muted); margin-top: 12px; line-height: 1.5;">Bromine accumulates in body tissue. FDA banned it in 2024 — but it's still in supply chains.</p>
+        </div>
+        <div class="banned-card reveal">
+          <div class="banned-ingredient">Titanium Dioxide</div>
+          <div class="banned-found-in">Found in: Skittles · Chewing Gum · Frosting · Ranch Dressing</div>
+          <div class="banned-where">
+            <span class="banned-tag">Banned: France 2020</span>
+            <span class="banned-tag">Banned: EU 2022</span>
+            <span class="banned-tag ok">Allowed: USA</span>
+          </div>
+          <p style="font-size:10px; color: var(--muted); margin-top: 12px; line-height: 1.5;">Used purely for whitening appearance. EFSA found it can no longer be considered safe.</p>
+        </div>
+        <div class="banned-card warn reveal">
+          <div class="banned-ingredient">Potassium Bromate</div>
+          <div class="banned-found-in">Found in: Bread · Rolls · Bagels · Pizza Dough</div>
+          <div class="banned-where">
+            <span class="banned-tag">Banned: EU</span>
+            <span class="banned-tag">Banned: UK</span>
+            <span class="banned-tag">Banned: Canada</span>
+            <span class="banned-tag ok">Allowed: USA</span>
+          </div>
+          <p style="font-size:10px; color: var(--muted); margin-top: 12px; line-height: 1.5;">IARC classifies it as a possible human carcinogen. Banned in over 20 countries.</p>
+        </div>
+        <div class="banned-card warn reveal">
+          <div class="banned-ingredient">BHA / BHT</div>
+          <div class="banned-found-in">Found in: Cereal · Potato Chips · Chewing Gum · Butter</div>
+          <div class="banned-where">
+            <span class="banned-tag">Banned: Japan</span>
+            <span class="banned-tag">Restricted: EU</span>
+            <span class="banned-tag ok">Allowed: USA</span>
+          </div>
+          <p style="font-size:10px; color: var(--muted); margin-top: 12px; line-height: 1.5;">BHA listed as "reasonably anticipated to be a human carcinogen" by US Dept of Health.</p>
+        </div>
+        <div class="banned-card caution reveal">
+          <div class="banned-ingredient">TBHQ</div>
+          <div class="banned-found-in">Found in: Pop-Tarts · Ramen Noodles · McDonald's Nuggets</div>
+          <div class="banned-where">
+            <span class="banned-tag">Banned: Japan</span>
+            <span class="banned-tag">Banned: EU</span>
+            <span class="banned-tag ok">Allowed: USA</span>
+          </div>
+          <p style="font-size:10px; color: var(--muted); margin-top: 12px; line-height: 1.5;">Derived from petroleum. Banned in EU. High doses linked to tumors in animal studies.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-section" id="how">
+    <div style="max-width:600px">
+      <p class="section-label reveal">03 — How It Works</p>
+      <h2 class="section-headline reveal">Simple.<br><span style="color:var(--ick-green)">Brutal.</span><br>Honest.</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <div class="step-icon">📷</div>
+        <div class="step-title">Scan the Barcode</div>
+        <div class="step-body">Point your camera at any product in any store. IckThatIsh pulls from a database of 845,000+ products with full ingredient data.</div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">2</div>
+        <div class="step-icon">🔬</div>
+        <div class="step-title">See the Truth</div>
+        <div class="step-body">Every flagged ingredient is explained — what it does, why companies use it, which countries banned it, and what the science actually says.</div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">3</div>
+        <div class="step-icon">✅</div>
+        <div class="step-title">Get a Real Swap</div>
+        <div class="step-body">We find a cleaner alternative with a better score — and tell you which stores near you carry it right now. Not a paid placement. The actual best option.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOCIAL PROOF -->
+  <section class="social-section">
+    <div class="social-inner">
+      <div class="social-header">
+        <p class="section-label" style="display:inline-block">What People Are Saying</p>
+        <h2 class="section-headline" style="font-size: clamp(40px, 5vw, 64px); max-width:600px; margin: 16px auto 0;">The reaction when they <span style="color:var(--ick-green)">find out.</span></h2>
+      </div>
+      <div class="tiktok-grid">
+        <div class="tiktok-card reveal">
+          <p class="tiktok-quote">Just scanned my kids' cereal and <strong>Lost Charms has BHT, Yellow 5, AND Red 40.</strong> My kids eat this every morning. I want to cry and fight someone simultaneously.</p>
+          <div class="tiktok-user">
+            <div class="user-avatar">👩</div>
+            <div>
+              <div class="user-handle">@momofthree_real</div>
+              <div class="user-platform">TikTok · 284K views</div>
+            </div>
+          </div>
+        </div>
+        <div class="tiktok-card reveal">
+          <p class="tiktok-quote">Scanned my "healthy" granola bar. <strong>TBHQ — banned in Japan and the EU.</strong> I've been eating this literally every day. The swap it suggested was $0.30 more. THIRTY CENTS.</p>
+          <div class="tiktok-user">
+            <div class="user-avatar">🧔</div>
+            <div>
+              <div class="user-handle">@fitdadjourney</div>
+              <div class="user-platform">TikTok · 1.1M views</div>
+            </div>
+          </div>
+        </div>
+        <div class="tiktok-card reveal">
+          <p class="tiktok-quote">I'm a nurse. I knew some of this. But seeing <strong>exactly which products, exactly which stores carry the clean swap</strong> — this is what we've needed for 20 years. Share this app.</p>
+          <div class="tiktok-user">
+            <div class="user-avatar">👩‍⚕️</div>
+            <div>
+              <div class="user-handle">@realtalknurse</div>
+              <div class="user-platform">Instagram · 47K likes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EMAIL CAPTURE -->
+  <section class="email-section" id="notify">
+    <p class="section-label" style="display:inline-block; margin-bottom:20px">Early Access</p>
+    <h2 class="email-headline">
+      Stop<br>Eating<br><span class="green">The Ick.</span>
+    </h2>
+    <p class="email-sub">
+      Join the waitlist. Get early access before public launch. We'll never sell your data or recommend a product we wouldn't eat ourselves.
+    </p>
+    <form class="email-form" onsubmit="handleSubmit(event)">
+      <input class="email-input" type="email" placeholder="your@email.com" required id="emailInput" />
+      <button class="email-submit" type="submit">Join Waitlist</button>
+    </form>
+    <p class="email-disclaimer" id="formMsg">No spam. No brand deals. No BS.</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">
+      ICKTHATISH
+      <small>A Twomiah Product · Eau Claire, WI</small>
+    </div>
+    <ul class="footer-links">
+      <li><a href="#">About</a></li>
+      <li><a href="#">Privacy</a></li>
+      <li><a href="#">Terms</a></li>
+      <li><a href="mailto:hello@ickthatish.com">Contact</a></li>
+    </ul>
+    <p class="footer-copy">© 2026 Twomiah LLC</p>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => entry.target.classList.add('visible'), 0);
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    reveals.forEach(el => observer.observe(el));
+
+    // Stagger reveals within same parent
+    document.querySelectorAll('.banned-cards, .steps, .tiktok-grid').forEach(container => {
+      container.querySelectorAll('.reveal').forEach((el, i) => {
+        el.style.transitionDelay = `${i * 0.08}s`;
+      });
+    });
+
+    // Email form
+    function handleSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('emailInput').value;
+      const msg = document.getElementById('formMsg');
+      // Replace with actual backend call
+      msg.textContent = `✓ You're on the list. We'll be in touch.`;
+      msg.style.color = 'var(--ick-green)';
+      document.getElementById('emailInput').value = '';
+    }
+
+    // Nav scroll behavior
+    const nav = document.querySelector('nav');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 80) {
+        nav.style.background = 'rgba(10,10,10,0.96)';
+      } else {
+        nav.style.background = 'linear-gradient(to bottom, rgba(10,10,10,0.95), transparent)';
+      }
+    });
+  </script>
+</body>
+</html>

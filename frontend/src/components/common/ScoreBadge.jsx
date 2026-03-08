@@ -1,4 +1,4 @@
-import { getScoreBgClass, getScoreLabel, getScoreRating } from '../../utils/helpers';
+import { getScoreBgClass, getScoreLabel } from '../../utils/helpers';
 
 export default function ScoreBadge({ score, size = 'md', showLabel = false, animated = false }) {
   const sizeClasses = {
@@ -9,7 +9,6 @@ export default function ScoreBadge({ score, size = 'md', showLabel = false, anim
   };
 
   const bgClass = getScoreBgClass(score);
-  const rating = getScoreRating(score);
 
   return (
     <div className="flex flex-col items-center gap-1">

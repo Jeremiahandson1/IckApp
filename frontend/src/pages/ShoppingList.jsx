@@ -45,8 +45,8 @@ export default function ShoppingList() {
     try {
       const res = await api.get(`/products/search?q=${encodeURIComponent(query)}`);
       setSearchResults(Array.isArray(res) ? res : []);
-    } catch (err) {
-      console.error('Search failed');
+    } catch {
+      setSearchResults([]);
     } finally {
       setSearching(false);
     }

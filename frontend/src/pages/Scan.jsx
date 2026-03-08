@@ -7,7 +7,6 @@ import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { isValidUPC, getScoreColor, getScoreBgClass, formatRelativeTime } from '../utils/helpers';
-import { isNative } from '../utils/platform';
 import { scanNative, shouldUseNativeScanner, stopNativeScanner } from '../utils/nativeScanner';
 
 // Analytics helper — fire and forget

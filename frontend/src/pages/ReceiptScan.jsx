@@ -59,7 +59,7 @@ export default function ReceiptScan() {
       const data = await api.post('/receipts/scan', { image_base64: base64 });
       
       setReceipt(data.receipt);
-      setItems(data.items || []);
+      setItems((data.items || []).map(i => ({ ...i, _selected: true })));
       setSummary(data.summary);
       setStep('review');
     } catch (err) {

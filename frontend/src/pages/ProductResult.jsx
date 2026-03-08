@@ -128,8 +128,8 @@ export default function ProductResult() {
       ]);
       setSwapOptions(swapsData?.swaps || []);
       setRecipes(swapsData?.homemade_alternatives || swapsData?.recipes || []);
-    } catch (error) {
-      console.error('Error fetching swaps:', error);
+    } catch {
+      // Swap loading is non-critical — product still displays
     }
   };
 

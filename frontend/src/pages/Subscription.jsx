@@ -39,9 +39,9 @@ export default function Subscription() {
       try {
         const dashData = await api.get('/progress/dashboard');
         setScanStats(dashData.data || dashData);
-      } catch (e) {}
-    } catch (err) {
-      console.error('Failed to load subscription:', err);
+      } catch { /* dashboard stats are non-critical */ }
+    } catch {
+      toast.error('Failed to load subscription info');
     } finally {
       setLoading(false);
     }

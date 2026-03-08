@@ -32,8 +32,7 @@ export default function RecipeDetail() {
         throw new Error(res?.error || 'Recipe not found');
       }
       setRecipe(res);
-    } catch (err) {
-      console.error('Recipe load error:', err);
+    } catch {
       showToast('Recipe not found', 'error');
       navigate('/recipes');
     } finally {

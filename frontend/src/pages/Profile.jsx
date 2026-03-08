@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { account } from '../utils/api';
+import api, { account, conditions as conditionsApi } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -30,8 +30,15 @@ export default function Profile() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  // Health conditions
+  const [allConditions, setAllConditions] = useState([]);
+  const [userConditions, setUserConditions] = useState([]);
+  const [conditionSelections, setConditionSelections] = useState({});
+  const [savingConditions, setSavingConditions] = useState(false);
+
   useEffect(() => {
     loadProfile();
+    loadConditions();
   }, []);
 
   const loadProfile = async () => {
@@ -51,6 +58,59 @@ export default function Profile() {
       showToast('Failed to load profile', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadConditions = async () => {
+    try {
+      const [all, user] = await Promise.all([
+        conditionsApi.list(),
+        conditionsApi.getUserConditions().catch(() => [])
+      ]);
+      setAllConditions(all);
+      setUserConditions(user);
+      // Build selections map: { conditionId: { selected: true, subType: 'hypo' } }
+      const selections = {};
+      for (const uc of user) {
+        selections[uc.condition_id] = { selected: true, subType: uc.sub_type || '' };
+      }
+      setConditionSelections(selections);
+    } catch (err) {
+      // non-fatal
+    }
+  };
+
+  const toggleCondition = (condId) => {
+    setConditionSelections(prev => {
+      const current = prev[condId];
+      if (current?.selected) {
+        const { [condId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [condId]: { selected: true, subType: '' } };
+    });
+  };
+
+  const setConditionSubType = (condId, subType) => {
+    setConditionSelections(prev => ({
+      ...prev,
+      [condId]: { ...prev[condId], subType }
+    }));
+  };
+
+  const saveConditions = async () => {
+    setSavingConditions(true);
+    try {
+      const payload = Object.entries(conditionSelections)
+        .filter(([, v]) => v.selected)
+        .map(([conditionId, v]) => ({ conditionId: parseInt(conditionId), subType: v.subType || null }));
+      const result = await conditionsApi.setUserConditions(payload);
+      setUserConditions(result);
+      showToast('Health conditions updated!', 'success');
+    } catch (err) {
+      showToast('Failed to save conditions', 'error');
+    } finally {
+      setSavingConditions(false);
     }
   };
 
@@ -209,6 +269,100 @@ export default function Profile() {
           <p className="text-sm text-[#666]">
             No allergens set. Tap Edit to add allergen alerts so we can warn you when scanning products.
           </p>
+        )}
+      </div>
+
+      {/* Health Conditions */}
+      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
+        <h3 className="font-semibold text-[#f4f4f0] mb-1">My Health Conditions</h3>
+        <p className="text-xs text-[#666] mb-3">
+          Select conditions to see condition-specific scores when scanning products.
+        </p>
+
+        {allConditions.length > 0 ? (
+          <div className="space-y-2">
+            {allConditions.map(cond => {
+              const sel = conditionSelections[cond.id];
+              const isSelected = !!sel?.selected;
+              const subTypes = cond.sub_types ? (typeof cond.sub_types === 'string' ? JSON.parse(cond.sub_types) : cond.sub_types) : null;
+              const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
+
+              return (
+                <div key={cond.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCondition(cond.id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-sm transition-colors text-left ${
+                      isSelected
+                        ? 'bg-[rgba(200,241,53,0.08)] border border-[#c8f135]/30'
+                        : 'bg-[#1e1e1e] border border-transparent'
+                    }`}
+                  >
+                    <span className="text-lg">{CONDITION_ICONS[cond.slug] || '\uD83C\uDFE5'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium text-sm ${isSelected ? 'text-[#f4f4f0]' : 'text-[#888]'}`}>{cond.name}</p>
+                      <p className="text-xs text-[#555] truncate">{cond.description}</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      isSelected ? 'border-[#c8f135] bg-[#c8f135]' : 'border-[#555]'
+                    }`}>
+                      {isSelected && <span className="text-[#0d0d0d] text-xs font-bold">\u2713</span>}
+                    </div>
+                  </button>
+
+                  {/* Sub-type selector for thyroid */}
+                  {isSelected && subTypes && subTypes.length > 0 && (
+                    <div className="ml-10 mt-1 mb-1 flex gap-2">
+                      {subTypes.map(st => {
+                        const subLabels = { hypo: 'Hypothyroid', hyper: 'Hyperthyroid', hashimotos: "Hashimoto's" };
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setConditionSubType(cond.id, st)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                              sel?.subType === st
+                                ? 'bg-[#c8f135] text-[#0d0d0d]'
+                                : 'bg-[#2a2a2a] text-[#888] hover:bg-[#333]'
+                            }`}
+                          >
+                            {subLabels[st] || st}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <button
+              onClick={saveConditions}
+              disabled={savingConditions}
+              className="w-full mt-3 py-2.5 bg-[rgba(200,241,53,0.06)] border border-[#c8f135]/30 text-[#c8f135] rounded-sm font-medium text-sm disabled:opacity-50"
+            >
+              {savingConditions ? 'Saving...' : 'Save Conditions'}
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-[#555]">Loading conditions...</p>
+        )}
+
+        {userConditions.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+            <p className="text-xs text-[#666] mb-2">Active conditions:</p>
+            <div className="flex flex-wrap gap-2">
+              {userConditions.map(uc => {
+                const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
+                const subLabels = { hypo: 'Hypo', hyper: 'Hyper', hashimotos: "Hashimoto's" };
+                return (
+                  <span key={uc.id} className="px-3 py-1 bg-[rgba(200,241,53,0.08)] text-[#c8f135] rounded-full text-xs font-medium">
+                    {CONDITION_ICONS[uc.slug] || ''} {uc.name}{uc.sub_type ? ` (${subLabels[uc.sub_type] || uc.sub_type})` : ''}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 

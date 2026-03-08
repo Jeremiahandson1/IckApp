@@ -24,8 +24,8 @@ export default function Recipes() {
     try {
       const res = await api.get('/recipes/meta/categories');
       setCategories(Array.isArray(res) ? res : []);
-    } catch (err) {
-      console.error('Failed to load categories');
+    } catch {
+      // Categories are non-critical — filter still works without them
     }
   };
 

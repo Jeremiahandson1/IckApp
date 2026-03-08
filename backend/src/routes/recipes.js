@@ -64,12 +64,13 @@ router.get('/for/:upc', async (req, res) => {
     const category = productResult.rows[0].category;
 
     // Get recipes that replace this product or category
+    // replaces_products is a JSONB array like ["043000012345"], so use array containment
     const result = await pool.query(
-      `SELECT * FROM recipes 
-       WHERE replaces_products @> to_jsonb($1::text)
+      `SELECT * FROM recipes
+       WHERE replaces_products @> $1::jsonb
        OR replaces_category = $2
        ORDER BY total_time_minutes ASC`,
-      [upc, category]
+      [JSON.stringify([upc]), category]
     );
 
     res.json(result.rows);

@@ -201,6 +201,7 @@ router.get('/products/gaps', async (req, res) => {
       samples: samples.rows
     });
   } catch (err) {
+    console.error('Product gaps error:', err);
     res.status(500).json({ error: 'Failed to get product gaps' });
   }
 });

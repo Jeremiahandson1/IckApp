@@ -28,6 +28,31 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get velocity summary stats
+// IMPORTANT: must be before /product/:upc to avoid being caught by the wildcard
+router.get('/summary', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         COUNT(*) as total_tracked,
+         COUNT(CASE WHEN confidence = 'high' THEN 1 END) as high_confidence,
+         COUNT(CASE WHEN confidence = 'medium' THEN 1 END) as medium_confidence,
+         COUNT(CASE WHEN confidence = 'low' THEN 1 END) as low_confidence,
+         COUNT(CASE WHEN next_predicted_empty <= NOW() + INTERVAL '7 days' THEN 1 END) as running_low_7_days,
+         COUNT(CASE WHEN next_predicted_empty <= NOW() + INTERVAL '14 days' THEN 1 END) as running_low_14_days
+       FROM consumption_velocity
+       WHERE user_id = $1`,
+      [req.user.id]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error('Velocity summary error:', err);
+    res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
 // Get velocity for specific product
 router.get('/product/:upc', async (req, res) => {
   try {
@@ -185,30 +210,6 @@ router.post('/restock/:upc', async (req, res) => {
   } catch (err) {
     console.error('Restock error:', err);
     res.status(500).json({ error: 'Failed to update restock' });
-  }
-});
-
-// Get velocity summary stats
-router.get('/summary', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT 
-         COUNT(*) as total_tracked,
-         COUNT(CASE WHEN confidence = 'high' THEN 1 END) as high_confidence,
-         COUNT(CASE WHEN confidence = 'medium' THEN 1 END) as medium_confidence,
-         COUNT(CASE WHEN confidence = 'low' THEN 1 END) as low_confidence,
-         COUNT(CASE WHEN next_predicted_empty <= NOW() + INTERVAL '7 days' THEN 1 END) as running_low_7_days,
-         COUNT(CASE WHEN next_predicted_empty <= NOW() + INTERVAL '14 days' THEN 1 END) as running_low_14_days
-       FROM consumption_velocity
-       WHERE user_id = $1`,
-      [req.user.id]
-    );
-
-    res.json(result.rows[0]);
-
-  } catch (err) {
-    console.error('Velocity summary error:', err);
-    res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 

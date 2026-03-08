@@ -78,11 +78,14 @@ export async function lookupByUPC(upc) {
       energy_kcal_100g: nutrients[1008] || nutrients['energy'] || null,
       fat_100g: nutrients[1004] || nutrients['total lipid (fat)'] || null,
       saturated_fat_100g: nutrients[1258] || nutrients['fatty acids, total saturated'] || null,
+      trans_fat_100g: nutrients[1257] || nutrients['fatty acids, total trans'] || null,
       carbohydrates_100g: nutrients[1005] || nutrients['carbohydrate, by difference'] || null,
       sugars_100g: nutrients[2000] || nutrients['sugars, total including nlea'] || nutrients['total sugars'] || null,
+      added_sugars_100g: nutrients[539] || nutrients['sugars, added'] || null,
       fiber_100g: nutrients[1079] || nutrients['fiber, total dietary'] || null,
       proteins_100g: nutrients[1003] || nutrients['protein'] || null,
       sodium_100g: nutrients[1093] || nutrients['sodium, na'] || null,
+      potassium_100g: nutrients[1092] || nutrients['potassium, k'] || null,
       salt_100g: (nutrients[1093] || 0) * 2.5 / 1000, // sodium mg → salt g
     };
 

@@ -27,6 +27,7 @@ import receiptRoutes from './routes/receipts.js';
 import familyRoutes from './routes/family.js';
 import kidRatingsRoutes from './routes/kidRatings.js';
 import contributionsRoutes from './routes/contributions.js';
+import conditionsRoutes from './routes/conditions.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -110,6 +111,7 @@ app.use('/api/products/family', familyRoutes);
 app.use('/api/products/kid-ratings', kidRatingsRoutes);
 app.use('/api/products/admin/contributions', contributionsRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/conditions', conditionsRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 
 // Premium routes (individual routes handle auth + premium checks internally)

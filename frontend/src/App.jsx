@@ -133,9 +133,8 @@ function NativeLifecycle() {
             // Send to backend for push delivery
             api.post('/auth/push-subscribe', { subscription: { type: 'native', token } }).catch(() => {});
           },
-          onNotification: (notification) => {
-            // App is open — could show in-app toast
-            console.log('[App] Push while open:', notification);
+          onNotification: () => {
+            // App is open — notification received while in foreground
           },
           onAction: (action) => {
             // User tapped notification — navigate
