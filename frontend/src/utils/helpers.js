@@ -148,7 +148,8 @@ export function getSeverityColor(severity) {
 
 // Score explanation generator — tells users WHY their score is what it is
 export function getScoreExplanation(product) {
-  if (!product) return { summary: '', harmful_detail: '', banned_detail: '', transparency_detail: '', processing_detail: '', company_detail: '' };
+  const empty = { summary: '', harmful_detail: '', harmful_items: [], banned_detail: '', banned_items: [], transparency_detail: '', transparency_items: [], processing_detail: '', processing_items: [], company_detail: '', company_items: [] };
+  if (!product) return empty;
 
   const reasons = [];
   const positives = [];
@@ -158,58 +159,137 @@ export function getScoreExplanation(product) {
   if (typeof harmful === 'string') { try { harmful = JSON.parse(harmful); } catch { harmful = []; } }
   if (!Array.isArray(harmful)) harmful = [];
 
-  // ── Harmful Ingredients detail ──
-  const additiveNames = harmful.map(h =>
-    h.severity >= 8 ? `${h.name} (high risk)` : h.name
-  );
-  const harmful_detail = additiveNames.length > 0
-    ? `${additiveNames.length} found: ${additiveNames.slice(0, 3).join(', ')}`
-    : 'None detected';
-  if (additiveNames.length > 0) reasons.push(...additiveNames.slice(0, 2));
-
-  // ── Banned Elsewhere detail ──
-  const banned = harmful.filter(h => h.banned_in && h.banned_in.length > 0);
-  let banned_detail;
-  if (banned.length > 0) {
-    const countries = [...new Set(banned.flatMap(h => h.banned_in))];
-    banned_detail = `${banned.length} ingredient${banned.length > 1 ? 's' : ''} banned in ${countries.slice(0, 3).join(', ')}`;
-    reasons.push(`banned in ${countries.slice(0, 2).join(', ')}`);
+  // ── Harmful Ingredients ──
+  let harmful_detail;
+  const harmful_items = [];
+  if (harmful.length === 0) {
+    harmful_detail = 'No harmful additives detected in this product.';
   } else {
-    banned_detail = 'No banned ingredients found';
+    const highRisk = harmful.filter(h => h.severity >= 8);
+    const medRisk = harmful.filter(h => h.severity >= 5 && h.severity < 8);
+    const lowRisk = harmful.filter(h => h.severity < 5);
+    const parts = [];
+    if (highRisk.length) parts.push(`${highRisk.length} high-risk`);
+    if (medRisk.length) parts.push(`${medRisk.length} moderate-risk`);
+    if (lowRisk.length) parts.push(`${lowRisk.length} low-risk`);
+    harmful_detail = `Contains ${harmful.length} flagged ingredient${harmful.length > 1 ? 's' : ''}: ${parts.join(', ')}.`;
+    for (const h of harmful) {
+      const item = { name: h.name, severity: h.severity };
+      if (h.health_effects) item.effect = typeof h.health_effects === 'string' ? h.health_effects : '';
+      if (h.why_used) item.why = h.why_used;
+      if (h.category) item.category = h.category;
+      harmful_items.push(item);
+    }
+    reasons.push(...harmful.slice(0, 2).map(h => h.name));
   }
 
-  // ── Transparency detail ──
+  // ── Banned Elsewhere ──
+  const bannedIngredients = harmful.filter(h => h.banned_in && h.banned_in.length > 0);
+  let banned_detail;
+  const banned_items = [];
+  if (bannedIngredients.length === 0) {
+    banned_detail = 'None of the ingredients are banned in other countries.';
+  } else {
+    const allCountries = [...new Set(bannedIngredients.flatMap(h => h.banned_in))];
+    banned_detail = `${bannedIngredients.length} ingredient${bannedIngredients.length > 1 ? 's' : ''} banned in ${allCountries.length} region${allCountries.length > 1 ? 's' : ''}.`;
+    for (const h of bannedIngredients) {
+      banned_items.push({ name: h.name, countries: h.banned_in });
+    }
+    reasons.push(`banned in ${allCountries.slice(0, 2).join(', ')}`);
+  }
+
+  // ── Transparency ──
   const hasIngredients = product.ingredients && product.ingredients.length > 10;
   const nf = typeof product.nutrition_facts === 'string'
     ? (() => { try { return JSON.parse(product.nutrition_facts); } catch { return {}; } })()
     : (product.nutrition_facts || {});
-  const hasNutrition = Object.keys(nf).length >= 3;
-  const transparencyParts = [];
-  if (hasIngredients) transparencyParts.push('ingredients listed');
-  if (hasNutrition) transparencyParts.push('nutrition data');
-  if (product.nutriscore_grade) transparencyParts.push(`Nutri-Score ${product.nutriscore_grade.toUpperCase()}`);
-  const transparency_detail = transparencyParts.length > 0
-    ? transparencyParts.join(', ')
-    : 'Limited product data available';
+  const nutrientCount = Object.keys(nf).length;
+  const transparency_items = [];
+  if (hasIngredients) transparency_items.push({ label: 'Ingredients list', present: true });
+  else transparency_items.push({ label: 'Ingredients list', present: false });
+  if (nutrientCount >= 5) transparency_items.push({ label: 'Full nutrition data', present: true });
+  else if (nutrientCount >= 1) transparency_items.push({ label: 'Partial nutrition data', present: true, partial: true });
+  else transparency_items.push({ label: 'Nutrition data', present: false });
+  transparency_items.push({ label: 'Nutri-Score grade', present: !!product.nutriscore_grade });
+  transparency_items.push({ label: 'Product image', present: !!product.image_url });
+  transparency_items.push({ label: 'Brand identified', present: !!(product.brand && product.brand !== 'Unknown Brand' && product.brand !== 'Unknown') });
+  const presentCount = transparency_items.filter(t => t.present).length;
+  const transparency_detail = presentCount === transparency_items.length
+    ? 'Full product data available — highly transparent.'
+    : presentCount >= 3
+      ? 'Good transparency — most product data is available.'
+      : 'Limited data available — score may be less accurate.';
 
-  // ── Processing detail ──
+  // ── Processing ──
   let processing_detail;
-  if (product.nova_group === 1) { processing_detail = 'Minimally processed (NOVA 1)'; positives.push('minimally processed'); }
-  else if (product.nova_group === 2) { processing_detail = 'Processed culinary ingredient (NOVA 2)'; }
-  else if (product.nova_group === 3) { processing_detail = 'Processed food (NOVA 3)'; reasons.push('processed'); }
-  else if (product.nova_group === 4) { processing_detail = 'Ultra-processed (NOVA 4)'; reasons.push('ultra-processed'); }
-  else { processing_detail = product.processing_score >= 70 ? 'Low processing indicators' : 'Processing level estimated from ingredients'; }
-
-  // ── Company Behavior detail ──
-  let company_detail;
-  if (product.company_name) {
-    company_detail = product.company_behavior_score >= 70
-      ? `${product.company_name}`
-      : product.company_behavior_score <= 30
-        ? `${product.company_name} — known controversies`
-        : `${product.company_name}`;
+  const processing_items = [];
+  if (product.nova_group === 1) {
+    processing_detail = 'Minimally processed — whole or naturally altered foods.';
+    positives.push('minimally processed');
+  } else if (product.nova_group === 2) {
+    processing_detail = 'Processed culinary ingredient (oils, butter, sugar, salt).';
+  } else if (product.nova_group === 3) {
+    processing_detail = 'Processed food — manufactured with added salt, sugar, or oil.';
+    reasons.push('processed');
+  } else if (product.nova_group === 4) {
+    processing_detail = 'Ultra-processed — industrial formulations with additives.';
+    reasons.push('ultra-processed');
   } else {
-    company_detail = 'Company not identified';
+    processing_detail = product.processing_score >= 70
+      ? 'Low processing indicators based on ingredient analysis.'
+      : 'Processing level estimated from ingredients — some markers found.';
+  }
+  // Detect ultra-processing markers in ingredient text
+  if (product.ingredients) {
+    const il = product.ingredients.toLowerCase();
+    const markers = [
+      ['high fructose corn syrup', 'High fructose corn syrup'],
+      ['hydrogenated', 'Hydrogenated oils'],
+      ['artificial flavor', 'Artificial flavors'],
+      ['artificial color', 'Artificial colors'],
+      ['sodium benzoate', 'Sodium benzoate (preservative)'],
+      ['potassium sorbate', 'Potassium sorbate (preservative)'],
+      ['carrageenan', 'Carrageenan (thickener)'],
+      ['sodium nitrite', 'Sodium nitrite (preservative)'],
+      ['tbhq', 'TBHQ (antioxidant preservative)'],
+      ['bht', 'BHT (synthetic antioxidant)'],
+      ['bha', 'BHA (synthetic antioxidant)'],
+      ['maltodextrin', 'Maltodextrin (filler)'],
+      ['polysorbate', 'Polysorbate (emulsifier)'],
+    ];
+    for (const [key, label] of markers) {
+      if (il.includes(key)) processing_items.push(label);
+    }
+  }
+
+  // ── Company Behavior ──
+  let company_detail;
+  const company_items = [];
+  if (!product.company_name) {
+    company_detail = 'Company not identified — defaulting to neutral score.';
+  } else {
+    const score = product.company_behavior_score ?? 50;
+    const name = product.company_name;
+    if (score >= 70) {
+      company_detail = `${name} has a good track record.`;
+    } else if (score >= 40) {
+      company_detail = `${name} has a mixed track record.`;
+    } else {
+      company_detail = `${name} has significant concerns on record.`;
+    }
+    // Parse controversies
+    let controversies = product.controversies || product.company_controversies || '';
+    if (typeof controversies === 'object') controversies = JSON.stringify(controversies);
+    if (controversies && controversies.length > 2) {
+      // Split on common delimiters: semicolons, periods followed by capital, numbered lists
+      const parts = controversies
+        .split(/(?:;\s*|\.\s+(?=[A-Z])|\n|(?:\d+\.\s))/)
+        .map(s => s.trim().replace(/\.$/, ''))
+        .filter(s => s.length > 5);
+      for (const p of parts.slice(0, 6)) {
+        company_items.push(p);
+      }
+    }
   }
 
   // ── Overall summary ──
@@ -228,7 +308,14 @@ export function getScoreExplanation(product) {
   }
   summary = summary.charAt(0).toUpperCase() + summary.slice(1);
 
-  return { summary, harmful_detail, banned_detail, transparency_detail, processing_detail, company_detail };
+  return {
+    summary,
+    harmful_detail, harmful_items,
+    banned_detail, banned_items,
+    transparency_detail, transparency_items,
+    processing_detail, processing_items,
+    company_detail, company_items,
+  };
 }
 
 // UPC validation
