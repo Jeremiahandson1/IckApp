@@ -50,6 +50,7 @@ const S = {
   footerLogo: { fontFamily: 'var(--font-display)', fontSize: '20px', color: '#c8f135', letterSpacing: '2px' },
   footerSub:  { fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '3px', color: '#444', textTransform: 'uppercase', display: 'block', marginTop: '2px' },
   footerCopy: { fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#333', letterSpacing: '1px' },
+  featureBody: { fontSize: '14px', color: 'rgba(244,244,240,0.55)', lineHeight: 1.6, fontWeight: 300, marginTop: '8px' },
 };
 
 const banned = [
@@ -176,6 +177,71 @@ export default function Landing() {
               <div style={S.stepBody}>{s.body}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* FEATURES */}
+      <section style={{ ...S.section, background: '#0d0d0d', maxWidth: '100%', padding: '80px 24px' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+          <p style={S.label}>What You Get</p>
+          <h2 style={{ ...S.sectionH2, marginBottom: '48px' }}>Every Tool<br/>You <span style={{ color: '#c8f135' }}>Actually Need.</span></h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2px' }}>
+
+            {/* Barcode Scanner */}
+            <div style={S.card}>
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>📸</div>
+              <div style={S.cardIngredient}>Instant Barcode Scanner</div>
+              <p style={S.featureBody}>
+                Point your camera at any product and get a full breakdown in seconds. Works with 845,000+ products — from Trader Joe's to Target.
+              </p>
+            </div>
+
+            {/* 5-Dimension Scoring */}
+            <div style={S.card}>
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>🧪</div>
+              <div style={S.cardIngredient}>5-Dimension Scoring</div>
+              <p style={S.featureBody}>
+                Every product scored 0–100 across five dimensions: <strong style={{ color: '#f4f4f0' }}>Harmful Ingredients</strong>, <strong style={{ color: '#f4f4f0' }}>Banned Elsewhere</strong>, <strong style={{ color: '#f4f4f0' }}>Transparency</strong>, <strong style={{ color: '#f4f4f0' }}>Processing Level</strong>, and <strong style={{ color: '#f4f4f0' }}>Company Behavior</strong>.
+              </p>
+            </div>
+
+            {/* Health Condition Scoring */}
+            <div style={S.card}>
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>🩺</div>
+              <div style={S.cardIngredient}>Health Condition Scores</div>
+              <p style={S.featureBody}>
+                See a normal score <em>and</em> a condition-specific score side by side. Supports Thyroid, Diabetes, Heart Disease, Kidney Disease, and Celiac — set yours in your profile and toggle on the scanner.
+              </p>
+            </div>
+
+            {/* Smart Swaps */}
+            <div style={S.card}>
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>🔄</div>
+              <div style={S.cardIngredient}>Smart Swap Recommendations</div>
+              <p style={S.featureBody}>
+                Scanned something sketchy? We suggest a cleaner alternative with a better score — not a paid placement, just the actual best option.
+              </p>
+            </div>
+
+            {/* Product Database */}
+            <div style={S.card}>
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>📦</div>
+              <div style={S.cardIngredient}>845K+ Products</div>
+              <p style={S.featureBody}>
+                The largest open food database available. Full ingredient lists, nutrition facts, allergen data, and additive breakdowns — all in one scan.
+              </p>
+            </div>
+
+            {/* Allergen Alerts */}
+            <div style={S.card}>
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>⚠️</div>
+              <div style={S.cardIngredient}>Allergen Alerts</div>
+              <p style={S.featureBody}>
+                Set your allergens once and get flagged instantly when a product contains something you need to avoid. Covers gluten, dairy, nuts, soy, and more.
+              </p>
+            </div>
+
+          </div>
         </div>
       </section>
 
