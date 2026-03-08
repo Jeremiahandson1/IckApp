@@ -511,52 +511,48 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
   `;
 
+  const t0 = Date.now();
   try {
+    // Step 1: Create all tables + indexes in one round trip
     await pool.query(schema);
-    console.log('Database schema initialized successfully');
+    console.log(`  schema created (${Date.now() - t0}ms)`);
 
-    // ============================================================
-    // MIGRATION: Real scoring model (Nutri-Score 60% + Additives 30% + Organic 10%)
-    // Runs idempotently — safe to re-run on existing databases
-    // ============================================================
+    // Step 2: All migrations + extra tables in ONE round trip
+    // Guard the ALTER COLUMN TYPE so it doesn't rewrite the table every startup
+    const t1 = Date.now();
     await pool.query(`
-      -- Add new scoring columns
+      -- Add scoring columns
       ALTER TABLE products ADD COLUMN IF NOT EXISTS nutrition_score INT DEFAULT 50;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS additives_score INT DEFAULT 50;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS organic_bonus INT DEFAULT 0;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS allergens_tags JSONB DEFAULT '[]';
 
-      -- Add source_url to harmful ingredients for scientific credibility
       ALTER TABLE harmful_ingredients ADD COLUMN IF NOT EXISTS source_url TEXT;
-      
-      -- Migrate health_effects from JSONB to TEXT for existing databases
-      ALTER TABLE harmful_ingredients ALTER COLUMN health_effects TYPE TEXT USING health_effects::TEXT;
-      
-      -- Add dietary preference columns to users
+
+      -- Only convert health_effects to TEXT if it isn't TEXT already
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'harmful_ingredients'
+            AND column_name = 'health_effects'
+            AND data_type <> 'text'
+        ) THEN
+          ALTER TABLE harmful_ingredients ALTER COLUMN health_effects TYPE TEXT USING health_effects::TEXT;
+        END IF;
+      END $$;
+
       ALTER TABLE users ADD COLUMN IF NOT EXISTS allergen_alerts JSONB DEFAULT '[]';
-      
-      -- Push notification subscriptions
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
-
-      -- Admin role
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
-
-      -- Email verification columns
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(64);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at TIMESTAMP;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP;
-
-      -- Native push token
       ALTER TABLE users ADD COLUMN IF NOT EXISTS native_push_token VARCHAR(255);
-
-      -- Store memory for auto-sighting
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_store VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_store_zip VARCHAR(10);
 
-      -- Contribution review tracking
       ALTER TABLE product_contributions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
 
-      -- Flyer availability columns used by flyerCrawler.js
       ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS product_id INT REFERENCES products(id) ON DELETE SET NULL;
       ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS flyer_product_name VARCHAR(255);
       ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS brand VARCHAR(255);
@@ -565,11 +561,8 @@ export async function initDatabase() {
       ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS image_url TEXT;
       ALTER TABLE flyer_availability ADD COLUMN IF NOT EXISTS flyer_item_id VARCHAR(100);
 
-      -- Curated availability source column used by curatedStores.js
       ALTER TABLE curated_availability ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'curated';
 
-      -- Fix online_links unique constraint: seed files use ON CONFLICT (upc, name)
-      -- Drop old constraint if it exists, add correct one
       DO $$ BEGIN
         IF EXISTS (
           SELECT 1 FROM pg_constraint WHERE conname = 'online_links_upc_url_key'
@@ -579,16 +572,13 @@ export async function initDatabase() {
       END $$;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_online_links_upc_name ON online_links(upc, name);
 
-      -- Swap discovery tracking (used by dynamic swap engine)
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovery_type VARCHAR(50);
       ALTER TABLE products ADD COLUMN IF NOT EXISTS swap_discovered_at TIMESTAMP;
 
-      -- Receipt + price tracking on pantry items
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS price_paid DECIMAL(8,2);
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS store_name VARCHAR(255);
       ALTER TABLE pantry_items ADD COLUMN IF NOT EXISTS receipt_id INT;
 
-      -- Receipts
       CREATE TABLE IF NOT EXISTS receipts (
         id SERIAL PRIMARY KEY,
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -623,11 +613,8 @@ export async function initDatabase() {
         created_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
-    `);
 
-    // Ensure refresh_tokens.token_hash has a UNIQUE constraint
-    // (CREATE TABLE IF NOT EXISTS won't add it to a pre-existing table)
-    await pool.query(`
+      -- Ensure refresh_tokens.token_hash UNIQUE constraint
       DO $$ BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM pg_constraint
@@ -638,9 +625,60 @@ export async function initDatabase() {
           ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_token_hash_key UNIQUE (token_hash);
         END IF;
       END $$;
-    `);
 
-    // Migrate total_score to 5-dimension formula if still using old Yuka formula
+      -- Result cache
+      CREATE TABLE IF NOT EXISTS result_cache (
+        upc VARCHAR(20) NOT NULL,
+        cache_type VARCHAR(30) NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (upc, cache_type)
+      );
+
+      -- Health condition tables
+      CREATE TABLE IF NOT EXISTS conditions (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(50) UNIQUE NOT NULL,
+        description TEXT,
+        sub_types JSONB,
+        scoring_config JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS user_conditions (
+        id SERIAL PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        condition_id INT REFERENCES conditions(id) ON DELETE CASCADE,
+        sub_type VARCHAR(50),
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, condition_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_conditions_user ON user_conditions(user_id);
+      CREATE TABLE IF NOT EXISTS product_condition_scores (
+        id SERIAL PRIMARY KEY,
+        product_id INT REFERENCES products(id) ON DELETE CASCADE,
+        condition_slug VARCHAR(50) NOT NULL,
+        sub_type VARCHAR(50),
+        score INT CHECK (score >= 0 AND score <= 100),
+        flags JSONB DEFAULT '[]',
+        cached_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pcs_product ON product_condition_scores(product_id);
+      CREATE INDEX IF NOT EXISTS idx_pcs_slug ON product_condition_scores(condition_slug);
+
+      -- Seed conditions (idempotent)
+      INSERT INTO conditions (name, slug, description, sub_types) VALUES
+        ('Thyroid Disease', 'thyroid', 'Scoring accounts for goitrogens, iodine content, and soy — with separate rules for hypo, hyper, and Hashimoto''s variants.', '["hypo","hyper","hashimotos"]'),
+        ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, fiber content, and refined carbohydrate load to help manage blood glucose.', NULL),
+        ('Heart Disease / Cholesterol', 'heart', 'Evaluates saturated fat, trans fat, sodium, and beneficial heart-healthy ingredients like omega-3s and soluble fiber.', NULL),
+        ('Kidney Disease', 'kidney', 'Flags phosphate additives, high potassium, sodium, and protein levels that can strain kidney function.', NULL),
+        ('Celiac / Gluten Intolerance', 'celiac', 'Detects wheat, barley, rye, and cross-contamination risk ingredients in the ingredient list.', NULL)
+      ON CONFLICT (slug) DO NOTHING;
+    `);
+    console.log(`  migrations applied (${Date.now() - t1}ms)`);
+
+    // Step 3: Check if total_score needs migration (only round trip that can't be merged — conditional DDL)
     const colCheck = await pool.query(`
       SELECT pg_get_expr(adbin, adrelid) as expr
       FROM pg_attrdef
@@ -664,75 +702,12 @@ export async function initDatabase() {
             company_behavior_score * 0.10
           )
         ) STORED;
+        CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score);
       `);
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score)');
       console.log('  ✓ total_score migrated to 5-dimension formula');
     }
 
-    // Result cache — stores full swaps/recipes/spoonacular responses by UPC
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS result_cache (
-        upc VARCHAR(20) NOT NULL,
-        cache_type VARCHAR(30) NOT NULL,
-        data JSONB NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW(),
-        PRIMARY KEY (upc, cache_type)
-      );
-    `);
-
-    // ============================================================
-    // MIGRATION: Health condition scoring tables
-    // ============================================================
-    await pool.query(`
-      -- Health conditions reference table
-      CREATE TABLE IF NOT EXISTS conditions (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        slug VARCHAR(50) UNIQUE NOT NULL,
-        description TEXT,
-        sub_types JSONB,
-        scoring_config JSONB,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      -- User's selected health conditions
-      CREATE TABLE IF NOT EXISTS user_conditions (
-        id SERIAL PRIMARY KEY,
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        condition_id INT REFERENCES conditions(id) ON DELETE CASCADE,
-        sub_type VARCHAR(50),
-        active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, condition_id)
-      );
-      CREATE INDEX IF NOT EXISTS idx_user_conditions_user ON user_conditions(user_id);
-
-      -- Cached condition scores per product
-      CREATE TABLE IF NOT EXISTS product_condition_scores (
-        id SERIAL PRIMARY KEY,
-        product_id INT REFERENCES products(id) ON DELETE CASCADE,
-        condition_slug VARCHAR(50) NOT NULL,
-        sub_type VARCHAR(50),
-        score INT CHECK (score >= 0 AND score <= 100),
-        flags JSONB DEFAULT '[]',
-        cached_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_pcs_product ON product_condition_scores(product_id);
-      CREATE INDEX IF NOT EXISTS idx_pcs_slug ON product_condition_scores(condition_slug);
-    `);
-
-    // Seed conditions table (idempotent — ON CONFLICT DO NOTHING)
-    await pool.query(`
-      INSERT INTO conditions (name, slug, description, sub_types) VALUES
-        ('Thyroid Disease', 'thyroid', 'Scoring accounts for goitrogens, iodine content, and soy — with separate rules for hypo, hyper, and Hashimoto''s variants.', '["hypo","hyper","hashimotos"]'),
-        ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, fiber content, and refined carbohydrate load to help manage blood glucose.', NULL),
-        ('Heart Disease / Cholesterol', 'heart', 'Evaluates saturated fat, trans fat, sodium, and beneficial heart-healthy ingredients like omega-3s and soluble fiber.', NULL),
-        ('Kidney Disease', 'kidney', 'Flags phosphate additives, high potassium, sodium, and protein levels that can strain kidney function.', NULL),
-        ('Celiac / Gluten Intolerance', 'celiac', 'Detects wheat, barley, rye, and cross-contamination risk ingredients in the ingredient list.', NULL)
-      ON CONFLICT (slug) DO NOTHING;
-    `);
-
-    console.log('Database migrations complete');
+    console.log(`Database initialized in ${Date.now() - t0}ms`);
   } catch (err) {
     console.error('Error initializing database schema:', err);
     throw err;

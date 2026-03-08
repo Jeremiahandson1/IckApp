@@ -101,6 +101,7 @@ app.get('/health', (req, res) => {
 // Gate API routes until DB is initialized (return 503 while starting up)
 app.use('/api', (req, res, next) => {
   if (!dbReady) {
+    res.set('Retry-After', '5');
     return res.status(503).json({ error: 'Server is starting up, please retry shortly' });
   }
   next();
