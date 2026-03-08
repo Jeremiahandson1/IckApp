@@ -590,7 +590,7 @@ export async function initDatabase() {
           EXECUTE FUNCTION compute_total_score();
       `);
       // Backfill — simple UPDATE, no table lock, concurrent reads OK
-      await pool.query(`
+      const backfillResult = await pool.query(`
         UPDATE products SET total_score = ROUND(
           harmful_ingredients_score * 0.40 +
           banned_elsewhere_score * 0.20 +
@@ -600,8 +600,20 @@ export async function initDatabase() {
         );
       `);
       await pool.query('CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score)');
-      console.log('  ✓ total_score converted and backfilled');
+      console.log(`  ✓ total_score converted and backfilled (${backfillResult.rowCount} rows)`);
+    } else {
+      console.log('  total_score already trigger-based — GENERATED conversion skipped');
     }
+
+    // Diagnostic: check for rows that still have no score after backfill
+    const scoreCheck = await pool.query(`
+      SELECT COUNT(*) FILTER (WHERE total_score IS NULL) AS null_count,
+             COUNT(*) FILTER (WHERE total_score = 0) AS zero_count,
+             COUNT(*) AS total
+      FROM products
+    `);
+    const { null_count, zero_count, total } = scoreCheck.rows[0];
+    console.log(`  score health: ${total} products, ${null_count} NULL, ${zero_count} zero`);
 
     // Step 2: Lightweight column additions + extra tables (all IF NOT EXISTS — no data rewrites)
     const t1 = Date.now();
