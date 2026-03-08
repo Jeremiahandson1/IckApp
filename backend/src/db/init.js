@@ -564,57 +564,6 @@ export async function initDatabase() {
       END $$;
     `);
 
-    // If total_score is still a GENERATED STORED column (from old schema or
-    // a CREATE TABLE that ran before we changed it), convert to regular column.
-    // DROP + ADD is metadata-only (instant). Then UPDATE backfills all rows.
-    const genCheck = await pool.query(`
-      SELECT 1 FROM pg_attrdef
-      WHERE adrelid = 'products'::regclass
-        AND adnum = (
-          SELECT attnum FROM pg_attribute
-          WHERE attrelid = 'products'::regclass AND attname = 'total_score'
-        )
-    `);
-    if (genCheck.rows.length > 0) {
-      console.log('  converting total_score from GENERATED to trigger-based...');
-      await pool.query(`
-        ALTER TABLE products DROP COLUMN total_score;
-        ALTER TABLE products ADD COLUMN total_score INT;
-      `);
-      // Re-create the trigger (it was dropped with the column)
-      await pool.query(`
-        DROP TRIGGER IF EXISTS trg_total_score ON products;
-        CREATE TRIGGER trg_total_score
-          BEFORE INSERT OR UPDATE ON products
-          FOR EACH ROW
-          EXECUTE FUNCTION compute_total_score();
-      `);
-      // Backfill — simple UPDATE, no table lock, concurrent reads OK
-      const backfillResult = await pool.query(`
-        UPDATE products SET total_score = ROUND(
-          harmful_ingredients_score * 0.40 +
-          banned_elsewhere_score * 0.20 +
-          transparency_score * 0.15 +
-          processing_score * 0.15 +
-          company_behavior_score * 0.10
-        );
-      `);
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score)');
-      console.log(`  ✓ total_score converted and backfilled (${backfillResult.rowCount} rows)`);
-    } else {
-      console.log('  total_score already trigger-based — GENERATED conversion skipped');
-    }
-
-    // Diagnostic: check for rows that still have no score after backfill
-    const scoreCheck = await pool.query(`
-      SELECT COUNT(*) FILTER (WHERE total_score IS NULL) AS null_count,
-             COUNT(*) FILTER (WHERE total_score = 0) AS zero_count,
-             COUNT(*) AS total
-      FROM products
-    `);
-    const { null_count, zero_count, total } = scoreCheck.rows[0];
-    console.log(`  score health: ${total} products, ${null_count} NULL, ${zero_count} zero`);
-
     // Step 2: Lightweight column additions + extra tables (all IF NOT EXISTS — no data rewrites)
     const t1 = Date.now();
     await pool.query(`

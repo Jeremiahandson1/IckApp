@@ -393,8 +393,17 @@ const CLEAN_ALTERNATIVES = [
 // ============================================================
 
 export async function seedCuratedSwaps() {
+  // Check if swap data already exists — skip entirely if so
+  const existsCheck = await pool.query(
+    `SELECT COUNT(*) FROM products WHERE is_clean_alternative = true`
+  );
+  if (parseInt(existsCheck.rows[0].count) >= CLEAN_ALTERNATIVES.length) {
+    console.log('Swap database already seeded — skipped');
+    return;
+  }
+
   console.log('\n=== Seeding Curated Swap Database ===');
-  
+
   let updated = 0;
   let created = 0;
 
