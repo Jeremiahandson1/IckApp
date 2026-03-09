@@ -219,7 +219,7 @@ app.listen(PORT, '0.0.0.0', () => {
       console.log(`✓ Reference data present (${hiCount.rows[0].count} harmful ingredients, ${coCount.rows[0].count} companies)`);
     }
   } catch (e) {
-    console.warn('⚠ Reference data seed failed (non-fatal):', e.message);
+    console.error('⚠ Reference data seed failed (non-fatal):', e.message, e.stack);
   }
 
   try {

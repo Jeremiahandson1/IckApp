@@ -36,18 +36,61 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
         && product.processing_score === 50
         && product.company_behavior_score === 50;
 
-      if (isStale && product.ingredients && product.ingredients.length > 3) {
+      if (isStale) {
+        console.log(`[re-score] Stale product detected: ${upc} "${product.name}" ingredients=${product.ingredients?.length || 0}chars`);
         try {
+          let ingredients = product.ingredients || '';
+          let nutriscore_grade = product.nutriscore_grade || null;
+          let nova_group = product.nova_group || null;
+          let nutriments = product.nutrition_facts || null;
+          let allergens_tags = product.allergens_tags || [];
+          let image_url = product.image_url || null;
+          let brand = product.brand || '';
+
+          // If no ingredients in DB, try to fetch from Open Food Facts
+          if (!ingredients || ingredients.length < 3) {
+            try {
+              const offRes = await fetch(
+                `https://world.openfoodfacts.org/api/v0/product/${upc}.json`,
+                { headers: { 'User-Agent': 'Ick/1.0' } }
+              );
+              const offData = await offRes.json();
+              if (offData.status === 1 && offData.product) {
+                const p = offData.product;
+                ingredients = p.ingredients_text || p.ingredients_text_en || '';
+                nutriscore_grade = p.nutriscore_grade || nutriscore_grade;
+                nova_group = p.nova_group || nova_group;
+                nutriments = p.nutriments || nutriments;
+                allergens_tags = p.allergens_tags || allergens_tags;
+                image_url = p.image_url || p.image_front_url || image_url;
+                if (!brand || brand === 'Unknown Brand' || brand === 'Unknown') {
+                  brand = p.brands || brand;
+                }
+                console.log(`[re-score] Fetched OFF data for ${upc}: ingredients=${ingredients.length}chars nova=${nova_group}`);
+              }
+            } catch (fetchErr) {
+              console.warn(`[re-score] OFF fetch failed for ${upc}:`, fetchErr.message);
+            }
+          }
+
           const freshScores = await calculateProductScore({
-            ingredients: product.ingredients,
-            brand: product.brand || '',
-            nutriscore_grade: product.nutriscore_grade || null,
-            nova_group: product.nova_group || null,
-            nutriments: product.nutrition_facts || null,
+            ingredients,
+            brand,
+            nutriscore_grade,
+            nova_group,
+            nutriments,
             labels: product.is_organic ? ['en:organic'] : [],
-            allergens_tags: product.allergens_tags || [],
-            image_url: product.image_url || null,
+            allergens_tags,
+            image_url,
           });
+
+          console.log(`[re-score] ${upc} scores:`, JSON.stringify({
+            harmful: freshScores.harmful_ingredients_score,
+            banned: freshScores.banned_elsewhere_score,
+            transparency: freshScores.transparency_score,
+            processing: freshScores.processing_score,
+            company: freshScores.company_behavior_score,
+          }));
 
           if (freshScores) {
             const updated = await pool.query(
@@ -58,6 +101,11 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
                 processing_score = $4,
                 company_behavior_score = $5,
                 harmful_ingredients_found = $6,
+                ingredients = CASE WHEN LENGTH($8) > LENGTH(COALESCE(ingredients, '')) THEN $8 ELSE ingredients END,
+                nutriscore_grade = COALESCE($9, nutriscore_grade),
+                nova_group = COALESCE($10, nova_group),
+                image_url = COALESCE($11, image_url),
+                brand = CASE WHEN brand IS NULL OR brand = 'Unknown Brand' OR brand = 'Unknown' THEN $12 ELSE brand END,
                 updated_at = NOW()
               WHERE id = $7
               RETURNING *`,
@@ -69,14 +117,20 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
                 freshScores.company_behavior_score,
                 freshScores.harmful_ingredients_found ? JSON.stringify(freshScores.harmful_ingredients_found) : product.harmful_ingredients_found,
                 product.id,
+                ingredients,
+                nutriscore_grade,
+                nova_group,
+                image_url,
+                brand,
               ]
             );
             if (updated.rows.length > 0) {
               product = { ...product, ...updated.rows[0] };
+              console.log(`[re-score] ${upc} total_score=${product.total_score}`);
             }
           }
         } catch (scoreErr) {
-          console.warn('Re-score failed for stale product', upc, scoreErr.message);
+          console.error('[re-score] Failed for', upc, scoreErr);
         }
       }
 
@@ -320,6 +374,16 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
       allergens_tags: offProduct.allergens_tags || [],
       image_url: offProduct.image_url || offProduct.image_front_url || null,
     });
+
+    console.log(`[score] Fresh OFF score for ${upc} "${offProduct.product_name}":`, JSON.stringify({
+      harmful: scores?.harmful_ingredients_score,
+      banned: scores?.banned_elsewhere_score,
+      transparency: scores?.transparency_score,
+      processing: scores?.processing_score,
+      company: scores?.company_behavior_score,
+      ingredients_len: ingredients.length,
+      nova: offProduct.nova_group,
+    }));
 
     // Save to our database with full nutritional data
     const insertResult = await pool.query(
