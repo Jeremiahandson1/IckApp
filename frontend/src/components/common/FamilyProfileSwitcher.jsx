@@ -1,30 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../utils/api';
+import { familyGroup as familyGroupApi } from '../../utils/api';
 
 /**
  * FamilyProfileSwitcher
- * 
+ *
  * Horizontal scrollable pill bar showing family members.
  * Tapping a profile changes which allergens are active for product warnings.
  * Shows "Scanning for [name]" with their allergen list.
- * 
- * For anonymous users: shows "Everyone" using localStorage allergens.
- * For logged-in users with no family profiles: shows "You" with account allergens.
- * For logged-in users with family profiles: shows all profiles with avatars.
+ *
+ * Supports two sources:
+ *   1. Family profiles (per-account, /products/family) — original behavior
+ *   2. Family group members (multi-user, /family/group) — new family groups
+ *
+ * When family group exists, adds a "Whole Family" option that aggregates
+ * all members' allergies and reports per-member matches via onFamilyScanInfo.
  */
 
 // Local state for active profile — persists across product views in same session
 let _activeProfileId = null;
+let _scanMode = 'member'; // 'member' | 'family'
 
 export function getActiveProfileId() {
   return _activeProfileId;
 }
 
-export default function FamilyProfileSwitcher({ onAllergenChange }) {
+export function getScanMode() {
+  return _scanMode;
+}
+
+export default function FamilyProfileSwitcher({ onAllergenChange, onFamilyScanInfo }) {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
+  const [familyMembers, setFamilyMembers] = useState([]);
   const [activeId, setActiveId] = useState(_activeProfileId);
+  const [scanMode, setScanModeState] = useState(_scanMode);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,7 +44,6 @@ export default function FamilyProfileSwitcher({ onAllergenChange }) {
 
   const loadProfiles = async () => {
     if (!user) {
-      // Anonymous: single "Everyone" profile from localStorage
       const allergens = (() => {
         try { return JSON.parse(localStorage.getItem('ick_allergens') || '[]'); } catch { return []; }
       })();
@@ -49,27 +59,47 @@ export default function FamilyProfileSwitcher({ onAllergenChange }) {
 
     try {
       setLoading(true);
-      const data = await api.get('/products/family');
-      if (Array.isArray(data) && data.length > 0) {
-        setProfiles(data);
-        
-        // Default to first profile (the default one) if no selection
-        const selectedId = activeId || data.find(p => p.is_default)?.id || data[0].id;
-        setActiveId(selectedId);
-        _activeProfileId = selectedId;
-        
-        const selected = data.find(p => p.id === selectedId) || data[0];
-        onAllergenChange?.(selected.allergen_alerts || []);
+
+      // Load both family profiles and family group in parallel
+      const [profileData, groupData] = await Promise.all([
+        api.get('/products/family').catch(() => []),
+        familyGroupApi.getGroup().catch(() => ({ group: null, members: [] })),
+      ]);
+
+      let allProfiles = [];
+
+      if (Array.isArray(profileData) && profileData.length > 0) {
+        allProfiles = profileData;
       } else {
-        // No family profiles — use account allergens
-        const fallback = { id: 'me', name: user.name || 'Me', avatar: '👤', allergen_alerts: user.allergen_alerts || [] };
-        setProfiles([fallback]);
-        setActiveId('me');
-        _activeProfileId = 'me';
-        onAllergenChange?.(user.allergen_alerts || []);
+        allProfiles = [{ id: 'me', name: user.name || 'Me', avatar: '👤', allergen_alerts: user.allergen_alerts || [] }];
       }
-    } catch (err) {
-      // Offline fallback — use account allergens
+
+      // If user has a family group, add member profiles for "Whole Family" mode
+      if (groupData.group && groupData.members?.length > 0) {
+        const fMembers = groupData.members
+          .filter(m => m.status === 'active')
+          .map(m => ({
+            id: `fg-${m.id}`,
+            name: m.user_name || m.profiles?.[0]?.name || 'Member',
+            allergies: m.profiles?.[0]?.allergies || [],
+            diseases: m.profiles?.[0]?.diseases || [],
+          }));
+        setFamilyMembers(fMembers);
+      }
+
+      setProfiles(allProfiles);
+
+      const selectedId = activeId || allProfiles.find(p => p.is_default)?.id || allProfiles[0].id;
+      setActiveId(selectedId);
+      _activeProfileId = selectedId;
+
+      if (scanMode === 'family') {
+        emitFamilyAllergens(allProfiles);
+      } else {
+        const selected = allProfiles.find(p => p.id === selectedId) || allProfiles[0];
+        onAllergenChange?.(selected.allergen_alerts || []);
+      }
+    } catch {
       const fallback = { id: 'me', name: user.name || 'Me', avatar: '👤', allergen_alerts: user.allergen_alerts || [] };
       setProfiles([fallback]);
       setActiveId('me');
@@ -80,19 +110,41 @@ export default function FamilyProfileSwitcher({ onAllergenChange }) {
     }
   };
 
+  const emitFamilyAllergens = (profs) => {
+    // Aggregate all allergens from all profiles + family members
+    const allAllergens = new Set();
+    profs.forEach(p => (p.allergen_alerts || []).forEach(a => allAllergens.add(a)));
+    familyMembers.forEach(m => (m.allergies || []).forEach(a => allAllergens.add(a)));
+    onAllergenChange?.([...allAllergens]);
+    onFamilyScanInfo?.(familyMembers);
+  };
+
   const selectProfile = (profile) => {
     setActiveId(profile.id);
     _activeProfileId = profile.id;
+    setScanModeState('member');
+    _scanMode = 'member';
     onAllergenChange?.(profile.allergen_alerts || []);
+    onFamilyScanInfo?.(null);
   };
 
-  // Don't show if only one profile with no allergens
-  if (profiles.length <= 1 && (!profiles[0]?.allergen_alerts?.length)) {
+  const selectWholeFamily = () => {
+    setScanModeState('family');
+    _scanMode = 'family';
+    setActiveId('whole-family');
+    _activeProfileId = 'whole-family';
+    emitFamilyAllergens(profiles);
+  };
+
+  // Don't show if only one profile with no allergens and no family group members
+  if (profiles.length <= 1 && (!profiles[0]?.allergen_alerts?.length) && familyMembers.length === 0) {
     return null;
   }
 
-  // Don't show if only one profile (no family to switch between)
-  if (profiles.length <= 1) return null;
+  // Don't show if only one profile and no family members
+  if (profiles.length <= 1 && familyMembers.length === 0) return null;
+
+  const hasFamilyGroup = familyMembers.length > 0;
 
   return (
     <div className="px-4 mt-3">
@@ -100,8 +152,24 @@ export default function FamilyProfileSwitcher({ onAllergenChange }) {
         <span className="text-xs text-[#888] font-medium whitespace-nowrap mr-1">
           Scanning for:
         </span>
+
+        {/* Whole Family toggle (only if family group exists) */}
+        {hasFamilyGroup && (
+          <button
+            onClick={selectWholeFamily}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+              scanMode === 'family'
+                ? 'bg-[rgba(200,241,53,0.1)] text-[#a8cc20] ring-2 ring-orange-400 scale-105'
+                : 'bg-[#1e1e1e] text-[#888]'
+            }`}
+          >
+            <span className="text-base">👨‍👩‍👧‍👦</span>
+            <span>Whole Family</span>
+          </button>
+        )}
+
         {profiles.map((profile) => {
-          const isActive = profile.id === activeId;
+          const isActive = profile.id === activeId && scanMode === 'member';
           const hasAllergens = profile.allergen_alerts?.length > 0;
 
           return (

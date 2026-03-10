@@ -28,6 +28,7 @@ import familyRoutes from './routes/family.js';
 import kidRatingsRoutes from './routes/kidRatings.js';
 import contributionsRoutes from './routes/contributions.js';
 import conditionsRoutes from './routes/conditions.js';
+import familyGroupRoutes from './routes/familyGroups.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -138,6 +139,7 @@ app.use('/api/kroger', krogerRoutes);
 app.use('/api/sightings', sightingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/receipts', receiptRoutes);
+app.use('/api/family', familyGroupRoutes);
 
 // Serve frontend in production
 import path from 'path';

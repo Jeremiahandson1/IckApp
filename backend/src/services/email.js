@@ -141,6 +141,23 @@ export async function sendTrialExpiryEmail({ to, name, daysLeft }) {
   });
 }
 
+export async function sendFamilyInviteEmail({ to, inviterName, groupName, joinUrl }) {
+  return send({
+    to,
+    subject: `${inviterName} invited you to their family on Ick`,
+    html: layout(`
+      <h2 style="color: #f1f5f9; margin: 0 0 16px;">You're invited!</h2>
+      <p style="${TEXT_STYLE}"><strong style="color: #f1f5f9;">${inviterName}</strong> wants you to join their family group <strong style="color: #f1f5f9;">"${groupName}"</strong> on Ick.</p>
+      <p style="${TEXT_STYLE}">When you join, you can scan food together, share a pantry, and keep track of each family member's allergies and health conditions.</p>
+      <div style="text-align: center;">
+        <a href="${joinUrl}" style="${BTN_STYLE}">Join Family →</a>
+      </div>
+      <p style="color: #475569; font-size: 13px; margin: 0;">Or copy this link:<br><span style="word-break: break-all; color: #f97316;">${joinUrl}</span></p>
+    `),
+    text: `${inviterName} invited you to their family "${groupName}" on Ick. Join here: ${joinUrl}`,
+  });
+}
+
 export async function sendSubscriptionConfirmationEmail({ to, name, plan, expiresAt }) {
   const displayName = name ? name.split(' ')[0] : 'there';
   const renewDate = new Date(expiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });

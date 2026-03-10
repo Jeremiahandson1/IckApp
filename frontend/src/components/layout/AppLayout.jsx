@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Scan, ArrowRightLeft, ChefHat, Package, User, Settings, WifiOff } from 'lucide-react';
+import { Scan, ArrowRightLeft, ChefHat, Package, User, Users, Settings, WifiOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOnline } from '../../hooks/useOnline';
 import TrialBanner from './TrialBanner';
@@ -9,6 +9,7 @@ const navItems = [
   { path: '/swaps', icon: ArrowRightLeft, label: 'Swaps' },
   { path: '/recipes', icon: ChefHat, label: 'Recipes' },
   { path: '/pantry', icon: Package, label: 'Pantry' },
+  { path: '/family', icon: Users, label: 'Family' },
   { path: '/profile', icon: User, label: 'Profile' },
 ];
 

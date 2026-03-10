@@ -298,6 +298,19 @@ export const conditions = {
     api.get(`/conditions/score/${productId}?conditions=${encodeURIComponent(conditionsParam)}`),
 };
 
+export const familyGroup = {
+  create: (name) => api.post('/family/create', { name }),
+  invite: (data) => api.post('/family/invite', data),
+  getInvite: (token) => api.get(`/family/join/${token}`),
+  joinGroup: (token) => api.post(`/family/join/${token}`),
+  getGroup: () => api.get('/family/group'),
+  updateMember: (id, data) => api.request(`/family/member/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  removeMember: (id) => api.delete(`/family/member/${id}`),
+};
+
 export const account = {
   changePassword: (current_password, new_password) =>
     api.put('/auth/password', { current_password, new_password }),

@@ -696,6 +696,41 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_pcs_product ON product_condition_scores(product_id);
       CREATE INDEX IF NOT EXISTS idx_pcs_slug ON product_condition_scores(condition_slug);
 
+      -- Family groups (multi-user household management)
+      CREATE TABLE IF NOT EXISTS family_groups (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_family_groups_owner ON family_groups(owner_id);
+
+      CREATE TABLE IF NOT EXISTS family_members (
+        id SERIAL PRIMARY KEY,
+        group_id INT REFERENCES family_groups(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        invite_token UUID DEFAULT gen_random_uuid(),
+        invite_email VARCHAR(255),
+        invite_phone VARCHAR(20),
+        status VARCHAR(20) DEFAULT 'pending',
+        role VARCHAR(20) DEFAULT 'member',
+        joined_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_family_members_group ON family_members(group_id);
+      CREATE INDEX IF NOT EXISTS idx_family_members_user ON family_members(user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_family_members_token ON family_members(invite_token);
+
+      CREATE TABLE IF NOT EXISTS family_member_profiles (
+        id SERIAL PRIMARY KEY,
+        family_member_id INT REFERENCES family_members(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        diseases JSONB DEFAULT '[]',
+        allergies JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fmp_member ON family_member_profiles(family_member_id);
+
       INSERT INTO conditions (name, slug, description, sub_types) VALUES
         ('Thyroid Disease', 'thyroid', 'Scoring accounts for goitrogens, iodine content, and soy — with separate rules for hypo, hyper, and Hashimoto''s variants.', '["hypo","hyper","hashimotos"]'),
         ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, fiber content, and refined carbohydrate load to help manage blood glucose.', NULL),

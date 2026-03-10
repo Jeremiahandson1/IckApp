@@ -41,6 +41,9 @@ export default function ProductResult() {
     })()
   );
 
+  // Family group scan mode
+  const [familyScanMembers, setFamilyScanMembers] = useState(null);
+
   // Condition scoring
   const [conditionViewOn, setConditionViewOn] = useState(() => {
     try { return localStorage.getItem('ick_condition_view') === 'on'; } catch { return false; }
@@ -471,7 +474,7 @@ export default function ProductResult() {
         return (
           <div className="mt-4 space-y-3">
             {/* Family profile switcher */}
-            <FamilyProfileSwitcher onAllergenChange={setActiveAllergens} />
+            <FamilyProfileSwitcher onAllergenChange={setActiveAllergens} onFamilyScanInfo={setFamilyScanMembers} />
 
             <div className="px-4 space-y-3">
             {/* Personal allergen alert — red, prominent */}
@@ -509,6 +512,41 @@ export default function ProductResult() {
                 ))}
               </div>
             </div>
+            {/* Family group member alerts — show who is affected */}
+            {familyScanMembers && familyScanMembers.length > 0 && (() => {
+              const affected = familyScanMembers.filter(m => {
+                const memberAllergens = m.allergies || [];
+                return memberAllergens.some(ma =>
+                  allergens.some(a => a.toLowerCase().includes(ma.toLowerCase()) || ma.toLowerCase().includes(a.toLowerCase()))
+                );
+              });
+              if (affected.length === 0) return null;
+              return (
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-sm p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-purple-400" />
+                    <span className="font-semibold text-purple-300 text-sm">Family Members Affected</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {affected.map(m => {
+                      const matched = (m.allergies || []).filter(ma =>
+                        allergens.some(a => a.toLowerCase().includes(ma.toLowerCase()) || ma.toLowerCase().includes(a.toLowerCase()))
+                      );
+                      return (
+                        <div key={m.id} className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-purple-200">{m.name}:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {matched.map((a, i) => (
+                              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">{a}</span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             </div>
           </div>
         );

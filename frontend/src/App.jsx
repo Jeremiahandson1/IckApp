@@ -32,6 +32,8 @@ import PremiumGate from './components/common/PremiumGate';
 import ReceiptScan from './pages/ReceiptScan';
 import Budget from './pages/Budget';
 import Admin from './pages/Admin';
+import Family from './pages/Family';
+import JoinFamily from './pages/JoinFamily';
 
 // Auth gate — only for features that truly need login
 function AuthGate({ children }) {
@@ -164,6 +166,7 @@ export default function App() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/join/:token" element={<JoinFamily />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
@@ -189,6 +192,7 @@ export default function App() {
         <Route path="/profile" element={<AuthGate><Profile /></AuthGate>} />
         <Route path="/subscription" element={<AuthGate><Subscription /></AuthGate>} />
         <Route path="/admin" element={<AuthGate><Admin /></AuthGate>} />
+        <Route path="/family" element={<AuthGate><Family /></AuthGate>} />
       </Route>
 
       {/* Fallback */}
