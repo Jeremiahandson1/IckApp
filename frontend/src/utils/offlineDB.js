@@ -329,7 +329,7 @@ export async function migrateFromLocalStorage() {
 // ── Pre-loading ──
 
 /**
- * Pre-load curated products from the backend
+ * Pre-load curated products from the backend (paginated)
  * Called once after first install, then periodically to refresh
  */
 export async function preloadProducts(apiClient) {
@@ -340,15 +340,27 @@ export async function preloadProducts(apiClient) {
   if (daysSince < 7) return;
 
   try {
-    // Fetch all curated products from backend
-    const response = await apiClient.get('/products/curated');
-    if (Array.isArray(response) && response.length > 0) {
+    let page = 1;
+    let totalLoaded = 0;
+
+    while (true) {
+      const response = await apiClient.get(`/products/curated?page=${page}&limit=200`);
+      if (!Array.isArray(response) || response.length === 0) break;
+
       await putProducts(response);
+      totalLoaded += response.length;
+
+      // If we got fewer than the limit, this was the last page
+      if (response.length < 200) break;
+      page++;
+    }
+
+    if (totalLoaded > 0) {
       await setMeta('last_preload', Date.now());
-      console.log(`[OfflineDB] Pre-loaded ${response.length} curated products`);
+      console.log(`[OfflineDB] Pre-loaded ${totalLoaded} curated products (${page} pages)`);
     }
   } catch (e) {
-    // Offline — skip preload, will retry later
+    // Offline or partial failure — skip preload, will retry later
     console.log('[OfflineDB] Preload skipped (offline)');
   }
 }

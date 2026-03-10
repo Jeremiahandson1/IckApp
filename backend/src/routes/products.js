@@ -660,7 +660,7 @@ router.get('/search', async (req, res) => {
 router.get('/ingredients/harmful', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM harmful_ingredients ORDER BY severity DESC'
+      'SELECT name, severity, category, health_effects, banned_in, why_used FROM harmful_ingredients ORDER BY severity DESC LIMIT 500'
     );
     res.json(result.rows);
   } catch (err) {
@@ -689,16 +689,19 @@ router.get('/meta/categories', async (req, res) => {
 // ============================================================
 router.get('/curated', async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 200));
+    const offset = (page - 1) * limit;
+
     const result = await pool.query(`
-      SELECT p.upc, p.name, p.brand, p.category, p.subcategory,
-             p.total_score, p.harmful_ingredients_score, p.banned_elsewhere_score,
-             p.transparency_score, p.processing_score, p.company_behavior_score,
-             p.nutriscore_grade, p.nova_group, p.image_url,
-             p.allergens_tags, p.ingredients,
+      SELECT p.upc, p.name, p.brand, p.category,
+             p.total_score, p.nutriscore_grade, p.nova_group, p.image_url,
              p.is_organic, p.is_clean_alternative
       FROM products p
+      WHERE p.total_score IS NOT NULL
       ORDER BY p.total_score DESC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
     res.json(result.rows);
   } catch (err) {
     console.error('Curated products error:', err);

@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
       query += ' AND kid_friendly = true';
     }
 
-    query += ' ORDER BY name';
+    query += ' ORDER BY name LIMIT 100';
 
     const result = await pool.query(query, params);
     res.json(result.rows);

@@ -28,7 +28,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 async function getHarmfulIngredients() {
   const now = Date.now();
   if (_cachedHarmful && (now - _harmfulCacheTime) < CACHE_TTL) return _cachedHarmful;
-  const result = await pool.query('SELECT * FROM harmful_ingredients');
+  const result = await pool.query('SELECT name, aliases, severity, category, health_effects, banned_in, why_used, source_url FROM harmful_ingredients');
   _cachedHarmful = result.rows;
   _harmfulCacheTime = now;
   return _cachedHarmful;
@@ -37,7 +37,7 @@ async function getHarmfulIngredients() {
 async function getCompanies() {
   const now = Date.now();
   if (_cachedCompanies && (now - _companyCacheTime) < CACHE_TTL) return _cachedCompanies;
-  const result = await pool.query('SELECT * FROM companies');
+  const result = await pool.query('SELECT name, parent_company, behavior_score, controversies, transparency_rating FROM companies');
   _cachedCompanies = result.rows;
   _companyCacheTime = now;
   return _cachedCompanies;
