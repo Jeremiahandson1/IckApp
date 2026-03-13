@@ -173,7 +173,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     //    Matches product TYPE first (soup → soup, not soup → cracker),
     //    then ranks by RELEVANCE (chicken noodle soup → other chicken noodle soups
     //    before tomato soup). Uses a single combined query for speed.
-    const swapScoreFloor = 50;
+    // Only show alternatives that are actually BETTER than what was scanned
+    const swapScoreFloor = Math.max(50, (product.total_score || 0) + 1);
     if (swaps.length === 0) {
       const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
 

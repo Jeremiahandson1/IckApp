@@ -472,7 +472,7 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
        AND p.swap_discovered_at > NOW() - INTERVAL '1 hour' * $4
        ORDER BY p.total_score DESC
        LIMIT $5`,
-      [matchedType.id, 50, upc, CACHE_HOURS, limit * 3]
+      [matchedType.id, Math.max(50, (product.total_score || 0) + 1), upc, CACHE_HOURS, limit * 3]
     );
 
     if (cached.rows.length >= limit) {
