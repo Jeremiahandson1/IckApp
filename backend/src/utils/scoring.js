@@ -188,13 +188,12 @@ function computeTransparencyScore(opts) {
 function computeProcessingScore(opts) {
   const { nova_group, ingredients } = opts;
 
-  // If we have NOVA group, use it directly
+  // If we have NOVA group, use it as a starting point
   if (nova_group) {
     const novaScores = { 1: 95, 2: 75, 3: 45, 4: 15 };
     let score = novaScores[nova_group] ?? 50;
 
-    // Fine-tune within NOVA 4 based on ingredients
-    if (nova_group === 4 && ingredients) {
+    if (ingredients) {
       const il = ingredients.toLowerCase();
       const ultraMarkers = [
         'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
@@ -204,9 +203,21 @@ function computeProcessingScore(opts) {
         'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
       ];
       const markerCount = ultraMarkers.filter(m => il.includes(m)).length;
-      // More markers = even worse within NOVA 4
-      if (markerCount >= 4) score = 5;
-      else if (markerCount >= 2) score = 10;
+
+      // Fine-tune within NOVA 4 based on ingredients
+      if (nova_group === 4) {
+        if (markerCount >= 4) score = 5;
+        else if (markerCount >= 2) score = 10;
+      }
+
+      // Override NOVA 3 ("processed") when ingredients are actually simple.
+      // OFF classifies things like "chickpeas, sea salt" as NOVA 3 just because
+      // salt was added, but these are minimally processed whole foods.
+      if (nova_group === 3 && markerCount === 0) {
+        const commaCount = (ingredients.match(/,/g) || []).length;
+        if (commaCount <= 5) score = 75;       // few simple ingredients → treat as NOVA 2
+        else if (commaCount <= 10) score = 60;  // moderate but still no ultra markers
+      }
     }
 
     return clamp(score);

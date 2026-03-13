@@ -35,6 +35,22 @@ const PRODUCT_TYPES = [
     exclude: ['nut', 'seed', 'chip', 'water', 'chestnut'],
     label: 'Fruit Snacks' },
   
+  { id: 'candy-ginger',
+    test: /ginger\s*chew|ginger\s*candy|crystalli[sz]ed\s*ginger/i,
+    off_categories: ['en:candies', 'en:confectioneries', 'en:ginger-candies'],
+    search_terms: 'organic ginger chews candy',
+    must_contain: ['ginger'],
+    exclude: ['cereal', 'cookie', 'cracker', 'chip', 'beer', 'ale', 'soda'],
+    label: 'Ginger Chews' },
+
+  { id: 'candy-chews',
+    test: /\bchew[sy]?\b(?!.*gum)|taffy|toffee|caramel\s*candy|hi-?chew|mamba|airhead|laffy/i,
+    off_categories: ['en:candies', 'en:confectioneries', 'en:toffees'],
+    search_terms: 'organic chewy candy',
+    must_contain: ['chew', 'candy', 'taffy', 'toffee', 'caramel', 'sweet'],
+    exclude: ['chocolate', 'bar', 'cereal', 'granola', 'gum'],
+    label: 'Chewy Candy' },
+
   { id: 'candy-fruity',
     test: /skittle|sour.*candy|fruity.*candy|jelly.*bean|gumm(?!y\s*bear)|chewy.*candy|starburst/i,
     off_categories: ['en:candies', 'en:confectioneries', 'en:gummy-candies'],
@@ -416,14 +432,23 @@ function scoreRelevance(candidateName, candidateBrand, productWords, productBran
 // MAIN: Find dynamic swaps for a product
 // ============================================================
 export async function findDynamicSwaps(product, upc, limit = 5) {
+  const nameOnly = (product.name || '').toLowerCase();
   const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
 
-  // 1. Identify product type
+  // 1. Identify product type — match name first to avoid OFF miscategorization
   let matchedType = null;
   for (const type of PRODUCT_TYPES) {
-    if (type.test.test(fullName)) {
+    if (type.test.test(nameOnly)) {
       matchedType = type;
       break;
+    }
+  }
+  if (!matchedType) {
+    for (const type of PRODUCT_TYPES) {
+      if (type.test.test(fullName)) {
+        matchedType = type;
+        break;
+      }
     }
   }
 
@@ -498,96 +523,44 @@ async function searchOFF(type, product, excludeUpc) {
     allCandidates.push(p);
   };
 
-  // Strategy 1: Category-based search (most targeted)
-  for (const category of type.off_categories.slice(0, 2)) {
-    try {
-      const url = `${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
-        action: 'process',
-        json: 'true',
-        page_size: '30',
-        tagtype_0: 'categories',
-        tag_contains_0: 'contains',
-        tag_0: category,
-        tagtype_1: 'countries',
-        tag_contains_1: 'contains',
-        tag_1: 'united-states',
-        sort_by: 'nutriscore_score',
-        fields: 'code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags,ingredients_text,allergens_tags,labels_tags,nutriments'
-      });
+  // Fire all OFF searches in parallel (was sequential — 3x faster now)
+  const OFF_FIELDS = 'code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags,ingredients_text,allergens_tags,labels_tags,nutriments';
 
-      const res = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: fetchTimeout(5000)
-      });
+  const categoryFetches = type.off_categories.slice(0, 2).map(category => {
+    const url = `${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
+      action: 'process', json: 'true', page_size: '30',
+      tagtype_0: 'categories', tag_contains_0: 'contains', tag_0: category,
+      tagtype_1: 'countries', tag_contains_1: 'contains', tag_1: 'united-states',
+      sort_by: 'nutriscore_score', fields: OFF_FIELDS
+    });
+    return fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: fetchTimeout(5000) })
+      .then(r => r.ok ? r.json() : { products: [] })
+      .catch(() => ({ products: [] }));
+  });
 
-      if (res.ok) {
-        const data = await res.json();
-        for (const p of (data.products || [])) addCandidate(p);
-      }
-    } catch (e) {
-      if (e.name !== 'AbortError') console.warn('OFF category search error:', e.message);
-    }
-  }
+  const keywordFetch = productWords.length > 0
+    ? fetch(`${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
+        search_terms: productWords.slice(0, 3).join(' ') + ' organic',
+        search_simple: '1', action: 'process', json: 'true', page_size: '15',
+        tagtype_0: 'countries', tag_contains_0: 'contains', tag_0: 'united-states',
+        sort_by: 'nutriscore_score', fields: OFF_FIELDS
+      }), { headers: { 'User-Agent': USER_AGENT }, signal: fetchTimeout(5000) })
+        .then(r => r.ok ? r.json() : { products: [] })
+        .catch(() => ({ products: [] }))
+    : Promise.resolve({ products: [] });
 
-  // Strategy 2: Product-specific keyword search (most relevant)
-  if (allCandidates.length < 10 && productWords.length > 0) {
-    const specificTerms = productWords.slice(0, 3).join(' ') + ' organic';
-    try {
-      const url = `${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
-        search_terms: specificTerms,
-        search_simple: '1',
-        action: 'process',
-        json: 'true',
-        page_size: '15',
-        tagtype_0: 'countries',
-        tag_contains_0: 'contains',
-        tag_0: 'united-states',
-        sort_by: 'nutriscore_score',
-        fields: 'code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags,ingredients_text,allergens_tags,labels_tags,nutriments'
-      });
+  const genericFetch = fetch(`${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
+    search_terms: type.search_terms,
+    search_simple: '1', action: 'process', json: 'true', page_size: '20',
+    tagtype_0: 'countries', tag_contains_0: 'contains', tag_0: 'united-states',
+    sort_by: 'nutriscore_score', fields: OFF_FIELDS
+  }), { headers: { 'User-Agent': USER_AGENT }, signal: fetchTimeout(5000) })
+    .then(r => r.ok ? r.json() : { products: [] })
+    .catch(() => ({ products: [] }));
 
-      const res = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: fetchTimeout(4000)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        for (const p of (data.products || [])) addCandidate(p);
-      }
-    } catch (e) {
-      if (e.name !== 'AbortError') console.warn('OFF keyword search error:', e.message);
-    }
-  }
-
-  // Strategy 3: Generic type keyword search (broader net)
-  if (allCandidates.length < 10) {
-    try {
-      const url = `${OFF_BASE}/cgi/search.pl?` + new URLSearchParams({
-        search_terms: type.search_terms,
-        search_simple: '1',
-        action: 'process',
-        json: 'true',
-        page_size: '20',
-        tagtype_0: 'countries',
-        tag_contains_0: 'contains',
-        tag_0: 'united-states',
-        sort_by: 'nutriscore_score',
-        fields: 'code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags,ingredients_text,allergens_tags,labels_tags,nutriments'
-      });
-
-      const res = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: fetchTimeout(5000)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        for (const p of (data.products || [])) addCandidate(p);
-      }
-    } catch (e) {
-      if (e.name !== 'AbortError') console.warn('OFF generic search error:', e.message);
-    }
+  const results = await Promise.all([...categoryFetches, keywordFetch, genericFetch]);
+  for (const data of results) {
+    for (const p of (data.products || [])) addCandidate(p);
   }
 
   // 5. Filter + rank candidates
@@ -777,7 +750,12 @@ function inferTypeFromCategory(category) {
 // Get the product type for a given product (exported for recipe matching)
 // ============================================================
 export function getProductType(product) {
-  const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
+  // Match name first to avoid OFF miscategorization
+  const nameOnly = (product.name || '').toLowerCase();
+  for (const type of PRODUCT_TYPES) {
+    if (type.test.test(nameOnly)) return type;
+  }
+  const fullName = `${nameOnly} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
   for (const type of PRODUCT_TYPES) {
     if (type.test.test(fullName)) return type;
   }

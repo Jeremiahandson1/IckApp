@@ -250,6 +250,9 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       };
 
       // Identify what TYPE of product this is and build targeted search
+      // Match product name FIRST (without category) to avoid OFF miscategorization
+      const nameOnly = (product.name || '').toLowerCase();
+
       const productTypeMap = [
         { test: /fruit\s*snack|fruit\s*roll|fruit\s*leather|fruit\s*gumm/i,
           search: "fruit snack organic", must_contain: ['fruit snack', 'fruit roll', 'fruit leather', 'fruit bite'],
@@ -260,12 +263,21 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         { test: /protein\s*bar|energy\s*bar/i,
           search: "organic protein bar", must_contain: ['bar', 'protein'],
           exclude: ['cereal', 'cookie'] },
-        { test: /cookie|biscuit/i,
-          search: "organic cookies clean", must_contain: ['cookie', 'biscuit'],
+        { test: /cookie|biscuit|shortbread|wafer/i,
+          search: "organic cookies clean", must_contain: ['cookie', 'biscuit', 'shortbread', 'wafer'],
           exclude: ['chip', 'cracker'] },
         { test: /cracker|goldfish|cheez-?it/i,
           search: "organic crackers clean", must_contain: ['cracker'],
           exclude: ['cookie', 'chip'] },
+        { test: /ginger\s*chew|ginger\s*candy|crystalli[sz]ed\s*ginger/i,
+          search: "organic ginger chews candy", must_contain: ['ginger'],
+          exclude: ['cereal', 'cookie', 'cracker', 'chip', 'beer', 'ale', 'soda'] },
+        { test: /\bchew[sy]?\b(?!.*gum)|taffy|toffee|caramel\s*candy|hi-?chew|mamba|airhead|laffy/i,
+          search: "organic chewy candy", must_contain: ['chew', 'candy', 'taffy', 'toffee', 'caramel', 'sweet'],
+          exclude: ['chocolate', 'bar', 'cereal', 'granola', 'gum'] },
+        { test: /candy|skittle|gumm|sour|jelly/i,
+          search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'],
+          exclude: ['chocolate', 'bar', 'chip'] },
         { test: /tortilla\s*chip|corn\s*chip|nacho|dorito|tostito/i,
           search: "organic tortilla chips", must_contain: ['tortilla', 'corn chip', 'nacho'],
           exclude: ['cookie', 'cracker', 'chocolate'] },
@@ -275,9 +287,6 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         { test: /cereal|loops|flakes|puffs|crunch|charms/i,
           search: "organic cereal clean", must_contain: ['cereal', 'flake', 'puff', 'crunch', 'loop', 'o\'s', 'grain'],
           exclude: ['bar', 'cookie'] },
-        { test: /candy|skittle|gumm|sour|jelly/i,
-          search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'],
-          exclude: ['chocolate', 'bar', 'chip'] },
         { test: /chocolate\s*(bar|candy)|cocoa/i,
           search: "organic dark chocolate bar", must_contain: ['chocolate', 'cocoa'],
           exclude: ['cookie', 'cereal', 'milk', 'chip'] },
@@ -338,11 +347,22 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
           exclude: ['bar', 'cookie', 'milk'] },
       ];
 
+      // Try matching on product name first — avoids OFF miscategorization
+      // (e.g., "Ginger Chews" with OFF category "breakfast-cereals" would wrongly match cereal)
       let matchedType = null;
       for (const type of productTypeMap) {
-        if (type.test.test(fullName)) {
+        if (type.test.test(nameOnly)) {
           matchedType = type;
           break;
+        }
+      }
+      // Only fall back to full name+category if name alone didn't match
+      if (!matchedType) {
+        for (const type of productTypeMap) {
+          if (type.test.test(fullName)) {
+            matchedType = type;
+            break;
+          }
         }
       }
 
@@ -564,7 +584,8 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       'bar|protein bar|granola bar|nut bar': ['Snack Bars', 'Protein Bars'],
       'chips|crisps|tortilla|puffs|popcorn': ['Chips', 'Microwave Popcorn'],
       'cookie|cookies|biscuit': ['Packaged Cookies'],
-      'candy|gummies|gummy|skittles|sour patch': ['Candy'],
+      'candy|gummies|gummy|skittles|sour patch|chew|taffy|toffee': ['Candy'],
+      'ginger': ['Candy', 'Snacks'],
       'chocolate(?!.*cookie)': ['Candy', 'Candy Bars'],
       'juice|drink|lemonade|capri sun': ['Juice Drinks'],
       'soda|cola|sprite|fanta|sparkling': ['Soda & Flavored Water'],

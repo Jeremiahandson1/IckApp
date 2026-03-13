@@ -448,6 +448,769 @@ const companies = [
     positive_actions: ['Organic certification', 'No artificial ingredients'],
     lobbying_history: 'Minimal',
     transparency_rating: 'good'
+  },
+  // ── Major food corporations ──
+  {
+    name: 'Danone',
+    parent_company: null,
+    behavior_score: 55,
+    controversies: ['Greenwashing accusations', 'Water brand controversies'],
+    positive_actions: ['B-Corp certified', 'Organic brands', 'Sustainability commitments'],
+    lobbying_history: 'Moderate',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Mondelez',
+    parent_company: null,
+    behavior_score: 25,
+    controversies: ['Child labor in cocoa', 'Deforestation', 'Ultra-processed products', 'Tax avoidance'],
+    positive_actions: ['Cocoa Life sustainability program'],
+    lobbying_history: 'Lobbied against sugar taxes and labeling',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Unilever',
+    parent_company: null,
+    behavior_score: 45,
+    controversies: ['Palm oil deforestation', 'Greenwashing', 'Mercury in products'],
+    positive_actions: ['Sustainable Living Plan', 'Reduced sodium in some products'],
+    lobbying_history: 'Lobbied on EU food regulations',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Conagra',
+    parent_company: null,
+    behavior_score: 30,
+    controversies: ['Ultra-processed products', 'Misleading labeling', 'Heavy sodium'],
+    positive_actions: ['Some organic brands acquired'],
+    lobbying_history: 'Lobbied against labeling requirements',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Conagra Brands',
+    parent_company: 'Conagra',
+    behavior_score: 30,
+    controversies: ['Ultra-processed products'],
+    positive_actions: ['Some organic brands'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Campbell\'s',
+    parent_company: null,
+    behavior_score: 40,
+    controversies: ['High sodium', 'BPA in can linings', 'Lobbied against GMO labeling'],
+    positive_actions: ['Reduced sodium lines', 'Organic options'],
+    lobbying_history: 'Lobbied against GMO labeling then reversed',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Smucker\'s',
+    parent_company: null,
+    behavior_score: 45,
+    controversies: ['High sugar content', 'Artificial ingredients in some products'],
+    positive_actions: ['Some natural/organic lines', 'Simple ingredient products'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'J.M. Smucker',
+    parent_company: 'Smucker\'s',
+    behavior_score: 45,
+    controversies: ['High sugar content'],
+    positive_actions: ['Simple ingredient products'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Hershey',
+    parent_company: null,
+    behavior_score: 30,
+    controversies: ['Child labor in cocoa supply chain', 'High sugar products', 'Marketing to children'],
+    positive_actions: ['Cocoa sustainability commitments', 'Simple ingredient Reese\'s'],
+    lobbying_history: 'Lobbied against labeling',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Hershey\'s',
+    parent_company: 'Hershey',
+    behavior_score: 30,
+    controversies: ['Child labor in cocoa supply chain'],
+    positive_actions: ['Simple ingredient lines'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Tyson',
+    parent_company: null,
+    behavior_score: 15,
+    controversies: ['Animal welfare violations', 'Worker safety issues', 'Environmental pollution', 'Price-fixing scandal'],
+    positive_actions: ['No antibiotics ever in some lines'],
+    lobbying_history: 'Major lobbying against worker/environmental regulations',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Tyson Foods',
+    parent_company: 'Tyson',
+    behavior_score: 15,
+    controversies: ['Animal welfare', 'Worker safety'],
+    positive_actions: ['Some no-antibiotic lines'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Hormel',
+    parent_company: null,
+    behavior_score: 35,
+    controversies: ['Ultra-processed meats', 'Sodium nitrite use', 'Worker disputes'],
+    positive_actions: ['Natural Choice line', 'Some organic options'],
+    lobbying_history: 'Lobbied on meat labeling',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Smithfield',
+    parent_company: null,
+    behavior_score: 15,
+    controversies: ['Environmental pollution', 'Animal welfare issues', 'Chinese-owned (WH Group)', 'Worker safety'],
+    positive_actions: ['Some sustainability goals'],
+    lobbying_history: 'Major lobbying against environmental regulations',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Perdue',
+    parent_company: null,
+    behavior_score: 50,
+    controversies: ['Animal welfare concerns', 'Antibiotic use historically'],
+    positive_actions: ['No antibiotics ever program', 'Organic lines', 'Animal welfare improvements'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Oscar Mayer',
+    parent_company: 'Kraft Heinz',
+    behavior_score: 25,
+    controversies: ['Ultra-processed meats', 'Sodium nitrite', 'Marketing to children'],
+    positive_actions: ['Natural line with no artificial ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Nabisco',
+    parent_company: 'Mondelez',
+    behavior_score: 25,
+    controversies: ['Ultra-processed products', 'Palm oil', 'Marketing to children'],
+    positive_actions: ['Removed some trans fats'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Post',
+    parent_company: null,
+    behavior_score: 35,
+    controversies: ['High sugar cereals', 'Artificial ingredients', 'Misleading health claims'],
+    positive_actions: ['Some whole grain options'],
+    lobbying_history: 'Lobbied against labeling',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Post Consumer Brands',
+    parent_company: 'Post',
+    behavior_score: 35,
+    controversies: ['High sugar cereals'],
+    positive_actions: ['Some whole grain options'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Del Monte',
+    parent_company: null,
+    behavior_score: 40,
+    controversies: ['Added sugars in fruit cups', 'BPA in cans historically'],
+    positive_actions: ['No sugar added options', 'Non-BPA lining transition'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Dole',
+    parent_company: null,
+    behavior_score: 45,
+    controversies: ['Pesticide use', 'Labor conditions in plantations'],
+    positive_actions: ['Organic options', 'Sustainability goals'],
+    lobbying_history: 'Lobbied on agricultural regulations',
+    transparency_rating: 'moderate'
+  },
+  // ── Beverages ──
+  {
+    name: 'Dr Pepper',
+    parent_company: 'Keurig Dr Pepper',
+    behavior_score: 30,
+    controversies: ['High sugar', 'Marketing to youth', 'Artificial ingredients'],
+    positive_actions: ['Zero sugar options'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Keurig Dr Pepper',
+    parent_company: null,
+    behavior_score: 30,
+    controversies: ['Plastic waste from K-Cups', 'High sugar beverages'],
+    positive_actions: ['Recyclable K-Cup commitment'],
+    lobbying_history: 'Lobbied against deposit/recycling laws',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Monster',
+    parent_company: null,
+    behavior_score: 20,
+    controversies: ['Marketing to teenagers', 'High caffeine deaths linked', 'Sugar content'],
+    positive_actions: ['Zero sugar options'],
+    lobbying_history: 'Lobbied against caffeine regulations',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Red Bull',
+    parent_company: null,
+    behavior_score: 25,
+    controversies: ['Marketing to youth', 'High caffeine and sugar', 'Misleading health claims lawsuit'],
+    positive_actions: ['Simple ingredient list'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Gatorade',
+    parent_company: 'PepsiCo',
+    behavior_score: 30,
+    controversies: ['Artificial colors', 'High sugar', 'Misleading sports claims'],
+    positive_actions: ['Gatorade Fit line with no artificial'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Tropicana',
+    parent_company: 'PepsiCo',
+    behavior_score: 40,
+    controversies: ['Misleading "natural" claims', 'Added sugar in some products'],
+    positive_actions: ['100% juice options', 'No artificial preservatives'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Ocean Spray',
+    parent_company: null,
+    behavior_score: 45,
+    controversies: ['High sugar in juice cocktails', 'Misleading fruit content claims'],
+    positive_actions: ['Farmer-owned cooperative', 'Some no sugar added options'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  // ── Dairy ──
+  {
+    name: 'Yoplait',
+    parent_company: 'General Mills',
+    behavior_score: 35,
+    controversies: ['High sugar', 'Artificial ingredients', 'Misleading health claims'],
+    positive_actions: ['Reduced sugar options'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Chobani',
+    parent_company: null,
+    behavior_score: 80,
+    controversies: ['Some added sugar products'],
+    positive_actions: ['Non-GMO', 'Fair trade', 'Worker welfare programs', 'Clean ingredients'],
+    lobbying_history: 'Advocates for better food policy',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Stonyfield',
+    parent_company: 'Lactalis',
+    behavior_score: 75,
+    controversies: ['Now corporate-owned'],
+    positive_actions: ['Organic certified', 'No toxic pesticides', 'Sustainability leader'],
+    lobbying_history: 'Advocates for organic standards',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Dannon',
+    parent_company: 'Danone',
+    behavior_score: 45,
+    controversies: ['High sugar yogurts', 'Misleading probiotic claims lawsuit'],
+    positive_actions: ['Non-GMO commitments', 'B-Corp some brands'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  // ── Snack / Clean brands ──
+  {
+    name: 'Clif',
+    parent_company: 'Mondelez',
+    behavior_score: 55,
+    controversies: ['Now owned by Mondelez', 'High sugar content'],
+    positive_actions: ['Organic ingredients', 'B-Corp certified', 'Sustainability'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'RXBAR',
+    parent_company: 'Kellogg\'s',
+    behavior_score: 60,
+    controversies: ['Now owned by Kellogg\'s'],
+    positive_actions: ['Transparent labeling', 'Minimal ingredients', 'No added sugar'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Larabar',
+    parent_company: 'General Mills',
+    behavior_score: 65,
+    controversies: ['Owned by General Mills'],
+    positive_actions: ['Minimal ingredients', 'No added sugar', 'Whole food based'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Nature Valley',
+    parent_company: 'General Mills',
+    behavior_score: 35,
+    controversies: ['Glyphosate residue found', 'Misleading "natural" claims lawsuit', 'High sugar'],
+    positive_actions: ['Whole grain ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Nature\'s Path',
+    parent_company: null,
+    behavior_score: 90,
+    controversies: [],
+    positive_actions: ['Organic', 'Non-GMO', 'Family-owned', 'Regenerative organic'],
+    lobbying_history: 'Advocates for organic standards',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Bob\'s Red Mill',
+    parent_company: null,
+    behavior_score: 90,
+    controversies: [],
+    positive_actions: ['Employee-owned', 'Whole grain focus', 'Non-GMO', 'Transparent sourcing'],
+    lobbying_history: 'None',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Simple Mills',
+    parent_company: null,
+    behavior_score: 90,
+    controversies: [],
+    positive_actions: ['Clean ingredients', 'Grain-free options', 'Transparent labeling'],
+    lobbying_history: 'None',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Siete',
+    parent_company: 'PepsiCo',
+    behavior_score: 70,
+    controversies: ['Recently acquired by PepsiCo'],
+    positive_actions: ['Grain-free', 'Clean ingredients', 'Family-founded', 'Heritage recipes'],
+    lobbying_history: 'None',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Justin\'s',
+    parent_company: 'Hormel',
+    behavior_score: 65,
+    controversies: ['Owned by Hormel'],
+    positive_actions: ['Organic', 'Fair trade', 'Simple ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Amy\'s',
+    parent_company: null,
+    behavior_score: 80,
+    controversies: ['Worker treatment lawsuits 2022'],
+    positive_actions: ['Organic', 'Vegetarian/vegan', 'Clean ingredients', 'Non-GMO'],
+    lobbying_history: 'Advocates for organic',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Newman\'s Own',
+    parent_company: null,
+    behavior_score: 85,
+    controversies: [],
+    positive_actions: ['100% profits to charity', 'Organic options', 'No artificial'],
+    lobbying_history: 'None',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Applegate',
+    parent_company: 'Hormel',
+    behavior_score: 70,
+    controversies: ['Owned by Hormel'],
+    positive_actions: ['Organic meats', 'No antibiotics ever', 'Humanely raised', 'No nitrites'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Organic Valley',
+    parent_company: null,
+    behavior_score: 90,
+    controversies: [],
+    positive_actions: ['Farmer-owned cooperative', 'Organic', 'Pasture-raised', 'Fair pay for farmers'],
+    lobbying_history: 'Advocates for small farms',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Stacy\'s',
+    parent_company: 'PepsiCo',
+    behavior_score: 40,
+    controversies: ['Owned by PepsiCo', 'Some artificial ingredients'],
+    positive_actions: ['Simple ingredients in pita chips'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Kettle Brand',
+    parent_company: 'Campbell\'s',
+    behavior_score: 55,
+    controversies: ['Owned by Campbell\'s'],
+    positive_actions: ['Non-GMO', 'Simple ingredients', 'No artificial'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Late July',
+    parent_company: 'Campbell\'s',
+    behavior_score: 60,
+    controversies: ['Owned by Campbell\'s'],
+    positive_actions: ['Organic', 'Non-GMO', 'Clean ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'SmartSweets',
+    parent_company: null,
+    behavior_score: 80,
+    controversies: ['Some concern over allulose/fiber additives'],
+    positive_actions: ['Low sugar', 'No artificial sweeteners', 'Plant-based'],
+    lobbying_history: 'None',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'YumEarth',
+    parent_company: null,
+    behavior_score: 85,
+    controversies: [],
+    positive_actions: ['Organic', 'Allergy-friendly', 'No artificial dyes', 'Non-GMO'],
+    lobbying_history: 'None',
+    transparency_rating: 'excellent'
+  },
+  {
+    name: 'Hu',
+    parent_company: 'Mondelez',
+    behavior_score: 60,
+    controversies: ['Acquired by Mondelez'],
+    positive_actions: ['Paleo', 'No refined sugar', 'Fair trade chocolate', 'Clean ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Enjoy Life',
+    parent_company: 'Mondelez',
+    behavior_score: 60,
+    controversies: ['Owned by Mondelez'],
+    positive_actions: ['Top-8 allergen free', 'Certified gluten-free', 'Non-GMO'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  // ── Store brands / Large retailers ──
+  {
+    name: 'Great Value',
+    parent_company: 'Walmart',
+    behavior_score: 30,
+    controversies: ['Walmart labor practices', 'Lowest cost sourcing', 'Environmental record'],
+    positive_actions: ['Affordable organic options'],
+    lobbying_history: 'Via Walmart',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Kirkland',
+    parent_company: 'Costco',
+    behavior_score: 60,
+    controversies: ['Some sourcing concerns'],
+    positive_actions: ['Organic options', 'Good value', 'Costco worker treatment'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Kirkland Signature',
+    parent_company: 'Costco',
+    behavior_score: 60,
+    controversies: ['Some sourcing concerns'],
+    positive_actions: ['Organic options', 'Quality standards'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: '365',
+    parent_company: 'Whole Foods',
+    behavior_score: 70,
+    controversies: ['Amazon ownership concerns'],
+    positive_actions: ['Organic options', 'Clean ingredient standards', 'No artificial'],
+    lobbying_history: 'Via Amazon/Whole Foods',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Whole Foods',
+    parent_company: 'Amazon',
+    behavior_score: 65,
+    controversies: ['Amazon ownership', 'Worker treatment concerns'],
+    positive_actions: ['Strict quality standards', 'Organic focus', 'Banned ingredient list'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Trader Joe\'s',
+    parent_company: 'Aldi Nord',
+    behavior_score: 65,
+    controversies: ['Limited transparency on sourcing', 'Packaging waste'],
+    positive_actions: ['Affordable organic', 'No artificial', 'Reduced packaging goals'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Market Pantry',
+    parent_company: 'Target',
+    behavior_score: 40,
+    controversies: ['Budget-focused sourcing'],
+    positive_actions: ['Some organic options'],
+    lobbying_history: 'Via Target',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Good & Gather',
+    parent_company: 'Target',
+    behavior_score: 50,
+    controversies: ['Limited sourcing transparency'],
+    positive_actions: ['No artificial flavors/colors/sweeteners', 'Clean label commitment'],
+    lobbying_history: 'Via Target',
+    transparency_rating: 'moderate'
+  },
+  // ── Baby food ──
+  {
+    name: 'Happy Baby',
+    parent_company: null,
+    behavior_score: 75,
+    controversies: ['Heavy metals in baby food (industry-wide)'],
+    positive_actions: ['Organic', 'Non-GMO', 'Transparent testing'],
+    lobbying_history: 'None',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Happy Family',
+    parent_company: null,
+    behavior_score: 75,
+    controversies: ['Heavy metals in baby food (industry-wide)'],
+    positive_actions: ['Organic', 'B-Corp certified'],
+    lobbying_history: 'Advocates for cleaner baby food',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Beech-Nut',
+    parent_company: null,
+    behavior_score: 60,
+    controversies: ['Heavy metals in baby food (industry-wide)'],
+    positive_actions: ['Real ingredients', 'No preservatives', 'Testing transparency'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Earth\'s Best',
+    parent_company: 'Hain Celestial',
+    behavior_score: 65,
+    controversies: ['Heavy metals in baby food (industry-wide)'],
+    positive_actions: ['Organic certified', 'Non-GMO'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Once Upon a Farm',
+    parent_company: null,
+    behavior_score: 90,
+    controversies: [],
+    positive_actions: ['Cold-pressed organic', 'No preservatives', 'Transparent sourcing', 'Regenerative farming'],
+    lobbying_history: 'Advocates for clean baby food',
+    transparency_rating: 'excellent'
+  },
+  // ── More major brands people scan ──
+  {
+    name: 'Quaker',
+    parent_company: 'PepsiCo',
+    behavior_score: 35,
+    controversies: ['Glyphosate residue', 'Misleading "natural" claims', 'High sugar in some products'],
+    positive_actions: ['Whole grain focus'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Barilla',
+    parent_company: null,
+    behavior_score: 50,
+    controversies: ['Anti-LGBT comments by chairman (2013)', 'Environmental impact'],
+    positive_actions: ['Sustainability commitments', 'Simple ingredient pasta'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Heinz',
+    parent_company: 'Kraft Heinz',
+    behavior_score: 35,
+    controversies: ['High sugar/sodium', 'Ultra-processed products'],
+    positive_actions: ['Organic ketchup option', 'Some clean labels'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Progresso',
+    parent_company: 'General Mills',
+    behavior_score: 35,
+    controversies: ['High sodium', 'BPA in cans historically'],
+    positive_actions: ['Some reduced sodium options'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Stouffer\'s',
+    parent_company: 'Nestlé',
+    behavior_score: 25,
+    controversies: ['Ultra-processed frozen meals', 'High sodium', 'Artificial ingredients'],
+    positive_actions: ['Some natural options'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'DiGiorno',
+    parent_company: 'Nestlé',
+    behavior_score: 25,
+    controversies: ['Ultra-processed', 'High sodium', 'Artificial ingredients'],
+    positive_actions: ['Removed some artificial ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Hot Pockets',
+    parent_company: 'Nestlé',
+    behavior_score: 15,
+    controversies: ['Ultra-processed', 'Recall history', 'Very high sodium', 'Artificial ingredients'],
+    positive_actions: [],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Totino\'s',
+    parent_company: 'General Mills',
+    behavior_score: 20,
+    controversies: ['Ultra-processed', 'Trans fats historically', 'Artificial ingredients'],
+    positive_actions: [],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Ben & Jerry\'s',
+    parent_company: 'Unilever',
+    behavior_score: 70,
+    controversies: ['Owned by Unilever', 'High calorie/sugar products'],
+    positive_actions: ['Fair trade', 'Non-GMO', 'Social justice advocacy', 'Cage-free eggs'],
+    lobbying_history: 'Advocates for social/environmental causes',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Haagen-Dazs',
+    parent_company: 'General Mills',
+    behavior_score: 50,
+    controversies: ['High calorie/fat'],
+    positive_actions: ['Simple ingredients in classics', 'No artificial flavors'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Blue Diamond',
+    parent_company: null,
+    behavior_score: 65,
+    controversies: ['Water usage for almonds', 'Bee colony concerns'],
+    positive_actions: ['Grower-owned cooperative', 'Non-GMO', 'Clean labels'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Oatly',
+    parent_company: null,
+    behavior_score: 70,
+    controversies: ['Blackstone investment controversy', 'Greenwashing accusations in EU'],
+    positive_actions: ['Plant-based', 'Climate footprint labeling', 'Sustainability focus'],
+    lobbying_history: 'Advocates for plant-based',
+    transparency_rating: 'good'
+  },
+  {
+    name: 'Silk',
+    parent_company: 'Danone',
+    behavior_score: 60,
+    controversies: ['Owned by Danone', 'Some added sugars/gums'],
+    positive_actions: ['Plant-based', 'Non-GMO', 'Organic options'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Prince of Peace',
+    parent_company: null,
+    behavior_score: 55,
+    controversies: ['Limited ingredient transparency on some products'],
+    positive_actions: ['Natural ginger products', 'Traditional remedies'],
+    lobbying_history: 'None',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Hain Celestial',
+    parent_company: null,
+    behavior_score: 55,
+    controversies: ['Accounting scandal 2016', 'Some greenwashing concerns'],
+    positive_actions: ['Organic brands portfolio', 'Clean ingredient focus'],
+    lobbying_history: 'Advocates for organic',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Mission',
+    parent_company: 'Gruma',
+    behavior_score: 40,
+    controversies: ['Preservatives in tortillas', 'Dough conditioners'],
+    positive_actions: ['Some organic options'],
+    lobbying_history: 'Minimal',
+    transparency_rating: 'moderate'
+  },
+  {
+    name: 'Lays',
+    parent_company: 'PepsiCo',
+    behavior_score: 30,
+    controversies: ['Ultra-processed', 'Artificial flavors', 'Excessive sodium'],
+    positive_actions: ['Simply Lay\'s line with fewer ingredients'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Doritos',
+    parent_company: 'PepsiCo',
+    behavior_score: 25,
+    controversies: ['Artificial colors/flavors', 'Marketing to youth', 'Ultra-processed'],
+    positive_actions: [],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
+  },
+  {
+    name: 'Cheetos',
+    parent_company: 'PepsiCo',
+    behavior_score: 20,
+    controversies: ['Artificial colors (Yellow 6)', 'Ultra-processed', 'Marketing to children'],
+    positive_actions: ['Simply Cheetos line'],
+    lobbying_history: 'Via parent',
+    transparency_rating: 'poor'
   }
 ];
 
@@ -1441,7 +2204,13 @@ async function seedDatabase() {
       await pool.query(
         `INSERT INTO companies (name, parent_company, behavior_score, controversies, positive_actions, lobbying_history, transparency_rating)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (name) DO NOTHING`,
+         ON CONFLICT (name) DO UPDATE SET
+           parent_company = COALESCE(EXCLUDED.parent_company, companies.parent_company),
+           behavior_score = COALESCE(EXCLUDED.behavior_score, companies.behavior_score),
+           controversies = COALESCE(EXCLUDED.controversies, companies.controversies),
+           positive_actions = COALESCE(EXCLUDED.positive_actions, companies.positive_actions),
+           lobbying_history = COALESCE(EXCLUDED.lobbying_history, companies.lobbying_history),
+           transparency_rating = COALESCE(EXCLUDED.transparency_rating, companies.transparency_rating)`,
         [
           company.name,
           company.parent_company,

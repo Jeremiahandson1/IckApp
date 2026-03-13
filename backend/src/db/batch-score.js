@@ -105,7 +105,7 @@ function processingScore(p) {
   if (p.nova_group) {
     const novaScores = { 1: 95, 2: 75, 3: 45, 4: 15 };
     let score = novaScores[p.nova_group] ?? 50;
-    if (p.nova_group === 4 && p.ingredients) {
+    if (p.ingredients) {
       const il = p.ingredients.toLowerCase();
       const markers = [
         'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
@@ -115,8 +115,16 @@ function processingScore(p) {
         'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
       ];
       const count = markers.filter(m => il.includes(m)).length;
-      if (count >= 4) score = 5;
-      else if (count >= 2) score = 10;
+      if (p.nova_group === 4) {
+        if (count >= 4) score = 5;
+        else if (count >= 2) score = 10;
+      }
+      // Override NOVA 3 for simple ingredient lists with no ultra markers
+      if (p.nova_group === 3 && count === 0) {
+        const commas = (p.ingredients.match(/,/g) || []).length;
+        if (commas <= 5) score = 75;
+        else if (commas <= 10) score = 60;
+      }
     }
     return clamp(score);
   }

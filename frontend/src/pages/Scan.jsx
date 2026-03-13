@@ -92,11 +92,12 @@ export default function Scan() {
       // verbose: false suppresses all library logging
       html5QrCodeRef.current = new Html5Qrcode('qr-reader', { verbose: false });
       
+      // Detect iOS — Safari rejects non-standard constraints like focusMode
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
       const scanConfig = {
           fps: 10,
-          // qrbox constrains detection to the visible scan region so the
-          // library won't fire on barcodes outside the green corner box.
-          // We hide the library's own UI via CSS (see qr-reader styles below).
           qrbox: (viewfinderWidth, viewfinderHeight) => {
             const w = Math.min(320, Math.floor(viewfinderWidth * 0.75));
             const h = Math.min(208, Math.floor(viewfinderHeight * 0.35));
@@ -104,28 +105,26 @@ export default function Scan() {
           },
           aspectRatio: 1.0,
           formatsToSupport: [0, 1, 2, 3, 4, 5, 6],
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          experimentalFeatures: { useBarCodeDetectorIfSupported: !isIOS },
           rememberLastUsedCamera: true,
           showTorchButtonIfSupported: false,
-          videoConstraints: {
-            facingMode: { exact: 'environment' },
-            focusMode: 'continuous',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
+          videoConstraints: isIOS
+            ? { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            : { facingMode: 'environment', focusMode: 'continuous',
+                width: { ideal: 1280 }, height: { ideal: 720 } }
       };
 
       try {
-        // Try exact rear camera first
+        // Try rear camera (non-exact for iOS compatibility)
         await html5QrCodeRef.current.start(
-          { facingMode: { exact: 'environment' } },
+          isIOS ? { facingMode: 'environment' } : { facingMode: { exact: 'environment' } },
           scanConfig,
           onScanSuccess,
           () => {}
         );
       } catch {
         // Fallback: prefer rear but don't require it
-        scanConfig.videoConstraints.facingMode = 'environment';
+        scanConfig.videoConstraints = { facingMode: 'environment' };
         await html5QrCodeRef.current.start(
           { facingMode: 'environment' },
           scanConfig,

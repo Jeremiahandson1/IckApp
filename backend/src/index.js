@@ -206,11 +206,18 @@ app.listen(PORT, '0.0.0.0', () => {
         }
         console.log(`✓ Seeded ${harmfulIngredients.length} harmful ingredients`);
       }
-      if (parseInt(coCount.rows[0].count) === 0) {
+      if (parseInt(coCount.rows[0].count) < companies.length) {
         for (const c of companies) {
           await pool.query(
             `INSERT INTO companies (name, parent_company, behavior_score, controversies, positive_actions, lobbying_history, transparency_rating)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (name) DO NOTHING`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (name) DO UPDATE SET
+               parent_company = COALESCE(EXCLUDED.parent_company, companies.parent_company),
+               behavior_score = COALESCE(EXCLUDED.behavior_score, companies.behavior_score),
+               controversies = COALESCE(EXCLUDED.controversies, companies.controversies),
+               positive_actions = COALESCE(EXCLUDED.positive_actions, companies.positive_actions),
+               lobbying_history = COALESCE(EXCLUDED.lobbying_history, companies.lobbying_history),
+               transparency_rating = COALESCE(EXCLUDED.transparency_rating, companies.transparency_rating)`,
             [c.name, c.parent_company, c.behavior_score, JSON.stringify(c.controversies),
              JSON.stringify(c.positive_actions), c.lobbying_history, c.transparency_rating]
           );
