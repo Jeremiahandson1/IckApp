@@ -102,9 +102,10 @@ function transparencyScore(p) {
 
 // ── Dimension 4: Processing (15%) ──
 function processingScore(p) {
-  if (p.nova_group) {
+  const nova = Number(p.nova_group);
+  if (nova >= 1 && nova <= 4) {
     const novaScores = { 1: 95, 2: 75, 3: 45, 4: 15 };
-    let score = novaScores[p.nova_group] ?? 50;
+    let score = novaScores[nova] ?? 50;
     if (p.ingredients) {
       const il = p.ingredients.toLowerCase();
       const markers = [
@@ -115,12 +116,12 @@ function processingScore(p) {
         'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
       ];
       const count = markers.filter(m => il.includes(m)).length;
-      if (p.nova_group === 4) {
+      if (nova === 4) {
         if (count >= 4) score = 5;
         else if (count >= 2) score = 10;
       }
       // Override NOVA 3 for simple ingredient lists with no ultra markers
-      if (p.nova_group === 3 && count === 0) {
+      if (nova === 3 && count === 0) {
         const commas = (p.ingredients.match(/,/g) || []).length;
         if (commas <= 5) score = 75;
         else if (commas <= 10) score = 60;

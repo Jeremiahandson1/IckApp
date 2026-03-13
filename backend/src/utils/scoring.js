@@ -187,11 +187,12 @@ function computeTransparencyScore(opts) {
 
 function computeProcessingScore(opts) {
   const { nova_group, ingredients } = opts;
+  const nova = Number(nova_group);
 
   // If we have NOVA group, use it as a starting point
-  if (nova_group) {
+  if (nova >= 1 && nova <= 4) {
     const novaScores = { 1: 95, 2: 75, 3: 45, 4: 15 };
-    let score = novaScores[nova_group] ?? 50;
+    let score = novaScores[nova] ?? 50;
 
     if (ingredients) {
       const il = ingredients.toLowerCase();
@@ -205,7 +206,7 @@ function computeProcessingScore(opts) {
       const markerCount = ultraMarkers.filter(m => il.includes(m)).length;
 
       // Fine-tune within NOVA 4 based on ingredients
-      if (nova_group === 4) {
+      if (nova === 4) {
         if (markerCount >= 4) score = 5;
         else if (markerCount >= 2) score = 10;
       }
@@ -213,7 +214,7 @@ function computeProcessingScore(opts) {
       // Override NOVA 3 ("processed") when ingredients are actually simple.
       // OFF classifies things like "chickpeas, sea salt" as NOVA 3 just because
       // salt was added, but these are minimally processed whole foods.
-      if (nova_group === 3 && markerCount === 0) {
+      if (nova === 3 && markerCount === 0) {
         const commaCount = (ingredients.match(/,/g) || []).length;
         if (commaCount <= 5) score = 75;       // few simple ingredients → treat as NOVA 2
         else if (commaCount <= 10) score = 60;  // moderate but still no ultra markers

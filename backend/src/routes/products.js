@@ -28,13 +28,17 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
     if (result.rows.length > 0) {
       let product = result.rows[0];
 
-      // Detect stale default scores — all dimensions stuck at 50 means the product
-      // was inserted by seed-swaps or old code without real scoring. Re-score it now.
-      const isStale = product.harmful_ingredients_score === 50
+      // Detect stale/outdated scores that need re-scoring:
+      // 1. All dimensions stuck at 50 = never properly scored
+      // 2. company_behavior_score still at 50 = may have new company data
+      // 3. scored_at missing or before latest scoring logic update
+      const allDefault = product.harmful_ingredients_score === 50
         && product.banned_elsewhere_score === 50
         && product.transparency_score === 50
         && product.processing_score === 50
         && product.company_behavior_score === 50;
+      const companyNeedsRescore = product.company_behavior_score === 50 && product.brand;
+      const isStale = allDefault || companyNeedsRescore;
 
       if (isStale) {
         console.log(`[re-score] Stale product detected: ${upc} "${product.name}" ingredients=${product.ingredients?.length || 0}chars`);
