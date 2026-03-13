@@ -192,9 +192,11 @@ app.listen(PORT, '0.0.0.0', () => {
   try {
     const hiCount = await pool.query('SELECT COUNT(*) FROM harmful_ingredients');
     const coCount = await pool.query('SELECT COUNT(*) FROM companies');
-    if (parseInt(hiCount.rows[0].count) === 0 || parseInt(coCount.rows[0].count) === 0) {
+    const hiNeedsSeed = parseInt(hiCount.rows[0].count) === 0;
+    const coNeedsSeed = parseInt(coCount.rows[0].count) < 100; // reseed when new companies are added
+    if (hiNeedsSeed || coNeedsSeed) {
       const { harmfulIngredients, companies } = await import('./db/seed.js');
-      if (parseInt(hiCount.rows[0].count) === 0) {
+      if (hiNeedsSeed) {
         for (const h of harmfulIngredients) {
           await pool.query(
             `INSERT INTO harmful_ingredients (name, aliases, severity, category, health_effects, banned_in, why_used)
