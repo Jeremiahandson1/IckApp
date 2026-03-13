@@ -499,8 +499,10 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
   if (candidates.length === 0) return [];
 
   // 4. Save discoveries to DB and return, ranked by relevance
+  const scoreFloor = Math.max(50, (product.total_score || 0) + 1);
   const saved = await saveDiscoveries(candidates, matchedType);
   return saved
+    .filter(r => (r.total_score || 0) > scoreFloor)
     .map(r => ({ ...r, _rel: scoreRelevance(r.name, r.brand, productWords, product.brand) }))
     .sort((a, b) => b._rel - a._rel || (b.total_score || 0) - (a.total_score || 0))
     .slice(0, limit)

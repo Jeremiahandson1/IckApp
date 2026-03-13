@@ -458,6 +458,10 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
       }
     }
 
+    // FINAL SAFETY NET: Never show "better alternatives" that score worse
+    const originalScore = product.total_score || 0;
+    swaps = swaps.filter(s => (s.total_score || 0) > originalScore);
+
     // Format swaps with score improvement + nearby store availability
     // Batch all store/link queries by collecting UPCs first (avoids N+1)
     const swapUpcList = swaps.map(s => s.upc).filter(Boolean);

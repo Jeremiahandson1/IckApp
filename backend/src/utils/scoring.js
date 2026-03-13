@@ -189,8 +189,6 @@ function computeProcessingScore(opts) {
   const { nova_group, ingredients } = opts;
   const nova = Number(nova_group);
 
-  console.log(`[processing-debug] nova_group=${nova_group} (type=${typeof nova_group}) nova=${nova} ingredients=${(ingredients||'').substring(0,60)}`);
-
   // If we have NOVA group, use it as a starting point
   if (nova >= 1 && nova <= 4) {
     const novaScores = { 1: 95, 2: 75, 3: 45, 4: 15 };
@@ -218,13 +216,11 @@ function computeProcessingScore(opts) {
       // salt was added, but these are minimally processed whole foods.
       if (nova === 3 && markerCount === 0) {
         const commaCount = (ingredients.match(/,/g) || []).length;
-        console.log(`[processing-debug] NOVA 3 override check: markers=${markerCount} commas=${commaCount} → score will be ${commaCount <= 5 ? 75 : commaCount <= 10 ? 60 : score}`);
         if (commaCount <= 5) score = 75;       // few simple ingredients → treat as NOVA 2
         else if (commaCount <= 10) score = 60;  // moderate but still no ultra markers
       }
     }
 
-    console.log(`[processing-debug] final score=${score}`);
     return clamp(score);
   }
 

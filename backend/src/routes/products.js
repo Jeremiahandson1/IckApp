@@ -475,9 +475,66 @@ router.get('/view/:upc', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Product not found', upc });
     }
 
-    const product = result.rows[0];
-    const scoreInfo = getScoreRating(product.total_score);
+    let product = result.rows[0];
 
+    // Re-score with latest logic (fast, no network call when ingredients exist)
+    try {
+      let ingredients = product.ingredients || '';
+      let nova_group = product.nova_group || null;
+      let brand = product.brand || '';
+
+      // Only fetch from OFF if we have no ingredients
+      if (!ingredients || ingredients.length < 3) {
+        try {
+          const offRes = await fetch(
+            `https://world.openfoodfacts.org/api/v0/product/${upc}.json`,
+            { headers: { 'User-Agent': 'Ick/1.0' }, signal: AbortSignal.timeout(3000) }
+          );
+          const offData = await offRes.json();
+          if (offData.status === 1 && offData.product) {
+            const p = offData.product;
+            ingredients = p.ingredients_text || p.ingredients_text_en || '';
+            nova_group = p.nova_group || nova_group;
+            if (!brand || brand === 'Unknown Brand' || brand === 'Unknown') brand = p.brands || brand;
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      const freshScores = await calculateProductScore({
+        ingredients, brand,
+        nutriscore_grade: product.nutriscore_grade || null,
+        nova_group,
+        nutriments: product.nutrition_facts || null,
+        labels: product.is_organic ? ['en:organic'] : [],
+        allergens_tags: product.allergens_tags || [],
+        image_url: product.image_url || null,
+      });
+
+      if (freshScores) {
+        const updated = await pool.query(
+          `UPDATE products SET
+            harmful_ingredients_score = $1, banned_elsewhere_score = $2,
+            transparency_score = $3, processing_score = $4,
+            company_behavior_score = $5,
+            harmful_ingredients_found = $6, updated_at = NOW()
+          WHERE id = $7 RETURNING *`,
+          [
+            freshScores.harmful_ingredients_score, freshScores.banned_elsewhere_score,
+            freshScores.transparency_score, freshScores.processing_score,
+            freshScores.company_behavior_score,
+            freshScores.harmful_ingredients_found ? JSON.stringify(freshScores.harmful_ingredients_found) : product.harmful_ingredients_found,
+            product.id,
+          ]
+        );
+        if (updated.rows.length > 0) {
+          product = { ...product, ...updated.rows[0] };
+        }
+      }
+    } catch (e) {
+      console.error('[view re-score] Failed:', e.message);
+    }
+
+    const scoreInfo = getScoreRating(product.total_score);
     res.json({ ...product, ...scoreInfo, source: 'database' });
   } catch (err) {
     console.error('Product view error:', err);
