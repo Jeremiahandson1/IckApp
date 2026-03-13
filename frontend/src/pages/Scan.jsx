@@ -93,10 +93,15 @@ export default function Scan() {
       html5QrCodeRef.current = new Html5Qrcode('qr-reader', { verbose: false });
       
       const scanConfig = {
-          fps: 15,
-          // NO qrbox — removing this is what kills the red diagonal.
-          // The library only renders its own scan region UI when qrbox is set.
-          // Our custom orange corner overlay handles the visual — library just does the decoding.
+          fps: 10,
+          // qrbox constrains detection to the visible scan region so the
+          // library won't fire on barcodes outside the green corner box.
+          // We hide the library's own UI via CSS (see qr-reader styles below).
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const w = Math.min(320, Math.floor(viewfinderWidth * 0.75));
+            const h = Math.min(208, Math.floor(viewfinderHeight * 0.35));
+            return { width: w, height: h };
+          },
           aspectRatio: 1.0,
           formatsToSupport: [0, 1, 2, 3, 4, 5, 6],
           experimentalFeatures: { useBarCodeDetectorIfSupported: true },
