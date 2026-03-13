@@ -576,6 +576,12 @@ export async function initDatabase() {
 
       ALTER TABLE harmful_ingredients ADD COLUMN IF NOT EXISTS source_url TEXT;
 
+      -- Ensure companies.name has UNIQUE constraint (may be missing on older DBs)
+      DO $$ BEGIN
+        ALTER TABLE companies ADD CONSTRAINT companies_name_key UNIQUE (name);
+      EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL;
+      END $$;
+
       ALTER TABLE users ADD COLUMN IF NOT EXISTS allergen_alerts JSONB DEFAULT '[]';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS push_subscription JSONB;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;

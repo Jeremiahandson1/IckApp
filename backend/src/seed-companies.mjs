@@ -1,5 +1,14 @@
 import pool from './db/init.js';
 
+// Ensure unique constraint exists
+try {
+  await pool.query('ALTER TABLE companies ADD CONSTRAINT companies_name_key UNIQUE (name)');
+  console.log('Added UNIQUE constraint on companies.name');
+} catch (e) {
+  if (e.message.includes('already exists')) console.log('UNIQUE constraint already exists');
+  else console.log('Constraint note:', e.message);
+}
+
 process.argv[1] = 'force';
 const { companies } = await import('./db/seed.js');
 
