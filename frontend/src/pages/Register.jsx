@@ -12,6 +12,7 @@ export default function Register() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState('');
   
   const [formData, setFormData] = useState({
     email: '',
@@ -45,22 +46,23 @@ export default function Register() {
 
   const handleStep1 = (e) => {
     e.preventDefault();
-    
+    setFormError('');
+
     if (!formData.email.trim() || !formData.password) {
-      toast.error('Please fill in all fields');
+      setFormError('Please fill in all fields');
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      toast.error('Please enter a valid email address');
+      setFormError('Please enter a valid email address');
       return;
     }
 
     if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      setFormError('Password must be at least 6 characters');
       return;
     }
-    
+
     setStep(2);
   };
 
@@ -107,6 +109,11 @@ export default function Register() {
           <p className="mb-8" style={{ color: 'var(--muted)', fontWeight: 300, fontSize: '15px' }}>Start seeing what's actually in your food</p>
 
           <form onSubmit={handleStep1} className="space-y-5">
+            {formError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 text-red-400 text-sm">
+                {formError}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-[#bbb] mb-2">Email</label>
               <div className="relative">

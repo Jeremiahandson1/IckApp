@@ -39,6 +39,7 @@ export default function Scan() {
   const [contributeName, setContributeName] = useState('');
   const [contributeBrand, setContributeBrand] = useState('');
   const [contributing, setContributing] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
   
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
@@ -134,8 +135,7 @@ export default function Scan() {
       }
       setScanning(true);
     } catch (error) {
-      toast.error('Camera access denied. Grant camera permissions in your browser settings, or try search instead.');
-      setMode('search');
+      setCameraError(true);
     }
   };
 
@@ -340,7 +340,33 @@ export default function Scan() {
         </div>
       </div>
 
-      {mode === 'camera' && !useNative && (
+      {mode === 'camera' && !useNative && cameraError && (
+        <div className="relative h-screen bg-[#111] flex flex-col items-center justify-center px-8">
+          <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
+            <Camera className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-[#f4f4f0] mb-2 text-center">Camera Access Blocked</h2>
+          <p className="text-[#888] text-center text-sm mb-6">
+            To scan barcodes, allow camera access in your browser settings, then reload the page.
+          </p>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <button
+              onClick={() => { setCameraError(false); startScanner(); }}
+              className="w-full py-3 bg-[#c8f135] text-[#0a0a0a] rounded-sm font-semibold text-sm"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => { setCameraError(false); setMode('search'); }}
+              className="w-full py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium text-sm"
+            >
+              Use Search Instead
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'camera' && !useNative && !cameraError && (
         <div className="relative h-screen">
           <div id="qr-reader" ref={scannerRef} className="w-full h-full" />
           <div className="absolute inset-0 pointer-events-none">

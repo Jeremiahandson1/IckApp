@@ -271,7 +271,7 @@ export default function ProductResult() {
               onClick={toggleFavorite}
               className="p-2 rounded-full active:scale-90 transition-transform"
             >
-              <Heart className={`w-6 h-6 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-[#888]'}`} />
+              <Heart className={`w-6 h-6 ${isFavorited ? 'text-red-500' : 'text-[#888]'}`} fill={isFavorited ? 'currentColor' : 'none'} />
             </button>
           </div>
         </div>

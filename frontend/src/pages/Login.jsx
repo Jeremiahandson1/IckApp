@@ -13,22 +13,25 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    setFormError('');
+
     if (!email.trim() || !password) {
-      toast.error('Please fill in all fields');
+      setFormError('Please fill in all fields');
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      toast.error('Please enter a valid email address');
+      setFormError('Please enter a valid email address');
       return;
     }
 
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      setFormError('Password must be at least 6 characters');
       return;
     }
 
@@ -61,6 +64,11 @@ export default function Login() {
         <p className="mb-8" style={{ color: 'var(--muted)', fontWeight: 300, fontSize: '15px' }}>Sign in to continue keeping it clean</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {formError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 text-red-400 text-sm">
+              {formError}
+            </div>
+          )}
           {/* Email */}
           <div>
             <label className="block text-sm font-medium text-[#bbb] mb-2">

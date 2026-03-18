@@ -98,15 +98,20 @@ export default function Profile() {
     }));
   };
 
+  const [conditionsSaved, setConditionsSaved] = useState(false);
+
   const saveConditions = async () => {
     setSavingConditions(true);
+    setConditionsSaved(false);
     try {
       const payload = Object.entries(conditionSelections)
         .filter(([, v]) => v.selected)
         .map(([conditionId, v]) => ({ conditionId: parseInt(conditionId), subType: v.subType || null }));
       const result = await conditionsApi.setUserConditions(payload);
       setUserConditions(result);
+      setConditionsSaved(true);
       showToast('Health conditions updated!', 'success');
+      setTimeout(() => setConditionsSaved(false), 3000);
     } catch (err) {
       showToast('Failed to save conditions', 'error');
     } finally {
@@ -339,9 +344,13 @@ export default function Profile() {
             <button
               onClick={saveConditions}
               disabled={savingConditions}
-              className="w-full mt-3 py-2.5 bg-[rgba(200,241,53,0.06)] border border-[#c8f135]/30 text-[#c8f135] rounded-sm font-medium text-sm disabled:opacity-50"
+              className={`w-full mt-3 py-2.5 rounded-sm font-medium text-sm disabled:opacity-50 ${
+                conditionsSaved
+                  ? 'bg-green-500/20 border border-green-500/30 text-green-400'
+                  : 'bg-[rgba(200,241,53,0.06)] border border-[#c8f135]/30 text-[#c8f135]'
+              }`}
             >
-              {savingConditions ? 'Saving...' : 'Save Conditions'}
+              {savingConditions ? 'Saving...' : conditionsSaved ? 'Saved!' : 'Save Conditions'}
             </button>
           </div>
         ) : (
@@ -413,31 +422,6 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* App Settings */}
-      <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
-        <h3 className="font-semibold text-[#f4f4f0] mb-3">App Settings</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between opacity-60">
-            <div>
-              <p className="font-medium text-[#f4f4f0]">Push Notifications</p>
-              <p className="text-xs text-[#666]">Coming soon</p>
-            </div>
-            <div className="w-12 h-6 bg-gray-300 rounded-full relative">
-              <div className="absolute left-1 top-1 w-4 h-4 bg-[#0d0d0d] rounded-full" />
-            </div>
-          </div>
-          <div className="flex items-center justify-between opacity-60">
-            <div>
-              <p className="font-medium text-[#f4f4f0]">Velocity Tracking</p>
-              <p className="text-xs text-[#666]">Coming soon</p>
-            </div>
-            <div className="w-12 h-6 bg-gray-300 rounded-full relative">
-              <div className="absolute left-1 top-1 w-4 h-4 bg-[#0d0d0d] rounded-full" />
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Data & Privacy */}
       <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
         <h3 className="font-semibold text-[#f4f4f0] mb-3">Data & Privacy</h3>
@@ -476,7 +460,7 @@ export default function Profile() {
           </button>
           <button
             onClick={() => {
-              window.open('/privacy', '_blank');
+              showToast('Privacy policy page coming soon. Contact hello@ickthatish.com for questions.', 'info');
             }}
             className="w-full text-left py-2 text-[#bbb] flex items-center justify-between"
           >
@@ -492,43 +476,6 @@ export default function Profile() {
             </svg>
           </button>
         </div>
-      </div>
-
-      {/* Notifications */}
-      <div className="bg-[#0d0d0d] rounded-sm p-4 mb-4">
-        <button
-          onClick={async () => {
-            if (!('Notification' in window)) {
-              showToast('Notifications not supported on this device', 'info');
-              return;
-            }
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-              try {
-                const reg = await navigator.serviceWorker.ready;
-                const sub = await reg.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY || undefined
-                });
-                await api.post('/auth/push-subscribe', { subscription: sub.toJSON() });
-                showToast('Notifications enabled!', 'success');
-              } catch (e) {
-                showToast('Notification setup not available yet', 'info');
-              }
-            } else {
-              showToast('Notification permission denied', 'info');
-            }
-          }}
-          className="w-full flex items-center justify-between py-2"
-        >
-          <div>
-            <p className="font-medium text-[#f4f4f0]">Push Notifications</p>
-            <p className="text-xs text-[#666]">Get alerts for score changes and new swaps</p>
-          </div>
-          <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-        </button>
       </div>
 
       {/* Admin Panel Link (only for admins) */}
@@ -552,12 +499,6 @@ export default function Profile() {
           <svg className="w-4 h-4 text-[#666]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-        </button>
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="w-full py-3 bg-[#1e1e1e] text-red-400 rounded-sm font-medium text-left px-4"
-        >
-          Delete Account
         </button>
       </div>
 

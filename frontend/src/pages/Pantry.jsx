@@ -11,6 +11,7 @@ export default function Pantry() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('score');
+  const [confirmAction, setConfirmAction] = useState(null); // { type, id, name }
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -38,10 +39,10 @@ export default function Pantry() {
   };
 
   const markFinished = async (itemId) => {
-    if (!confirm('Mark this item as finished? It will be removed from your pantry.')) return;
     try {
       await api.put(`/pantry/${itemId}/finish`);
       showToast('Item marked as finished!', 'success');
+      setConfirmAction(null);
       loadPantry();
     } catch (err) {
       showToast('Failed to update item', 'error');
@@ -49,10 +50,10 @@ export default function Pantry() {
   };
 
   const removeItem = async (itemId) => {
-    if (!confirm('Remove this item from your pantry?')) return;
     try {
       await api.delete(`/pantry/${itemId}`);
       showToast('Item removed', 'success');
+      setConfirmAction(null);
       loadPantry();
     } catch (err) {
       showToast('Failed to remove item', 'error');
@@ -304,13 +305,13 @@ export default function Pantry() {
                 </button>
               )}
               <button
-                onClick={() => markFinished(item.id)}
+                onClick={() => setConfirmAction({ type: 'finish', id: item.id, name: item.name || item.custom_name || 'this item' })}
                 className="flex-1 py-2 bg-[#1e1e1e] text-[#888] rounded-sm text-sm font-medium"
               >
                 Finished
               </button>
               <button
-                onClick={() => removeItem(item.id)}
+                onClick={() => setConfirmAction({ type: 'remove', id: item.id, name: item.name || item.custom_name || 'this item' })}
                 className="px-3 py-2 text-red-500 text-sm"
               >
                 Remove
@@ -330,6 +331,38 @@ export default function Pantry() {
             <span>🔄</span>
             <span>Fix {audit.breakdown.avoid} Problem Items</span>
           </Link>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold text-[#f4f4f0] mb-2">
+              {confirmAction.type === 'finish' ? 'Mark as Finished?' : 'Remove Item?'}
+            </h2>
+            <p className="text-sm text-[#888] mb-4">
+              {confirmAction.type === 'finish'
+                ? `"${confirmAction.name}" will be removed from your pantry.`
+                : `"${confirmAction.name}" will be permanently removed.`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 py-3 bg-[#1e1e1e] text-[#888] rounded-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmAction.type === 'finish' ? markFinished(confirmAction.id) : removeItem(confirmAction.id)}
+                className={`flex-1 py-3 rounded-sm font-medium ${
+                  confirmAction.type === 'remove' ? 'bg-red-600 text-white' : 'bg-[#c8f135] text-[#0a0a0a]'
+                }`}
+              >
+                {confirmAction.type === 'finish' ? 'Yes, Finished' : 'Remove'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -39,13 +39,14 @@ export async function shareProduct({ title, text, url }) {
     }
   }
 
-  // Web Share API
-  if (navigator.share) {
+  // Web Share API — only use on mobile (desktop implementations are unreliable)
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (navigator.share && isMobile) {
     try {
       await navigator.share({ title, text, url });
       return true;
     } catch {
-      return false; // User cancelled
+      // User cancelled or API failed — fall through to clipboard
     }
   }
 

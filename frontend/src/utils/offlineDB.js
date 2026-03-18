@@ -333,6 +333,10 @@ export async function migrateFromLocalStorage() {
  * Called once after first install, then periodically to refresh
  */
 export async function preloadProducts(apiClient) {
+  // Session-level guard: never run more than once per browser session
+  if (sessionStorage.getItem('ick_preload_done')) return;
+  sessionStorage.setItem('ick_preload_done', '1');
+
   const lastPreload = await getMeta('last_preload');
   const daysSince = lastPreload ? (Date.now() - lastPreload) / (24 * 60 * 60 * 1000) : Infinity;
 
@@ -342,7 +346,7 @@ export async function preloadProducts(apiClient) {
   try {
     let page = 1;
     let totalLoaded = 0;
-    const MAX_PAGES = 25; // Cap at 5,000 products to prevent runaway polling
+    const MAX_PAGES = 5; // Cap at 1,000 products max to prevent server overload
 
     while (page <= MAX_PAGES) {
       const response = await apiClient.get(`/products/curated?page=${page}&limit=200`);
@@ -356,12 +360,13 @@ export async function preloadProducts(apiClient) {
       page++;
     }
 
+    // Always mark as done, even if 0 loaded, to prevent repeated attempts
+    await setMeta('last_preload', Date.now()).catch(() => {});
     if (totalLoaded > 0) {
-      await setMeta('last_preload', Date.now());
       console.log(`[OfflineDB] Pre-loaded ${totalLoaded} curated products (${page} pages)`);
     }
   } catch (e) {
-    // Offline or partial failure — skip preload, will retry later
+    // Offline or partial failure — mark done for this session, retry next session
     console.log('[OfflineDB] Preload skipped (offline)');
   }
 }
