@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, Mail } from 'lucide-react';
 import api from '../utils/api';
 
 export default function ForgotPassword() {
@@ -11,6 +12,17 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     setLoading(true);
     try {
       await api.post('/auth/forgot-password', { email: email.trim().toLowerCase() });
@@ -24,73 +36,78 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <span className="text-5xl">🥦</span>
-          <h1 className="text-2xl font-bold text-white mt-3">Ick</h1>
+    <div className="min-h-screen bg-[#0a0a0a] px-6 pt-safe">
+      {/* Header */}
+      <div className="py-4 flex items-center justify-between">
+        <Link to="/login" className="inline-flex items-center gap-2" style={{ color: 'var(--muted)' }}>
+          <ArrowLeft className="w-5 h-5" />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Back</span>
+        </Link>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', letterSpacing: '2px', color: 'var(--ick-green)' }}>ICKTHATISH</span>
+      </div>
+
+      {submitted ? (
+        <div className="pt-8">
+          <h1 className="mb-2" style={{ fontFamily: 'var(--font-display)', fontSize: '52px', letterSpacing: '2px', lineHeight: '1', color: '#f4f4f0' }}>CHECK<br/><span style={{ color: 'var(--ick-green)' }}>YOUR EMAIL.</span></h1>
+          <p className="mb-6" style={{ color: 'var(--muted)', fontWeight: 300, fontSize: '15px' }}>
+            If <span className="text-[#f4f4f0] font-medium">{email}</span> is registered, we sent a reset link. Check your inbox (and spam folder).
+          </p>
+          <p className="text-xs mb-8" style={{ color: '#555' }}>The link expires in 1 hour.</p>
+          <Link
+            to="/login"
+            className="btn-primary w-full flex items-center justify-center"
+          >
+            Back to Login
+          </Link>
         </div>
+      ) : (
+        <div className="pt-8">
+          <h1 className="mb-2" style={{ fontFamily: 'var(--font-display)', fontSize: '52px', letterSpacing: '2px', lineHeight: '1', color: '#f4f4f0' }}>FORGOT<br/><span style={{ color: 'var(--ick-green)' }}>PASSWORD?</span></h1>
+          <p className="mb-8" style={{ color: 'var(--muted)', fontWeight: 300, fontSize: '15px' }}>Enter your email and we'll send a reset link.</p>
 
-        {submitted ? (
-          <div className="bg-[#111] rounded-sm p-6 text-center space-y-4">
-            <div className="text-4xl">📬</div>
-            <h2 className="text-xl font-bold text-white">Check your email</h2>
-            <p className="text-[#888] text-sm">
-              If <span className="text-white">{email}</span> is registered, we sent a reset link. Check your inbox (and spam folder).
-            </p>
-            <p className="text-[#666] text-xs">The link expires in 1 hour.</p>
-            <Link
-              to="/login"
-              className="block w-full py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium text-center mt-2"
-            >
-              Back to Login
-            </Link>
-          </div>
-        ) : (
-          <div className="bg-[#111] rounded-sm p-6 space-y-5">
-            <div>
-              <h2 className="text-xl font-bold text-white">Forgot your password?</h2>
-              <p className="text-[#888] text-sm mt-1">Enter your email and we'll send a reset link.</p>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 text-red-400 text-sm mb-4">
+              {error}
             </div>
+          )}
 
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-sm px-4 py-3 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#bbb] mb-1">Email</label>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-[#bbb] mb-2">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888]" />
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333] rounded-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
-                  placeholder="you@example.com"
-                  required
+                  className="input-field pl-12"
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  autoCapitalize="none"
                   autoFocus
                 />
               </div>
-
-              <button
-                type="submit"
-                disabled={loading || !email.trim()}
-                className="w-full py-3 bg-[#c8f135] text-white rounded-sm font-semibold text-lg disabled:opacity-50 transition-opacity"
-              >
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            </form>
-
-            <div className="text-center">
-              <Link to="/login" className="text-[#888] text-sm hover:text-[#bbb]">
-                ← Back to Login
-              </Link>
             </div>
-          </div>
-        )}
-      </div>
+
+            <button
+              type="submit"
+              disabled={loading || !email.trim()}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'Send Reset Link'
+              )}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-[#888]">
+            Remember your password?{' '}
+            <Link to="/login" className="text-[#c8f135] font-semibold">Sign in</Link>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -134,7 +134,7 @@ export default function Scan() {
       }
       setScanning(true);
     } catch (error) {
-      toast.error('Camera access denied. Try search instead.');
+      toast.error('Camera access denied. Grant camera permissions in your browser settings, or try search instead.');
       setMode('search');
     }
   };
@@ -433,7 +433,11 @@ export default function Scan() {
                 autoFocus
               />
               {searchQuery && (
-                <button onClick={() => { setSearchQuery(''); setSearchResults([]); setSuggestions([]); setShowSuggestions(false); }}
+                <button onClick={() => {
+                  setSearchQuery(''); setSearchResults([]); setSuggestions([]); setShowSuggestions(false); setSearching(false);
+                  if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                  if (acTimeoutRef.current) clearTimeout(acTimeoutRef.current);
+                }}
                   className="absolute right-4 top-1/2 -translate-y-1/2">
                   <X className="w-5 h-5 text-[#888]" />
                 </button>

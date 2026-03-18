@@ -403,8 +403,8 @@ export default function Profile() {
               {profile?.subscription?.is_premium
                 ? profile.subscription.status === 'trialing'
                   ? `Trial — ${profile.subscription.days_remaining} days left`
-                  : `${profile.subscription.plan} plan`
-                : 'Free plan'}
+                  : 'Premium Member'
+                : 'Free plan — tap to upgrade'}
             </p>
           </div>
           <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -442,13 +442,44 @@ export default function Profile() {
       <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm mb-4">
         <h3 className="font-semibold text-[#f4f4f0] mb-3">Data & Privacy</h3>
         <div className="space-y-3">
-          <button className="w-full text-left py-2 text-[#bbb] flex items-center justify-between">
+          <button
+            onClick={async () => {
+              try {
+                showToast('Preparing your data export...', 'info');
+                const data = await api.get('/auth/profile');
+                const pantryData = await api.get('/pantry').catch(() => []);
+                const historyData = await api.get('/products/history?limit=1000').catch(() => []);
+                const exportData = {
+                  profile: data.user,
+                  pantry: pantryData,
+                  scan_history: historyData,
+                  exported_at: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ick-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('Data exported successfully!', 'success');
+              } catch (err) {
+                showToast('Failed to export data', 'error');
+              }
+            }}
+            className="w-full text-left py-2 text-[#bbb] flex items-center justify-between"
+          >
             <span>Export My Data</span>
             <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
-          <button className="w-full text-left py-2 text-[#bbb] flex items-center justify-between">
+          <button
+            onClick={() => {
+              window.open('/privacy', '_blank');
+            }}
+            className="w-full text-left py-2 text-[#bbb] flex items-center justify-between"
+          >
             <span>Privacy Policy</span>
             <svg className="w-5 h-5 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

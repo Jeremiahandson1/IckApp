@@ -237,7 +237,8 @@ export default function Family() {
               {group.name.toUpperCase()}
             </h1>
             <p className="text-xs" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px' }}>
-              {members.length} MEMBER{members.length !== 1 ? 'S' : ''}
+              {members.filter(m => m.status !== 'pending').length} MEMBER{members.filter(m => m.status !== 'pending').length !== 1 ? 'S' : ''}
+              {members.filter(m => m.status === 'pending').length > 0 && ` \u2022 ${members.filter(m => m.status === 'pending').length} PENDING`}
               {pantryAccess && ' \u2022 SHARED PANTRY'}
             </p>
           </div>

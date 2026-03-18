@@ -51,8 +51,25 @@ export async function shareProduct({ title, text, url }) {
 
   // Clipboard fallback
   try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
-    return true; // Caller should show "Copied!" toast
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      return true; // Caller should show "Copied!" toast
+    }
+  } catch {
+    // clipboard API failed — try execCommand fallback
+  }
+
+  // execCommand fallback for older browsers / insecure contexts
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = `${text}\n${url}`;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return true;
   } catch {
     return false;
   }

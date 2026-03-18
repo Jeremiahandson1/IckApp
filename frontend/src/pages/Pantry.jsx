@@ -38,6 +38,7 @@ export default function Pantry() {
   };
 
   const markFinished = async (itemId) => {
+    if (!confirm('Mark this item as finished? It will be removed from your pantry.')) return;
     try {
       await api.put(`/pantry/${itemId}/finish`);
       showToast('Item marked as finished!', 'success');
@@ -48,6 +49,7 @@ export default function Pantry() {
   };
 
   const removeItem = async (itemId) => {
+    if (!confirm('Remove this item from your pantry?')) return;
     try {
       await api.delete(`/pantry/${itemId}`);
       showToast('Item removed', 'success');

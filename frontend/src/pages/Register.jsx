@@ -46,11 +46,16 @@ export default function Register() {
   const handleStep1 = (e) => {
     e.preventDefault();
     
-    if (!formData.email || !formData.password) {
+    if (!formData.email.trim() || !formData.password) {
       toast.error('Please fill in all fields');
       return;
     }
-    
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
     if (formData.password.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;

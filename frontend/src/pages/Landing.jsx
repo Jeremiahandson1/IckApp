@@ -76,6 +76,15 @@ export default function Landing() {
 
   function handleSubmit(e) {
     e.preventDefault();
+    const input = e.target.querySelector('input[type="email"]');
+    const email = input?.value?.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (msgRef.current) {
+        msgRef.current.textContent = 'Please enter a valid email address.';
+        msgRef.current.style.color = '#ff3b30';
+      }
+      return;
+    }
     if (msgRef.current) {
       msgRef.current.textContent = '✓ You\'re on the list.';
       msgRef.current.style.color = '#c8f135';
@@ -268,8 +277,12 @@ export default function Landing() {
           <span style={S.footerSub}>A Twomiah Product · Eau Claire, WI</span>
         </div>
         <div style={{ display: 'flex', gap: '24px' }}>
-          {['Privacy','Terms','Contact'].map(l => (
-            <span key={l} style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer' }}>{l}</span>
+          {[
+            { label: 'Privacy', href: '/privacy' },
+            { label: 'Terms', href: '/terms' },
+            { label: 'Contact', href: 'mailto:hello@ickthatish.com' },
+          ].map(l => (
+            <a key={l.label} href={l.href} target={l.href.startsWith('mailto') ? undefined : '_blank'} rel="noopener noreferrer" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none' }}>{l.label}</a>
           ))}
         </div>
         <span style={S.footerCopy}>© 2026 Twomiah LLC</span>

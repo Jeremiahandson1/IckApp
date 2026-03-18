@@ -342,8 +342,9 @@ export async function preloadProducts(apiClient) {
   try {
     let page = 1;
     let totalLoaded = 0;
+    const MAX_PAGES = 25; // Cap at 5,000 products to prevent runaway polling
 
-    while (true) {
+    while (page <= MAX_PAGES) {
       const response = await apiClient.get(`/products/curated?page=${page}&limit=200`);
       if (!Array.isArray(response) || response.length === 0) break;
 

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowRightLeft, ChefHat } from 'lucide-react';
 import api from '../utils/api';
 import { getScoreBgClass, getScoreColor, getScoreLabel } from '../utils/helpers';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
 export default function Swaps() {
@@ -13,6 +14,7 @@ export default function Swaps() {
   const [swapDetails, setSwapDetails] = useState({});
   const [loadingSwaps, setLoadingSwaps] = useState({});
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -21,10 +23,17 @@ export default function Swaps() {
 
   const loadRecommendations = async () => {
     try {
-      const res = await api.get('/swaps/recommendations');
+      // Add a 15s timeout to prevent indefinite loading
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res = await api.get('/swaps/recommendations', { signal: controller.signal });
+      clearTimeout(timeout);
       setRecommendations(Array.isArray(res) ? res : res.recommendations || []);
     } catch (err) {
-      showToast('Failed to load recommendations', 'error');
+      if (err.name !== 'AbortError') {
+        showToast('Failed to load recommendations', 'error');
+      }
+      setRecommendations([]);
     } finally {
       setLoading(false);
     }
@@ -62,6 +71,11 @@ export default function Swaps() {
   };
 
   const markPurchased = async (fromUpc, toProductId) => {
+    if (!user) {
+      showToast('Sign in to track your swaps', 'info');
+      navigate('/login');
+      return;
+    }
     try {
       await api.post('/swaps/purchased', {
         from_upc: fromUpc,

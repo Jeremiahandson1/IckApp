@@ -41,7 +41,8 @@ class ApiClient {
     let response;
     try {
       response = await fetch(url, { ...options, headers });
-    } catch {
+    } catch (fetchErr) {
+      if (fetchErr.name === 'AbortError') throw fetchErr;
       throw new Error('Network error. Please check your connection.');
     }
 

@@ -82,20 +82,26 @@ export default function ProductResult() {
 
   const toggleFavorite = async () => {
     if (!user) {
+      toast.info('Sign in to save favorites');
       navigate('/register');
       return;
     }
+    // Optimistic update for instant visual feedback
+    const wasFavorited = isFavorited;
+    setIsFavorited(!wasFavorited);
     try {
-      if (isFavorited) {
+      if (wasFavorited) {
         await products.removeFavorite(upc);
-        setIsFavorited(false);
+        toast.success('Removed from favorites');
         try { const cache = JSON.parse(localStorage.getItem('ick_favorites') || '[]'); localStorage.setItem('ick_favorites', JSON.stringify(cache.filter(f => f !== upc))); } catch(e) {}
       } else {
         await products.addFavorite(upc);
-        setIsFavorited(true);
+        toast.success('Added to favorites');
         try { const cache = JSON.parse(localStorage.getItem('ick_favorites') || '[]'); if (!cache.includes(upc)) cache.push(upc); localStorage.setItem('ick_favorites', JSON.stringify(cache)); } catch(e) {}
       }
     } catch (err) {
+      // Revert optimistic update
+      setIsFavorited(wasFavorited);
       toast.error('Failed to update favorite');
     }
   };
@@ -223,7 +229,8 @@ export default function ProductResult() {
       ? JSON.parse(product.allergens_tags || '[]')
       : (product.allergens_tags || []);
   } catch { /* invalid JSON */ }
-  const hasNutrition = Object.keys(nutritionFacts).length > 0;
+  const nutritionKeys = ['calories', 'fat', 'saturated_fat', 'carbs', 'sugars', 'fiber', 'protein', 'sodium'];
+  const hasNutrition = Object.keys(nutritionFacts).length > 0 && nutritionKeys.some(k => nutritionFacts[k] != null);
 
   return (
     <div className="min-h-screen pb-24" style={{ background: '#0a0a0a' }}>
@@ -250,7 +257,11 @@ export default function ProductResult() {
                   text: `${product.name} scored ${score}/100 (${verdict}) on Ick`,
                   url: `${window.location.origin}/product/${upc}`
                 });
-                if (success && !navigator.share) toast.success('Link copied!');
+                if (success && !navigator.share) {
+                  toast.success('Link copied to clipboard!');
+                } else if (!success) {
+                  toast.error('Sharing is not available on this device');
+                }
               }}
               className="p-2 rounded-full active:scale-90 transition-transform"
             >

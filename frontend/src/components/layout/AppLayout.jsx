@@ -20,7 +20,7 @@ export default function AppLayout() {
   const isOnline = useOnline();
   
   const hideNav = location.pathname.includes('/mode');
-  const hideTopBar = location.pathname === '/scan' || location.pathname.startsWith('/product/');
+  const hideTopBar = location.pathname === '/scan' || location.pathname.startsWith('/product/') || location.pathname === '/profile';
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] pb-safe">
