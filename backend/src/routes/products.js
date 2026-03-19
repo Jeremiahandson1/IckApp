@@ -357,14 +357,24 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
 
     const offProduct = offData.product;
 
-    // Validate the returned product has a name and the barcode matches what we asked for
-    // OFF sometimes returns unrelated products for random barcodes
-    const offCode = offProduct.code || offProduct._id || '';
-    if (!offProduct.product_name || (offCode && offCode !== upc && !upc.endsWith(offCode) && !offCode.endsWith(upc))) {
+    // Validate the returned product has a name and meaningful data
+    // OFF sometimes returns placeholder entries with no useful information
+    if (!offProduct.product_name) {
       return res.status(404).json({
         error: 'Product not found',
         upc,
         message: 'Not in our database or external sources. Help us grow — submit this product!'
+      });
+    }
+
+    // Check if the product has enough data to be useful (ingredients OR nutrition)
+    const hasIngredients = !!(offProduct.ingredients_text || offProduct.ingredients_text_en);
+    const hasNutrition = !!(offProduct.nutriments && Object.keys(offProduct.nutriments).length > 2);
+    if (!hasIngredients && !hasNutrition && !offProduct.brands) {
+      return res.status(404).json({
+        error: 'Product not found',
+        upc,
+        message: 'Found a placeholder entry with no useful data. Help us grow — submit this product!'
       });
     }
 
@@ -626,95 +636,73 @@ router.get('/search', async (req, res) => {
       ...getScoreRating(p.total_score)
     }));
 
-    // If local DB has few results and we have a text query, search Open Food Facts
+    // If local DB has few results and we have a text query, search external sources IN PARALLEL
     if (q && products.length < 5) {
-      try {
-        const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=true&page_size=10&fields=code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags`;
-        const offRes = await fetch(offUrl, {
-          headers: { 'User-Agent': 'Ick/2.0' },
-          signal: AbortSignal.timeout(3000) // 3s timeout
-        });
-        if (offRes.ok) {
+      const needed = 10 - products.length;
+      const existingUpcs = new Set(products.map(p => p.upc));
+      const existingNames = new Set(products.map(p => p.name?.toLowerCase()));
+      const TIMEOUT = 3000;
+
+      // Fire all external searches simultaneously with 3s timeout each
+      const [offResults, usdaResults, fsResults] = await Promise.allSettled([
+        // Open Food Facts
+        (async () => {
+          const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=true&page_size=10&fields=code,product_name,brands,image_url,nutriscore_grade,nova_group,categories_tags`;
+          const offRes = await fetch(offUrl, {
+            headers: { 'User-Agent': 'Ick/2.0' },
+            signal: AbortSignal.timeout(TIMEOUT)
+          });
+          if (!offRes.ok) return [];
           const offData = await offRes.json();
-          const existingUpcs = new Set(products.map(p => p.upc));
-          const offProducts = (offData.products || [])
+          return (offData.products || [])
             .filter(p => p.code && p.product_name && !existingUpcs.has(p.code))
-            .slice(0, 10 - products.length)
+            .slice(0, needed)
             .map(p => {
-              // Quick estimated score — default 50 for dimensions we can't compute without ingredients
               const quickScore = p.nutriscore_grade ? 50 : null;
               return {
-                upc: p.code,
-                name: p.product_name,
-                brand: p.brands || 'Unknown',
-                image_url: p.image_url || null,
-                nutriscore_grade: p.nutriscore_grade || null,
+                upc: p.code, name: p.product_name, brand: p.brands || 'Unknown',
+                image_url: p.image_url || null, nutriscore_grade: p.nutriscore_grade || null,
                 nova_group: p.nova_group || null,
                 category: p.categories_tags?.[0]?.replace('en:', '') || null,
-                total_score: quickScore, // Estimated — full score on scan
-                estimated_score: !!quickScore,
-                source: 'openfoodfacts',
-                ...getScoreRating(quickScore)
+                total_score: quickScore, estimated_score: !!quickScore,
+                source: 'openfoodfacts', ...getScoreRating(quickScore)
               };
             });
-          products = [...products, ...offProducts];
+        })(),
+        // USDA
+        Promise.race([
+          usdaSearch(q, needed).then(results =>
+            results.filter(p => p.upc && p.name && !existingUpcs.has(p.upc)).slice(0, needed)
+              .map(p => ({ upc: p.upc, name: p.name, brand: p.brand, category: p.category,
+                image_url: null, total_score: null, estimated_score: false, source: 'usda' }))
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT))
+        ]),
+        // FatSecret
+        Promise.race([
+          fatsecretSearch(q, needed).then(results =>
+            results.filter(p => p.name && !existingNames.has(p.name.toLowerCase())).slice(0, needed)
+              .map(p => ({ name: p.name, brand: p.brand, category: 'Food', image_url: null,
+                total_score: null, estimated_score: false, source: 'fatsecret',
+                fatsecret_food_id: p.fatsecret_food_id }))
+          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT))
+        ])
+      ]);
+
+      // Merge results — deduplicate by UPC/name
+      for (const result of [offResults, usdaResults, fsResults]) {
+        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+          for (const p of result.value) {
+            if (products.length >= 20) break;
+            const nameKey = p.name?.toLowerCase();
+            if (p.upc && existingUpcs.has(p.upc)) continue;
+            if (nameKey && existingNames.has(nameKey)) continue;
+            if (p.upc) existingUpcs.add(p.upc);
+            if (nameKey) existingNames.add(nameKey);
+            products.push(p);
+          }
         }
-      } catch (offErr) {
-        // OFF search failed — just return local results
-      }
-    }
-
-    // If still few results, try USDA Branded Foods search (3s timeout)
-    if (q && products.length < 5) {
-      try {
-        const usdaResults = await Promise.race([
-          usdaSearch(q, 10 - products.length),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('USDA timeout')), 3000))
-        ]);
-        const existingUpcs = new Set(products.map(p => p.upc));
-        const usdaProducts = usdaResults
-          .filter(p => p.upc && p.name && !existingUpcs.has(p.upc))
-          .slice(0, 10 - products.length)
-          .map(p => ({
-            upc: p.upc,
-            name: p.name,
-            brand: p.brand,
-            category: p.category,
-            image_url: null,
-            total_score: null, // Full score calculated on scan
-            estimated_score: false,
-            source: 'usda',
-          }));
-        products = [...products, ...usdaProducts];
-      } catch (usdaErr) {
-        // USDA search failed — continue with what we have
-      }
-    }
-
-    // If still few results, try FatSecret search (3s timeout)
-    if (q && products.length < 5) {
-      try {
-        const fsResults = await Promise.race([
-          fatsecretSearch(q, 10 - products.length),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('FatSecret timeout')), 3000))
-        ]);
-        const existingNames = new Set(products.map(p => p.name?.toLowerCase()));
-        const fsProducts = fsResults
-          .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))
-          .slice(0, 10 - products.length)
-          .map(p => ({
-            name: p.name,
-            brand: p.brand,
-            category: 'Food',
-            image_url: null,
-            total_score: null,
-            estimated_score: false,
-            source: 'fatsecret',
-            fatsecret_food_id: p.fatsecret_food_id,
-          }));
-        products = [...products, ...fsProducts];
-      } catch (fsErr) {
-        // FatSecret search failed — continue
       }
     }
 

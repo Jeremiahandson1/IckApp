@@ -346,6 +346,10 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
     CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
     CREATE INDEX IF NOT EXISTS idx_products_score ON products(total_score);
+    -- Trigram indexes for fast ILIKE search (requires pg_trgm extension)
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON products USING gin(name gin_trgm_ops);
+    CREATE INDEX IF NOT EXISTS idx_products_brand_trgm ON products USING gin(brand gin_trgm_ops);
     CREATE INDEX IF NOT EXISTS idx_pantry_user ON pantry_items(user_id);
     CREATE INDEX IF NOT EXISTS idx_velocity_user ON consumption_velocity(user_id);
     CREATE INDEX IF NOT EXISTS idx_velocity_upc ON consumption_velocity(upc);

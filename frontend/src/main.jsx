@@ -14,14 +14,19 @@ if (isNative) {
   document.documentElement.classList.add('native-app');
 }
 
-// Initialize offline database (IndexedDB) — migrates from localStorage, pre-loads curated products
+// Initialize offline database (IndexedDB) — migrates from localStorage, caches products on scan
 initOfflineDB(api).catch(() => {});
 
-// Register service worker for PWA (skip on native — uses native APIs)
-if (!isNative && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
+// Unregister any stale manual service worker (replaced by Vite PWA / Workbox)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const reg of registrations) {
+      // Workbox SW is auto-registered by vite-plugin-pwa; remove any manually registered ones
+      if (reg.active?.scriptURL?.endsWith('/sw.js') && !reg.active.scriptURL.includes('workbox')) {
+        reg.unregister();
+      }
+    }
+  }).catch(() => {});
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

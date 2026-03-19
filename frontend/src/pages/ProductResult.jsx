@@ -251,19 +251,18 @@ export default function ProductResult() {
                 const verdict = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Mediocre' : score >= 20 ? 'Poor' : 'Bad';
                 api.post('/analytics/event', { event_type: 'share', event_data: { upc, score } }).catch(() => {});
                 
+                const shareText = `${product.name} scored ${score}/100 (${verdict}) on Ick`;
+                const shareUrl = `${window.location.origin}/product/${upc}`;
                 const success = await shareProduct({
                   title: `${product.name} — Ick`,
-                  text: `${product.name} scored ${score}/100 (${verdict}) on Ick`,
-                  url: `${window.location.origin}/product/${upc}`
+                  text: shareText,
+                  url: shareUrl
                 });
                 if (success) {
-                  // Always show feedback — clipboard copy needs a toast
-                  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                  if (!isMobile || !navigator.share) {
-                    toast.success('Link copied to clipboard!');
-                  }
-                } else if (!success) {
-                  toast.error('Sharing is not available on this device');
+                  toast.success('Link copied to clipboard!');
+                } else {
+                  // All copy methods failed — show the link directly so user can copy manually
+                  toast.info(`Share this link: ${shareUrl}`);
                 }
               }}
               className="p-2 rounded-full active:scale-90 transition-transform"
