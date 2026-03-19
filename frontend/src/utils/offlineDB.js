@@ -332,43 +332,11 @@ export async function migrateFromLocalStorage() {
  * Pre-load curated products from the backend (paginated)
  * Called once after first install, then periodically to refresh
  */
-export async function preloadProducts(apiClient) {
-  // Session-level guard: never run more than once per browser session
-  if (sessionStorage.getItem('ick_preload_done')) return;
-  sessionStorage.setItem('ick_preload_done', '1');
-
-  const lastPreload = await getMeta('last_preload');
-  const daysSince = lastPreload ? (Date.now() - lastPreload) / (24 * 60 * 60 * 1000) : Infinity;
-
-  // Only preload if never done or >7 days old
-  if (daysSince < 7) return;
-
-  try {
-    let page = 1;
-    let totalLoaded = 0;
-    const MAX_PAGES = 5; // Cap at 1,000 products max to prevent server overload
-
-    while (page <= MAX_PAGES) {
-      const response = await apiClient.get(`/products/curated?page=${page}&limit=200`);
-      if (!Array.isArray(response) || response.length === 0) break;
-
-      await putProducts(response);
-      totalLoaded += response.length;
-
-      // If we got fewer than the limit, this was the last page
-      if (response.length < 200) break;
-      page++;
-    }
-
-    // Always mark as done, even if 0 loaded, to prevent repeated attempts
-    await setMeta('last_preload', Date.now()).catch(() => {});
-    if (totalLoaded > 0) {
-      console.log(`[OfflineDB] Pre-loaded ${totalLoaded} curated products (${page} pages)`);
-    }
-  } catch (e) {
-    // Offline or partial failure — mark done for this session, retry next session
-    console.log('[OfflineDB] Preload skipped (offline)');
-  }
+export async function preloadProducts(_apiClient) {
+  // Disabled: curated product preloading caused runaway API polling that
+  // hammered the server and degraded performance for all users.
+  // Products are cached individually as users scan them (see api.js scan/view).
+  return;
 }
 
 // ── Initialization ──

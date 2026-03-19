@@ -356,6 +356,18 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
     }
 
     const offProduct = offData.product;
+
+    // Validate the returned product has a name and the barcode matches what we asked for
+    // OFF sometimes returns unrelated products for random barcodes
+    const offCode = offProduct.code || offProduct._id || '';
+    if (!offProduct.product_name || (offCode && offCode !== upc && !upc.endsWith(offCode) && !offCode.endsWith(upc))) {
+      return res.status(404).json({
+        error: 'Product not found',
+        upc,
+        message: 'Not in our database or external sources. Help us grow — submit this product!'
+      });
+    }
+
     const ingredients = offProduct.ingredients_text || offProduct.ingredients_text_en || '';
     const brand = offProduct.brands || 'Unknown Brand';
 
@@ -652,10 +664,13 @@ router.get('/search', async (req, res) => {
       }
     }
 
-    // If still few results, try USDA Branded Foods search
+    // If still few results, try USDA Branded Foods search (3s timeout)
     if (q && products.length < 5) {
       try {
-        const usdaResults = await usdaSearch(q, 10 - products.length);
+        const usdaResults = await Promise.race([
+          usdaSearch(q, 10 - products.length),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('USDA timeout')), 3000))
+        ]);
         const existingUpcs = new Set(products.map(p => p.upc));
         const usdaProducts = usdaResults
           .filter(p => p.upc && p.name && !existingUpcs.has(p.upc))
@@ -676,10 +691,13 @@ router.get('/search', async (req, res) => {
       }
     }
 
-    // If still few results, try FatSecret search
+    // If still few results, try FatSecret search (3s timeout)
     if (q && products.length < 5) {
       try {
-        const fsResults = await fatsecretSearch(q, 10 - products.length);
+        const fsResults = await Promise.race([
+          fatsecretSearch(q, 10 - products.length),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('FatSecret timeout')), 3000))
+        ]);
         const existingNames = new Set(products.map(p => p.name?.toLowerCase()));
         const fsProducts = fsResults
           .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))

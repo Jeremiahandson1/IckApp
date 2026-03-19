@@ -277,13 +277,9 @@ export default function Landing() {
           <span style={S.footerSub}>A Twomiah Product · Eau Claire, WI</span>
         </div>
         <div style={{ display: 'flex', gap: '24px' }}>
-          {[
-            { label: 'Privacy', href: '/privacy' },
-            { label: 'Terms', href: '/terms' },
-            { label: 'Contact', href: 'mailto:hello@ickthatish.com' },
-          ].map(l => (
-            <a key={l.label} href={l.href} target={l.href.startsWith('mailto') ? undefined : '_blank'} rel="noopener noreferrer" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none' }}>{l.label}</a>
-          ))}
+          <a href="mailto:hello@ickthatish.com?subject=Privacy%20Policy%20Request" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none' }}>Privacy</a>
+          <a href="mailto:hello@ickthatish.com?subject=Terms%20of%20Service%20Request" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none' }}>Terms</a>
+          <a href="mailto:hello@ickthatish.com" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none' }}>Contact</a>
         </div>
         <span style={S.footerCopy}>© 2026 Twomiah LLC</span>
       </footer>

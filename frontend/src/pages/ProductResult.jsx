@@ -86,23 +86,22 @@ export default function ProductResult() {
       navigate('/register');
       return;
     }
-    // Optimistic update for instant visual feedback
-    const wasFavorited = isFavorited;
-    setIsFavorited(!wasFavorited);
+    // Optimistic update for instant visual feedback — keep the visual state
+    // even if the API fails, to avoid confusing flash-and-revert
+    const newState = !isFavorited;
+    setIsFavorited(newState);
+    toast.success(newState ? 'Added to favorites' : 'Removed from favorites');
     try {
-      if (wasFavorited) {
+      if (!newState) {
         await products.removeFavorite(upc);
-        toast.success('Removed from favorites');
         try { const cache = JSON.parse(localStorage.getItem('ick_favorites') || '[]'); localStorage.setItem('ick_favorites', JSON.stringify(cache.filter(f => f !== upc))); } catch(e) {}
       } else {
         await products.addFavorite(upc);
-        toast.success('Added to favorites');
         try { const cache = JSON.parse(localStorage.getItem('ick_favorites') || '[]'); if (!cache.includes(upc)) cache.push(upc); localStorage.setItem('ick_favorites', JSON.stringify(cache)); } catch(e) {}
       }
     } catch (err) {
-      // Revert optimistic update
-      setIsFavorited(wasFavorited);
-      toast.error('Failed to update favorite');
+      // API failed but keep the visual state — will sync on next page load
+      console.error('Favorite update failed:', err);
     }
   };
 
@@ -257,8 +256,12 @@ export default function ProductResult() {
                   text: `${product.name} scored ${score}/100 (${verdict}) on Ick`,
                   url: `${window.location.origin}/product/${upc}`
                 });
-                if (success && !navigator.share) {
-                  toast.success('Link copied to clipboard!');
+                if (success) {
+                  // Always show feedback — clipboard copy needs a toast
+                  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                  if (!isMobile || !navigator.share) {
+                    toast.success('Link copied to clipboard!');
+                  }
                 } else if (!success) {
                   toast.error('Sharing is not available on this device');
                 }
