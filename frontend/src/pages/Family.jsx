@@ -28,8 +28,15 @@ export default function Family() {
   const [inviteUrl, setInviteUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
-  const [editProfile, setEditProfile] = useState({ name: '', diseases: '', allergies: '' });
+  const [editProfile, setEditProfile] = useState({ name: '', diseases: [], allergies: [] });
   const [expandedMember, setExpandedMember] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(null); // member id
+
+  const COMMON_CONDITIONS = ['Thyroid', 'Diabetes', 'Heart Disease', 'Kidney Disease', 'Celiac'];
+  const COMMON_ALLERGENS = [
+    'Gluten', 'Milk', 'Eggs', 'Fish', 'Crustaceans',
+    'Tree Nuts', 'Peanuts', 'Soybeans', 'Sesame'
+  ];
 
   const myMember = members.find(m => m.user_id === user?.id);
   const isAdmin = myMember?.role === 'owner' || myMember?.role === 'admin';
@@ -105,10 +112,10 @@ export default function Family() {
   };
 
   const handleRemoveMember = async (id) => {
-    if (!confirm('Remove this member from the family group?')) return;
     try {
       await familyGroup.removeMember(id);
       toast.success('Member removed');
+      setConfirmRemove(null);
       await loadGroup();
     } catch (err) {
       toast.error(err.message || 'Failed to remove member');
@@ -130,14 +137,11 @@ export default function Family() {
 
   const handleSaveProfile = async (memberId) => {
     try {
-      const diseases = editProfile.diseases ? editProfile.diseases.split(',').map(s => s.trim()).filter(Boolean) : [];
-      const allergies = editProfile.allergies ? editProfile.allergies.split(',').map(s => s.trim()).filter(Boolean) : [];
-
       await familyGroup.updateMember(memberId, {
         profile: {
           name: editProfile.name,
-          diseases,
-          allergies,
+          diseases: editProfile.diseases,
+          allergies: editProfile.allergies,
           profile_id: editProfile.profile_id || undefined,
         },
       });
@@ -163,8 +167,8 @@ export default function Family() {
     const p = member.profiles?.[0];
     setEditProfile({
       name: p?.name || member.user_name || '',
-      diseases: (p?.diseases || []).join(', '),
-      allergies: (p?.allergies || []).join(', '),
+      diseases: p?.diseases || [],
+      allergies: p?.allergies || [],
       profile_id: p?.id || null,
     });
     setEditingMember(member.id);
@@ -236,11 +240,17 @@ export default function Family() {
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', letterSpacing: '2px', color: 'var(--white)' }}>
               {group.name.toUpperCase()}
             </h1>
-            <p className="text-xs" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px' }}>
-              {members.filter(m => m.status !== 'pending').length} MEMBER{members.filter(m => m.status !== 'pending').length !== 1 ? 'S' : ''}
-              {members.filter(m => m.status === 'pending').length > 0 && ` \u2022 ${members.filter(m => m.status === 'pending').length} PENDING`}
-              {pantryAccess && ' \u2022 SHARED PANTRY'}
-            </p>
+            {(() => {
+              const active = members.filter(m => m.status === 'active' || m.role === 'owner');
+              const pending = members.filter(m => m.status === 'pending');
+              return (
+                <p className="text-xs" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px' }}>
+                  {active.length} MEMBER{active.length !== 1 ? 'S' : ''}
+                  {pending.length > 0 && ` \u2022 ${pending.length} PENDING`}
+                  {pantryAccess && ' \u2022 SHARED PANTRY'}
+                </p>
+              );
+            })()}
           </div>
         </div>
         {isAdmin && (
@@ -336,32 +346,73 @@ export default function Family() {
 
                   {/* Edit profile form */}
                   {editingMember === member.id ? (
-                    <div className="space-y-2 pt-2">
-                      <input
-                        type="text"
-                        placeholder="Name"
-                        value={editProfile.name}
-                        onChange={e => setEditProfile(p => ({ ...p, name: e.target.value }))}
-                        className="w-full px-3 py-2 rounded text-sm"
-                        style={{ background: '#0a0a0a', border: '1px solid var(--border)', color: 'var(--white)' }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Conditions (comma separated)"
-                        value={editProfile.diseases}
-                        onChange={e => setEditProfile(p => ({ ...p, diseases: e.target.value }))}
-                        className="w-full px-3 py-2 rounded text-sm"
-                        style={{ background: '#0a0a0a', border: '1px solid var(--border)', color: 'var(--white)' }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Allergies (comma separated)"
-                        value={editProfile.allergies}
-                        onChange={e => setEditProfile(p => ({ ...p, allergies: e.target.value }))}
-                        className="w-full px-3 py-2 rounded text-sm"
-                        style={{ background: '#0a0a0a', border: '1px solid var(--border)', color: 'var(--white)' }}
-                      />
-                      <div className="flex gap-2">
+                    <div className="space-y-3 pt-2">
+                      <div>
+                        <label className="text-[10px] font-semibold mb-1 block" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>NAME</label>
+                        <input
+                          type="text"
+                          placeholder="Name"
+                          value={editProfile.name}
+                          onChange={e => setEditProfile(p => ({ ...p, name: e.target.value }))}
+                          className="w-full px-3 py-2 rounded text-sm"
+                          style={{ background: '#0a0a0a', border: '1px solid var(--border)', color: 'var(--white)' }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold mb-1.5 block" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>CONDITIONS</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {COMMON_CONDITIONS.map(cond => {
+                            const isSelected = editProfile.diseases.includes(cond);
+                            return (
+                              <button
+                                key={cond}
+                                type="button"
+                                onClick={() => setEditProfile(p => ({
+                                  ...p,
+                                  diseases: isSelected
+                                    ? p.diseases.filter(d => d !== cond)
+                                    : [...p.diseases, cond]
+                                }))}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                    : 'bg-[#2a2a2a] text-[#888] border border-transparent'
+                                }`}
+                              >
+                                {isSelected ? '✓ ' : ''}{cond}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold mb-1.5 block" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>ALLERGIES</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {COMMON_ALLERGENS.map(allergen => {
+                            const isSelected = editProfile.allergies.includes(allergen);
+                            return (
+                              <button
+                                key={allergen}
+                                type="button"
+                                onClick={() => setEditProfile(p => ({
+                                  ...p,
+                                  allergies: isSelected
+                                    ? p.allergies.filter(a => a !== allergen)
+                                    : [...p.allergies, allergen]
+                                }))}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                    : 'bg-[#2a2a2a] text-[#888] border border-transparent'
+                                }`}
+                              >
+                                {isSelected ? '✓ ' : ''}{allergen}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-1">
                         <button
                           onClick={() => handleSaveProfile(member.id)}
                           className="flex-1 py-2 rounded text-xs font-semibold"
@@ -409,7 +460,7 @@ export default function Family() {
                       )}
                       {isAdmin && member.role !== 'owner' && (
                         <button
-                          onClick={() => handleRemoveMember(member.id)}
+                          onClick={() => setConfirmRemove(member.id)}
                           className="flex items-center gap-1 px-3 py-1.5 rounded text-xs"
                           style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', fontFamily: 'var(--font-mono)' }}
                         >
@@ -564,6 +615,39 @@ export default function Family() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove member confirmation modal */}
+      {confirmRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmRemove(null)}>
+          <div className="absolute inset-0 bg-black/70" />
+          <div
+            className="relative w-full max-w-sm rounded-2xl p-6"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold mb-2" style={{ color: 'var(--white)' }}>Remove Member?</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+              This person will lose access to the family group.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmRemove(null)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium"
+                style={{ background: '#2a2a2a', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={() => handleRemoveMember(confirmRemove)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold"
+                style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171', fontFamily: 'var(--font-mono)' }}
+              >
+                REMOVE
+              </button>
             </div>
           </div>
         </div>
