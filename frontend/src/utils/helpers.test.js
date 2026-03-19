@@ -195,19 +195,22 @@ describe('getSeverityColor', () => {
 // ── UPC Validation ──
 
 describe('isValidUPC', () => {
-  it('accepts 12-digit UPC-A', () => {
+  it('accepts 12-digit UPC-A with valid check digit', () => {
     expect(isValidUPC('012345678905')).toBe(true);
+    expect(isValidUPC('040000464310')).toBe(true); // M&Ms
   });
 
-  it('accepts 13-digit EAN', () => {
+  it('accepts 13-digit EAN with valid check digit', () => {
     expect(isValidUPC('0012345678905')).toBe(true);
+    expect(isValidUPC('4902505139314')).toBe(true); // Japanese product
   });
 
-  it('accepts 8-digit UPC-E', () => {
-    expect(isValidUPC('01234567')).toBe(true);
+  it('accepts 8-digit EAN-8 with valid check digit', () => {
+    expect(isValidUPC('96385074')).toBe(true);
+    expect(isValidUPC('12345670')).toBe(true);
   });
 
-  it('accepts 14-digit GTIN', () => {
+  it('accepts 14-digit GTIN with valid check digit', () => {
     expect(isValidUPC('00012345678905')).toBe(true);
   });
 
@@ -215,6 +218,18 @@ describe('isValidUPC', () => {
     expect(isValidUPC('12345')).toBe(false);
     expect(isValidUPC('1234567890')).toBe(false);
     expect(isValidUPC('123456789012345')).toBe(false);
+  });
+
+  it('rejects invalid check digits', () => {
+    expect(isValidUPC('012345678901')).toBe(false); // wrong check digit
+    expect(isValidUPC('9999999999999')).toBe(false);
+  });
+
+  it('rejects all-same-digit barcodes', () => {
+    expect(isValidUPC('000000000000')).toBe(false);
+    expect(isValidUPC('111111111111')).toBe(false);
+    expect(isValidUPC('999999999999')).toBe(false);
+    expect(isValidUPC('00000000')).toBe(false);
   });
 
   it('strips non-digits before validating', () => {

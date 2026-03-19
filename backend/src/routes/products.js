@@ -16,6 +16,20 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
   try {
     const { upc } = req.params;
 
+    // Validate barcode format and GS1 check digit before hitting DB or external APIs
+    const cleanUpc = upc.replace(/\D/g, '');
+    if (![8, 12, 13, 14].includes(cleanUpc.length) || /^(\d)\1+$/.test(cleanUpc)) {
+      return res.status(404).json({ error: 'Invalid barcode format', upc });
+    }
+    const digits = cleanUpc.split('').map(Number);
+    let checkSum = 0;
+    for (let i = 0; i < digits.length - 1; i++) {
+      checkSum += digits[i] * ((digits.length - 1 - i) % 2 === 0 ? 1 : 3);
+    }
+    if ((10 - (checkSum % 10)) % 10 !== digits[digits.length - 1]) {
+      return res.status(404).json({ error: 'Invalid barcode check digit', upc });
+    }
+
     // First check our database
     let result = await pool.query(
       `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies

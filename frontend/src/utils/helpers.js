@@ -318,11 +318,26 @@ export function getScoreExplanation(product) {
   };
 }
 
-// UPC validation
+// UPC / EAN / GTIN validation with GS1 check digit verification
 export function isValidUPC(code) {
-  // UPC-A (12 digits), UPC-E (8 digits), EAN-13, EAN-8
   const cleaned = code.replace(/\D/g, '');
-  return [8, 12, 13, 14].includes(cleaned.length);
+
+  // Must be a standard barcode length: EAN-8, UPC-A (12), EAN-13, GTIN-14
+  if (![8, 12, 13, 14].includes(cleaned.length)) return false;
+
+  // Reject barcodes where all digits are identical (e.g. 000000000000, 999999999999)
+  if (/^(\d)\1+$/.test(cleaned)) return false;
+
+  // GS1 check digit algorithm (standard for all UPC/EAN/GTIN formats)
+  const digits = cleaned.split('').map(Number);
+  const len = digits.length;
+  let sum = 0;
+  for (let i = 0; i < len - 1; i++) {
+    // Alternate weight 1 and 3, starting from the rightmost digit before check
+    sum += digits[i] * ((len - 1 - i) % 2 === 0 ? 1 : 3);
+  }
+  const expectedCheck = (10 - (sum % 10)) % 10;
+  return expectedCheck === digits[len - 1];
 }
 
 // Truncate text
