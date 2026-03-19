@@ -62,7 +62,8 @@ function clamp(val) {
 
 async function computeHarmfulIngredientsScore(ingredientsText) {
   if (!ingredientsText || ingredientsText.length < 3) {
-    return { score: 75, found: [] };
+    // No ingredient data = we can't verify safety. Penalize, don't reward.
+    return { score: 30, found: [], missing_data: true };
   }
 
   const ingredientsLower = ingredientsText.toLowerCase();
@@ -114,7 +115,9 @@ async function computeHarmfulIngredientsScore(ingredientsText) {
 // DIMENSION 2: BANNED ELSEWHERE (20%)
 // ============================================================
 
-function computeBannedElsewhereScore(harmfulFound) {
+function computeBannedElsewhereScore(harmfulFound, missingIngredients) {
+  // If we have no ingredient data, we can't check for bans — penalize
+  if (missingIngredients) return 35;
   if (!harmfulFound || harmfulFound.length === 0) return 100;
 
   const bannedIngredients = harmfulFound.filter(h => {
@@ -224,8 +227,8 @@ function computeProcessingScore(opts) {
     return clamp(score);
   }
 
-  // No NOVA group — estimate from ingredients
-  if (!ingredients || ingredients.length < 3) return 50;
+  // No NOVA group and no ingredients — can't assess processing level
+  if (!ingredients || ingredients.length < 3) return 35;
 
   const il = ingredients.toLowerCase();
   const ultraMarkers = [
@@ -368,11 +371,11 @@ export async function scoreProduct(opts = {}) {
   const companies = await getCompanies();
 
   // ── DIMENSION 1: Harmful Ingredients (40%) ──
-  const { score: harmfulIngredientsScore, found: harmfulFound } =
+  const { score: harmfulIngredientsScore, found: harmfulFound, missing_data: missingIngredients } =
     await computeHarmfulIngredientsScore(ingredients);
 
   // ── DIMENSION 2: Banned Elsewhere (20%) ──
-  const bannedElsewhereScore = computeBannedElsewhereScore(harmfulFound);
+  const bannedElsewhereScore = computeBannedElsewhereScore(harmfulFound, missingIngredients);
 
   // ── DIMENSION 3: Transparency (15%) ──
   const transparencyScore = computeTransparencyScore({
@@ -420,6 +423,7 @@ export async function scoreProduct(opts = {}) {
     company_behavior_score: companyBehaviorScore,
 
     // Data
+    missing_ingredients: !!missingIngredients,
     harmful_ingredients_found: harmfulFound,
     nutrition_facts: nutritionFacts,
     nutriscore_grade: nutriscore_grade || null,

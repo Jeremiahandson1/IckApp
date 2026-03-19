@@ -162,7 +162,11 @@ export function getScoreExplanation(product) {
   // ── Harmful Ingredients ──
   let harmful_detail;
   const harmful_items = [];
-  if (harmful.length === 0) {
+  const missingIngredients = product.missing_ingredients || !product.ingredients || (typeof product.ingredients === 'string' && product.ingredients.length < 3);
+  if (harmful.length === 0 && missingIngredients) {
+    harmful_detail = 'Ingredient data is missing — score may not reflect actual product safety.';
+    reasons.push('missing ingredients');
+  } else if (harmful.length === 0) {
     harmful_detail = 'No harmful additives detected in this product.';
   } else {
     const highRisk = harmful.filter(h => h.severity >= 8);
@@ -187,7 +191,9 @@ export function getScoreExplanation(product) {
   const bannedIngredients = harmful.filter(h => h.banned_in && h.banned_in.length > 0);
   let banned_detail;
   const banned_items = [];
-  if (bannedIngredients.length === 0) {
+  if (bannedIngredients.length === 0 && missingIngredients) {
+    banned_detail = 'Cannot check — ingredient data is missing.';
+  } else if (bannedIngredients.length === 0) {
     banned_detail = 'None of the ingredients are banned in other countries.';
   } else {
     const allCountries = [...new Set(bannedIngredients.flatMap(h => h.banned_in))];
