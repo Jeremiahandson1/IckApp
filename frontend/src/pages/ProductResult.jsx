@@ -11,6 +11,7 @@ import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { shareProduct } from '../utils/nativeShare';
+import { isValidUPC } from '../utils/helpers';
 import FamilyProfileSwitcher from '../components/common/FamilyProfileSwitcher';
 import ScoreRing from '../components/common/ScoreRing';
 import ScoreBadge, { ScoreBar } from '../components/common/ScoreBadge';
@@ -111,6 +112,14 @@ export default function ProductResult() {
 
   const fetchProduct = async () => {
     setNotFound(false);
+
+    // Reject invalid barcodes before hitting any API
+    if (!isValidUPC(upc)) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
     try {
       const result = await products.view(upc);
       setProduct(result);

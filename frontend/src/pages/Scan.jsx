@@ -40,6 +40,7 @@ export default function Scan() {
   const [contributeBrand, setContributeBrand] = useState('');
   const [contributing, setContributing] = useState(false);
   const [cameraError, setCameraError] = useState(false);
+  const [upcError, setUpcError] = useState('');
   
   const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
@@ -180,10 +181,11 @@ export default function Scan() {
   const lookupProduct = async (upc) => {
     const cleanUPC = upc.replace(/\D/g, '');
     if (!isValidUPC(cleanUPC)) {
-      toast.error('Invalid barcode format');
+      setUpcError('Invalid barcode — check the number and try again. Must be a valid UPC (12), EAN (8 or 13), or GTIN (14) with correct check digit.');
       if (mode === 'camera') startScanner();
       return;
     }
+    setUpcError('');
     setLoading(true);
     setNotFoundUPC(null);
     try {
@@ -673,11 +675,16 @@ export default function Scan() {
               <p className="text-[#888] mt-1">Type the barcode number from the package</p>
             </div>
             <form onSubmit={handleManualSubmit} className="space-y-4">
-              <input type="text" value={manualUPC}
-                onChange={(e) => setManualUPC(e.target.value.replace(/\D/g, ''))}
-                placeholder="e.g., 040000464310"
-                className="w-full text-center text-lg tracking-wider py-4 rounded-sm border border-[#333] bg-[#0d0d0d] focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
-                inputMode="numeric" maxLength={14} autoFocus />
+              <div>
+                <input type="text" value={manualUPC}
+                  onChange={(e) => { setManualUPC(e.target.value.replace(/\D/g, '')); setUpcError(''); }}
+                  placeholder="e.g., 040000464310"
+                  className={`w-full text-center text-lg tracking-wider py-4 rounded-sm border bg-[#0d0d0d] focus:outline-none focus:ring-2 ${upcError ? 'border-red-500 focus:ring-red-500' : 'border-[#333] focus:ring-[#c8f135]'}`}
+                  inputMode="numeric" maxLength={14} autoFocus />
+                {upcError && (
+                  <p className="text-red-400 text-sm mt-2 text-center">{upcError}</p>
+                )}
+              </div>
               <button type="submit" disabled={loading || !manualUPC}
                 className="w-full py-4 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-bold text-lg hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? (
