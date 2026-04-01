@@ -9,6 +9,9 @@ export default function TrialBanner() {
 
   if (!sub) return null;
 
+  // Premium members never see any trial/upgrade banner
+  if (sub.is_premium) return null;
+
   const isTrialing = sub.plan === 'trial' && sub.status === 'active';
 
   // Trial active — show days remaining

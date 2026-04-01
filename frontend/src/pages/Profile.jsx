@@ -459,9 +459,7 @@ export default function Profile() {
             </svg>
           </button>
           <button
-            onClick={() => {
-              showToast('Privacy policy page coming soon. Contact hello@ickthatish.com for questions.', 'info');
-            }}
+            onClick={() => navigate('/privacy-policy')}
             className="w-full text-left py-2 text-[#bbb] flex items-center justify-between"
           >
             <span>Privacy Policy</span>

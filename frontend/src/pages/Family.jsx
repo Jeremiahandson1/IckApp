@@ -270,7 +270,7 @@ export default function Family() {
         {members.map((member) => {
           const isExpanded = expandedMember === member.id;
           const isPending = member.status === 'pending';
-          const displayName = member.user_name || member.invite_email || member.invite_phone || 'Invited';
+          const displayName = member.user_name || member.invite_email || member.invite_phone || (isPending ? 'Invited via link' : 'Member');
 
           return (
             <div

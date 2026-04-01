@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import { getScoreColor, getScoreLabel, formatDate } from '../utils/helpers';
 import { useToast } from '../contexts/ToastContext';
@@ -13,11 +13,13 @@ export default function Pantry() {
   const [sortBy, setSortBy] = useState('score');
   const [confirmAction, setConfirmAction] = useState(null); // { type, id, name }
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
+  // Refetch on every navigation to /pantry so scores stay fresh
   useEffect(() => {
     loadPantry();
-  }, []);
+  }, [location.key]);
 
   const loadPantry = async () => {
     try {

@@ -68,12 +68,14 @@ export async function shareProduct({ title, text, url }) {
     textarea.style.opacity = '0';
     document.body.appendChild(textarea);
     textarea.select();
-    document.execCommand('copy');
+    const copied = document.execCommand('copy');
     document.body.removeChild(textarea);
-    return true;
+    if (copied) return true;
   } catch {
-    return false;
+    // fall through
   }
+
+  return false;
 }
 
 /**

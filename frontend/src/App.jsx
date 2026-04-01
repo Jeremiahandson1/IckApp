@@ -33,6 +33,7 @@ import ReceiptScan from './pages/ReceiptScan';
 import Budget from './pages/Budget';
 import Admin from './pages/Admin';
 import Family from './pages/Family';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import JoinFamily from './pages/JoinFamily';
 
 // Auth gate — only for features that truly need login
@@ -193,6 +194,7 @@ export default function App() {
         <Route path="/subscription" element={<AuthGate><Subscription /></AuthGate>} />
         <Route path="/admin" element={<AuthGate><Admin /></AuthGate>} />
         <Route path="/family" element={<AuthGate><Family /></AuthGate>} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       </Route>
 
       {/* Fallback */}

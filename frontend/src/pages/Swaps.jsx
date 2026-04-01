@@ -10,6 +10,7 @@ import { useToast } from '../contexts/ToastContext';
 export default function Swaps() {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasScannedItems, setHasScannedItems] = useState(false);
   const [expandedItem, setExpandedItem] = useState(null);
   const [swapDetails, setSwapDetails] = useState({});
   const [loadingSwaps, setLoadingSwaps] = useState({});
@@ -26,9 +27,14 @@ export default function Swaps() {
       // Add a 15s timeout to prevent indefinite loading
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
-      const res = await api.get('/swaps/recommendations', { signal: controller.signal });
+      const [res, pantryRes] = await Promise.all([
+        api.get('/swaps/recommendations', { signal: controller.signal }),
+        user ? api.get('/pantry').catch(() => []) : Promise.resolve([]),
+      ]);
       clearTimeout(timeout);
       setRecommendations(Array.isArray(res) ? res : res.recommendations || []);
+      const pantryItems = Array.isArray(pantryRes) ? pantryRes : pantryRes.items || [];
+      setHasScannedItems(pantryItems.length > 0);
     } catch (err) {
       if (err.name !== 'AbortError') {
         showToast('Failed to load recommendations', 'error');
@@ -104,16 +110,27 @@ export default function Swaps() {
           <div className="w-16 h-16 bg-[rgba(200,241,53,0.06)] rounded-sm mx-auto flex items-center justify-center mb-4">
             <ArrowRightLeft className="w-8 h-8 text-[#c8f135]" />
           </div>
-          <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">Scan to see swaps</h2>
-          <p className="text-[#666] mb-6 px-4">
-            Scan products and we'll show healthier alternatives automatically.
-          </p>
+          {hasScannedItems ? (
+            <>
+              <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">Your items look good!</h2>
+              <p className="text-[#666] mb-6 px-4">
+                No swaps needed right now — your pantry items are scoring well. Keep scanning to find more alternatives.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">Scan to see swaps</h2>
+              <p className="text-[#666] mb-6 px-4">
+                Scan products and we'll show healthier alternatives automatically.
+              </p>
+            </>
+          )}
           <Link
             to="/scan"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium"
           >
             <ArrowRight className="w-5 h-5" />
-            Start Scanning
+            {hasScannedItems ? 'Scan More' : 'Start Scanning'}
           </Link>
         </div>
       )}

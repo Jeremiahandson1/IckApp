@@ -86,7 +86,7 @@ const recipes = [
     cook_time_minutes: 25,
     total_time_minutes: 35,
     servings: 12,
-    difficulty: "Easy",
+    difficulty: "Medium",
     estimated_cost: 6.00,
     cost_per_serving: 0.50,
     ingredients: [
@@ -150,7 +150,7 @@ const recipes = [
     cook_time_minutes: 25,
     total_time_minutes: 35,
     servings: 4,
-    difficulty: "Easy",
+    difficulty: "Medium",
     estimated_cost: 4.00,
     cost_per_serving: 1.00,
     ingredients: [
@@ -254,7 +254,7 @@ const recipes = [
     cook_time_minutes: 45,
     total_time_minutes: 780,
     servings: 12,
-    difficulty: "Easy",
+    difficulty: "Medium",
     estimated_cost: 1.50,
     cost_per_serving: 0.13,
     ingredients: [
@@ -355,6 +355,7 @@ async function seedRecipes() {
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
         ON CONFLICT (name) DO UPDATE SET
           description = EXCLUDED.description,
+          difficulty = EXCLUDED.difficulty,
           ingredients = EXCLUDED.ingredients,
           instructions = EXCLUDED.instructions,
           health_benefits = EXCLUDED.health_benefits,
