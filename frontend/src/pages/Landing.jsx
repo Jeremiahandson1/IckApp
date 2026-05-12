@@ -127,7 +127,7 @@ export default function Landing() {
           <button style={S.btnSecondary} onClick={() => navigate('/register')}>Create Free Account</button>
         </div>
         <div style={S.statRow}>
-          {[['845K+','Products Indexed'],['53','Flagged Ingredients'],['100+','Clean Swaps'],['0','Brand Deals. Ever.']].map(([n,l]) => (
+          {[['845K+','In Open Food Facts'],['53','Flagged Ingredients'],['100+','Curated Swaps'],['0','Brand Deals. Ever.']].map(([n,l]) => (
             <div key={l}><div style={S.statNum}>{n}</div><div style={S.statLabel}>{l}</div></div>
           ))}
         </div>
@@ -175,9 +175,9 @@ export default function Landing() {
         <h2 style={S.sectionH2}>Simple.<br/><span style={{ color: '#c8f135' }}>Brutal.</span><br/>Honest.</h2>
         <div style={S.grid3}>
           {[
-            { n:'1', icon:'📷', title:'Scan the Barcode', body:'Point your camera at any product. IckThatIsh pulls from 845,000+ products with full ingredient data.' },
+            { n:'1', icon:'📷', title:'Scan the Barcode', body:'Point your camera at any product. We pull live from Open Food Facts (845K+ products) plus our curated database.' },
             { n:'2', icon:'🔬', title:'See the Truth', body:'Every flagged ingredient explained — what it does, why companies use it, and which countries banned it.' },
-            { n:'3', icon:'✅', title:'Get a Real Swap', body:'A cleaner alternative with a better score — and which stores near you carry it. Not a paid placement. The actual best option.' },
+            { n:'3', icon:'✅', title:'Get a Real Swap', body:'A cleaner alternative with a better score, plus links to find it at major retailers. Not a paid placement — the actual best option.' },
           ].map(s => (
             <div key={s.n} style={S.step}>
               <div style={S.stepNum}>{s.n}</div>
@@ -219,7 +219,10 @@ export default function Landing() {
               <div style={{ fontSize: '36px', marginBottom: '16px' }}>🩺</div>
               <div style={S.cardIngredient}>Health Condition Scores</div>
               <p style={S.featureBody}>
-                See a normal score <em>and</em> a condition-specific score side by side. Supports Thyroid, Diabetes, Heart Disease, Kidney Disease, and Celiac — set yours in your profile and toggle on the scanner.
+                See a normal score <em>and</em> a condition-specific score side by side. Rules grounded in AHA, ADA, KDOQI, ATA, and FDA guidelines. Supports Thyroid, Diabetes, Heart, Kidney Disease, and Celiac.
+              </p>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '1px', color: '#666', marginTop: '10px', lineHeight: 1.5 }}>
+                Informational only — not medical advice. Consult your clinician for condition-specific guidance.
               </p>
             </div>
 
@@ -237,7 +240,7 @@ export default function Landing() {
               <div style={{ fontSize: '36px', marginBottom: '16px' }}>📦</div>
               <div style={S.cardIngredient}>845K+ Products</div>
               <p style={S.featureBody}>
-                The largest open food database available. Full ingredient lists, nutrition facts, allergen data, and additive breakdowns — all in one scan.
+                Powered by Open Food Facts — the largest open food database. Full ingredient lists, nutrition facts, allergen data, and additive breakdowns in one scan.
               </p>
             </div>
 
@@ -283,6 +286,13 @@ export default function Landing() {
         </div>
         <span style={S.footerCopy}>© 2026 Twomiah LLC</span>
       </footer>
+
+      {/* Medical / data disclaimer */}
+      <div style={{ padding: '24px', borderTop: '1px solid #1e1e1e', background: '#080808' }}>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', lineHeight: 1.7, color: '#555', maxWidth: '780px', margin: '0 auto', textAlign: 'center' }}>
+          IckThatIsh is an informational tool — not medical advice. Condition-specific scoring is grounded in published clinical guidelines (AHA, ADA, KDOQI, ATA, FDA) but does not account for your medications, labs, or individual clinical context. Consult your physician or registered dietitian before making dietary changes based on a health condition. Product data is sourced from Open Food Facts, USDA FoodData Central, and user contributions.
+        </p>
+      </div>
     </div>
   );
 }

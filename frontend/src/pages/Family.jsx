@@ -87,11 +87,23 @@ export default function Family() {
       setInviting(true);
       const result = await familyGroup.invite(payload);
       setInviteUrl(result.invite_url);
+      const delivered = result?.delivery?.sent === true;
+
       if (method === 'email') {
-        toast.success('Invite email sent!');
+        if (delivered) {
+          toast.success('Invite email sent!');
+        } else {
+          toast.info('Email not configured — copy the link below to share manually.');
+          setInviteTab('link');
+        }
         setInviteEmail('');
       } else if (method === 'sms') {
-        toast.success('Invite SMS sent!');
+        if (delivered) {
+          toast.success('Invite SMS sent!');
+        } else {
+          toast.info('SMS not configured — copy the link below to share manually.');
+          setInviteTab('link');
+        }
         setInvitePhone('');
       }
       if (method === 'link' || method === 'qr') {

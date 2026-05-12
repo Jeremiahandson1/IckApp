@@ -20,7 +20,7 @@ export default function PrivacyPolicy() {
 
       <div className="space-y-6 text-sm text-[#bbb] leading-relaxed">
         <p style={{ color: '#888', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
-          Last updated: March 2026
+          Last updated: May 2026
         </p>
 
         <section>
@@ -69,7 +69,39 @@ export default function PrivacyPolicy() {
 
         <section>
           <h2 className="text-base font-semibold text-[#f4f4f0] mb-2">Third-Party Services</h2>
-          <p>We use Open Food Facts for product data (public database). No personal data is sent to them — only UPC codes for product lookups.</p>
+          <p className="mb-3">We rely on the following third parties to operate Ick. Where personal data is shared, the scope is described below.</p>
+          <ul className="list-disc list-inside space-y-2">
+            <li>
+              <strong className="text-[#f4f4f0]">Open Food Facts</strong> — product database. We send only UPC barcodes for lookups. No personal data.
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">USDA FoodData Central</strong> — secondary product database. UPC lookups only. No personal data.
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">OpenAI</strong> — receipt parsing (only if you scan a receipt). When you use receipt scanning, the receipt image is sent to OpenAI's GPT-4o vision API for parsing. OpenAI may retain this image per their API data policies. <em>Do not scan receipts containing information you don't want shared with OpenAI.</em>
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">Stripe</strong> — payment processing (only if you subscribe). Billing details (name, card info, billing address) go directly to Stripe; we never see your card number.
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">Twilio</strong> — SMS delivery (only if you send a family-group invite by SMS). The recipient's phone number and invite link are sent through Twilio.
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">Resend</strong> — transactional email (account verification, password reset, family-group email invites). Your email address is processed by Resend to deliver these messages.
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">Flipp</strong> — grocery flyer data for in-store availability. We do not send personal data; we crawl public flyer listings.
+            </li>
+            <li>
+              <strong className="text-[#f4f4f0]">Push notification services</strong> — Apple APNS and Google FCM, if you enable notifications. Your device push token is required.
+            </li>
+          </ul>
+          <p className="mt-3 text-xs text-[#888]">If you disable a feature (e.g., never scan a receipt, never subscribe), the corresponding third party never receives your data.</p>
+        </section>
+
+        <section>
+          <h2 className="text-base font-semibold text-[#f4f4f0] mb-2">Medical Disclaimer</h2>
+          <p>Ick provides informational nutrition guidance. Condition-specific scoring is grounded in published clinical guidelines (AHA, ADA, KDOQI, ATA, FDA) but is not personalized to your labs, medications, or clinical context. Ick is not a medical device. Always consult your physician or registered dietitian before making dietary changes based on a health condition.</p>
         </section>
 
         <section>

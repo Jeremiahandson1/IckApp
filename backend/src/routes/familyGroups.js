@@ -107,31 +107,40 @@ router.post('/invite', authenticateToken, async (req, res) => {
     const inviteMember = member.rows[0];
     const joinUrl = `${APP_URL}/join/${inviteMember.invite_token}`;
 
-    // Send invite based on method
+    // Track delivery outcome so the frontend can avoid lying ("SMS sent!") when
+    // the service isn't configured.
+    let delivery = { method, sent: false, reason: null };
+
     if (method === 'email' && email) {
       try {
         const { sendFamilyInviteEmail } = await import('../services/email.js');
         const user = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
-        await sendFamilyInviteEmail({
+        const result = await sendFamilyInviteEmail({
           to: email,
           inviterName: user.rows[0]?.name || 'Someone',
           groupName: group.name,
           joinUrl,
         });
+        delivery.sent = result?.ok === true;
+        if (!delivery.sent) delivery.reason = result?.reason || 'email_disabled';
       } catch (e) {
         console.warn('[Family] Email invite failed (non-fatal):', e.message);
+        delivery.reason = 'email_error';
       }
     } else if (method === 'sms' && phone) {
       try {
         const { sendFamilyInviteSMS } = await import('../services/sms.js');
         const user = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
-        await sendFamilyInviteSMS({
+        const result = await sendFamilyInviteSMS({
           to: phone,
           inviterName: user.rows[0]?.name || 'Someone',
           joinUrl,
         });
+        delivery.sent = result?.ok === true;
+        if (!delivery.sent) delivery.reason = result?.reason || 'sms_disabled';
       } catch (e) {
         console.warn('[Family] SMS invite failed (non-fatal):', e.message);
+        delivery.reason = 'sms_error';
       }
     }
     // method === 'link' or 'qr' — just return the token/url, frontend handles display
@@ -139,6 +148,7 @@ router.post('/invite', authenticateToken, async (req, res) => {
     res.status(201).json({
       member: inviteMember,
       invite_url: joinUrl,
+      delivery,
     });
   } catch (err) {
     console.error('Family invite error:', err);

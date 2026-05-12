@@ -742,12 +742,42 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_fmp_member ON family_member_profiles(family_member_id);
 
       INSERT INTO conditions (name, slug, description, sub_types) VALUES
-        ('Thyroid Disease', 'thyroid', 'Scoring accounts for goitrogens, iodine content, and soy — with separate rules for hypo, hyper, and Hashimoto''s variants.', '["hypo","hyper","hashimotos"]'),
-        ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, fiber content, and refined carbohydrate load to help manage blood glucose.', NULL),
-        ('Heart Disease / Cholesterol', 'heart', 'Evaluates saturated fat, trans fat, sodium, and beneficial heart-healthy ingredients like omega-3s and soluble fiber.', NULL),
-        ('Kidney Disease', 'kidney', 'Flags phosphate additives, high potassium, sodium, and protein levels that can strain kidney function.', NULL),
-        ('Celiac / Gluten Intolerance', 'celiac', 'Detects wheat, barley, rye, and cross-contamination risk ingredients in the ingredient list.', NULL)
+        ('Thyroid Disease', 'thyroid', 'Scoring follows ATA and AACE guidelines: real iodine restrictions for hyperthyroidism, medication-timing flags for hypothyroidism and Hashimoto''s.', '["hypo","hyper","hashimotos"]'),
+        ('Diabetes / Blood Sugar', 'diabetes', 'Scores based on added sugar, carbohydrate quality, and fiber per ADA Standards of Care.', NULL),
+        ('Heart Disease / Cholesterol', 'heart', 'Evaluates saturated fat, trans fat, sodium, processed meat, and heart-healthy ingredients per AHA 2021 dietary guidance.', NULL),
+        ('Kidney Disease', 'kidney', 'Phosphate additives, sodium, and stage-specific protein/potassium per KDOQI 2020.', '["general","ckd-3-4","dialysis","stones"]'),
+        ('Celiac / Gluten Intolerance', 'celiac', 'Detects wheat, barley, rye, oats cross-contamination, and ambiguous gluten sources per FDA GF rule and Celiac Disease Foundation.', NULL)
       ON CONFLICT (slug) DO NOTHING;
+
+      -- Idempotent updates for previously-seeded rows (descriptions + new sub_types for kidney)
+      UPDATE conditions SET sub_types = '["general","ckd-3-4","dialysis","stones"]'
+        WHERE slug = 'kidney' AND (sub_types IS NULL OR sub_types::text = 'null');
+      UPDATE conditions SET description = 'Scoring follows ATA and AACE guidelines: real iodine restrictions for hyperthyroidism, medication-timing flags for hypothyroidism and Hashimoto''s.' WHERE slug = 'thyroid';
+      UPDATE conditions SET description = 'Scores based on added sugar, carbohydrate quality, and fiber per ADA Standards of Care.' WHERE slug = 'diabetes';
+      UPDATE conditions SET description = 'Evaluates saturated fat, trans fat, sodium, processed meat, and heart-healthy ingredients per AHA 2021 dietary guidance.' WHERE slug = 'heart';
+      UPDATE conditions SET description = 'Phosphate additives, sodium, and stage-specific protein/potassium per KDOQI 2020.' WHERE slug = 'kidney';
+      UPDATE conditions SET description = 'Detects wheat, barley, rye, oats cross-contamination, and ambiguous gluten sources per FDA GF rule and Celiac Disease Foundation.' WHERE slug = 'celiac';
+
+      -- Track which rules version produced each cached score (v1 rows have NULL; v2 stamps '2.0.0')
+      ALTER TABLE product_condition_scores ADD COLUMN IF NOT EXISTS rules_version VARCHAR(20);
+
+      -- Generic recipe-API result cache (Spoonacular search, from-pantry, etc.)
+      -- Keyed by an arbitrary string (e.g. hash of query+filters, or user+pantry fingerprint).
+      CREATE TABLE IF NOT EXISTS recipe_cache (
+        cache_key VARCHAR(128) PRIMARY KEY,
+        cache_type VARCHAR(32) NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_recipe_cache_type ON recipe_cache(cache_type, created_at);
+
+      -- Track recipe provenance (curated by us vs imported from Wikibooks / USDA / etc.)
+      ALTER TABLE recipes ADD COLUMN IF NOT EXISTS source VARCHAR(32) DEFAULT 'curated';
+      ALTER TABLE recipes ADD COLUMN IF NOT EXISTS source_url TEXT;
+      ALTER TABLE recipes ADD COLUMN IF NOT EXISTS source_attribution TEXT;
+      -- Per-serving nutrition (from imported sources that publish nutrition data)
+      ALTER TABLE recipes ADD COLUMN IF NOT EXISTS nutrition_facts JSONB;
+      CREATE INDEX IF NOT EXISTS idx_recipes_source ON recipes(source);
     `);
     console.log(`  migrations applied (${Date.now() - t1}ms)`);
 

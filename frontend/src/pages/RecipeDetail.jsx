@@ -290,6 +290,25 @@ export default function RecipeDetail() {
         )}
       </div>
 
+      {/* Source attribution (CC BY-SA / public-domain compliance) */}
+      {recipe.source && recipe.source !== 'curated' && (
+        <div className="px-2 mb-4 text-xs text-[#666]">
+          Source:{' '}
+          {recipe.source_url ? (
+            <a
+              href={recipe.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#c8f135] underline"
+            >
+              {recipe.source_attribution || recipe.source}
+            </a>
+          ) : (
+            <span>{recipe.source_attribution || recipe.source}</span>
+          )}
+        </div>
+      )}
+
       {/* Made It Button — only for logged-in users */}
       {user && (
         <div className="fixed bottom-20 left-4 right-4">

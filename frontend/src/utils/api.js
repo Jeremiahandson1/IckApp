@@ -252,7 +252,13 @@ export const recipes = {
   markMade: (id, data) => api.post(`/recipes/${id}/made`, data),
   history: () => api.get('/recipes/user/history'),
   categories: () => api.get('/recipes/meta/categories'),
-  spoonacular: (upc) => api.get(`/recipes/spoonacular/${upc}`)
+  spoonacular: (upc) => api.get(`/recipes/spoonacular/by-upc/${upc}`),
+  spoonacularSearch: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') qs.set(k, v); });
+    return api.get(`/recipes/spoonacular/search?${qs.toString()}`);
+  },
+  spoonacularFromPantry: (number = 8) => api.get(`/recipes/spoonacular/from-pantry?number=${number}`),
 };
 
 export const shopping = {

@@ -1,12 +1,14 @@
 import pool from '../db/init.js';
 
 // ── PREMIUM GATE TOGGLE ──
-// Set PREMIUM_ENABLED=true in env to enforce subscription checks
-// Default: false (everything free — for early growth / user testing)
-const PREMIUM_ENABLED = process.env.PREMIUM_ENABLED === 'true';
+// Default: ON (we charge for premium features as marketed).
+// To temporarily run an "everything free" promo, set PREMIUM_ENABLED=false.
+const PREMIUM_ENABLED = process.env.PREMIUM_ENABLED !== 'false';
 
 if (!PREMIUM_ENABLED) {
-  console.log('⚡ Premium gate OFF — all features free. Set PREMIUM_ENABLED=true to enforce.');
+  console.log('⚡ Premium gate OFF — all features free (PREMIUM_ENABLED=false).');
+} else {
+  console.log('🔒 Premium gate ON — paying features require trial/subscription.');
 }
 
 // Get subscription status for a user

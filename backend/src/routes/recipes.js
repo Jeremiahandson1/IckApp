@@ -1,8 +1,47 @@
 import express from 'express';
+import crypto from 'crypto';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// ── recipe_cache helpers ──
+// Spoonacular results are stable for a given input — caching avoids burning
+// API points (free tier is 150/day) on repeated identical requests.
+
+function hashKey(obj) {
+  return crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex');
+}
+
+async function getRecipeCache(cacheKey, cacheType, ttlSeconds) {
+  try {
+    const result = await pool.query(
+      `SELECT data FROM recipe_cache
+       WHERE cache_key = $1 AND cache_type = $2
+         AND created_at > NOW() - (INTERVAL '1 second' * $3)`,
+      [cacheKey, cacheType, ttlSeconds]
+    );
+    return result.rows.length > 0 ? result.rows[0].data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setRecipeCache(cacheKey, cacheType, data) {
+  try {
+    await pool.query(
+      `INSERT INTO recipe_cache (cache_key, cache_type, data, created_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (cache_key) DO UPDATE SET
+         data = EXCLUDED.data,
+         cache_type = EXCLUDED.cache_type,
+         created_at = NOW()`,
+      [cacheKey, cacheType, JSON.stringify(data)]
+    );
+  } catch (e) {
+    console.warn('[recipe_cache] write failed:', e.message);
+  }
+}
 
 // Get all recipes
 router.get('/', async (req, res) => {
@@ -139,8 +178,10 @@ router.get('/meta/categories', async (req, res) => {
   }
 });
 
-// Spoonacular: find recipes using product ingredients, cross-ref with pantry
-router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
+// Spoonacular: find recipes using product ingredients, cross-ref with pantry.
+// Path includes explicit /by-upc/ to avoid colliding with sibling routes
+// (/spoonacular/search, /spoonacular/from-pantry) defined below.
+router.get('/spoonacular/by-upc/:upc', optionalAuth, async (req, res) => {
   const apiKey = process.env.SPOONACULAR_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'Spoonacular not configured' });
@@ -317,6 +358,219 @@ router.get('/spoonacular/:upc', optionalAuth, async (req, res) => {
   } catch (err) {
     console.error('Spoonacular fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch recipe suggestions' });
+  }
+});
+
+// Spoonacular: general recipe search (complexSearch).
+// Body: { q, cuisine, diet, intolerances, max_time, number }
+router.get('/spoonacular/search', optionalAuth, async (req, res) => {
+  const apiKey = process.env.SPOONACULAR_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'Spoonacular not configured' });
+  }
+
+  try {
+    const { q = '', cuisine, diet, intolerances, max_time, number = 12 } = req.query;
+    const cappedNumber = Math.min(parseInt(number, 10) || 12, 24);
+
+    // Cache key normalizes query/filter inputs so "Salmon" and "salmon  " hit
+    // the same row. TTL: 24h — Spoonacular's catalog doesn't churn fast enough
+    // to matter for browsing.
+    const cacheKey = hashKey({
+      q: q.trim().toLowerCase(),
+      cuisine: (cuisine || '').toLowerCase(),
+      diet: (diet || '').toLowerCase(),
+      intolerances: (intolerances || '').toLowerCase(),
+      max_time: max_time ? parseInt(max_time, 10) : null,
+      number: cappedNumber,
+    });
+    const cached = await getRecipeCache(cacheKey, 'spoonacular_search', 24 * 3600);
+    if (cached) {
+      return res.json({ ...cached, cached: true });
+    }
+
+    const params = new URLSearchParams({
+      apiKey,
+      number: String(cappedNumber),
+      addRecipeInformation: 'true',
+      instructionsRequired: 'true',
+      fillIngredients: 'true',
+    });
+    if (q) params.set('query', q);
+    if (cuisine) params.set('cuisine', cuisine);
+    if (diet) params.set('diet', diet);
+    if (intolerances) params.set('intolerances', intolerances);
+    if (max_time) params.set('maxReadyTime', String(parseInt(max_time, 10)));
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let spoonRes;
+    try {
+      spoonRes = await fetch(
+        `https://api.spoonacular.com/recipes/complexSearch?${params}`,
+        { signal: controller.signal }
+      );
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      console.warn('Spoonacular search fetch failed:', fetchErr.name === 'AbortError' ? 'timeout' : fetchErr.message);
+      return res.json({ recipes: [], total: 0 });
+    }
+    clearTimeout(timeoutId);
+
+    if (!spoonRes.ok) {
+      console.error('Spoonacular search error:', spoonRes.status, await spoonRes.text());
+      return res.json({ recipes: [], total: 0 });
+    }
+
+    const data = await spoonRes.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+
+    const recipes = results.map(r => ({
+      id: r.id,
+      title: r.title,
+      image: r.image,
+      ready_in_minutes: r.readyInMinutes,
+      servings: r.servings,
+      vegetarian: r.vegetarian,
+      vegan: r.vegan,
+      gluten_free: r.glutenFree,
+      dairy_free: r.dairyFree,
+      summary: r.summary,
+      source_url: r.sourceUrl,
+      cuisines: r.cuisines || [],
+      dish_types: r.dishTypes || [],
+    }));
+
+    const payload = { recipes, total: data.totalResults || recipes.length };
+    await setRecipeCache(cacheKey, 'spoonacular_search', payload);
+    res.json(payload);
+  } catch (err) {
+    console.error('Spoonacular search error:', err);
+    res.status(500).json({ error: 'Failed to search recipes' });
+  }
+});
+
+// Spoonacular: "What can I cook with what's in my pantry?"
+// Pulls active pantry items, asks findByIngredients, enriches with what user has.
+router.get('/spoonacular/from-pantry', authenticateToken, async (req, res) => {
+  const apiKey = process.env.SPOONACULAR_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'Spoonacular not configured' });
+  }
+
+  try {
+    const number = Math.min(parseInt(req.query.number, 10) || 8, 16);
+
+    // Pull active pantry — prefer product name, fall back to custom name
+    const pantryResult = await pool.query(
+      `SELECT LOWER(COALESCE(p.name, pi.custom_name, '')) as item_name
+       FROM pantry_items pi
+       LEFT JOIN products p ON pi.product_id = p.id
+       WHERE pi.user_id = $1 AND pi.status = 'active'
+       LIMIT 30`,
+      [req.user.id]
+    );
+    const pantryNames = pantryResult.rows
+      .map(r => r.item_name)
+      .filter(Boolean)
+      .map(s => s.trim());
+
+    if (pantryNames.length < 2) {
+      return res.json({
+        recipes: [],
+        pantry_items: pantryNames,
+        reason: 'pantry_too_small',
+        message: 'Add at least 2 items to your pantry to get recipe suggestions.',
+      });
+    }
+
+    // Normalize to single-token-ish ingredient names Spoonacular understands
+    const ingredients = pantryNames
+      .map(n => n.replace(/\(.*?\)/g, '').replace(/[^a-z0-9\s-]/gi, '').trim())
+      .filter(n => n.length > 2 && n.length < 40)
+      .slice(0, 15);
+
+    // Cache key includes user + pantry fingerprint (sorted), so a pantry edit
+    // invalidates naturally. TTL: 1h — short enough that frequent shoppers
+    // see fresh suggestions, long enough that re-opening the tab is free.
+    const cacheKey = hashKey({
+      uid: req.user.id,
+      ingredients: [...ingredients].sort(),
+      number,
+    });
+    const cached = await getRecipeCache(cacheKey, 'spoonacular_pantry', 3600);
+    if (cached) {
+      return res.json({ ...cached, cached: true });
+    }
+
+    const params = new URLSearchParams({
+      apiKey,
+      ingredients: ingredients.join(','),
+      number: String(number),
+      ranking: '2', // minimize missing ingredients
+      ignorePantry: 'false',
+    });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let spoonRes;
+    try {
+      spoonRes = await fetch(
+        `https://api.spoonacular.com/recipes/findByIngredients?${params}`,
+        { signal: controller.signal }
+      );
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      console.warn('Spoonacular pantry fetch failed:', fetchErr.name === 'AbortError' ? 'timeout' : fetchErr.message);
+      return res.json({ recipes: [], pantry_items: pantryNames });
+    }
+    clearTimeout(timeoutId);
+
+    if (!spoonRes.ok) {
+      console.error('Spoonacular pantry error:', spoonRes.status, await spoonRes.text());
+      return res.json({ recipes: [], pantry_items: pantryNames });
+    }
+
+    const spoonRecipes = await spoonRes.json();
+    if (!Array.isArray(spoonRecipes)) {
+      return res.json({ recipes: [], pantry_items: pantryNames });
+    }
+
+    // Enrich with pantry coverage info
+    const enriched = spoonRecipes.map(recipe => {
+      const all = [
+        ...(recipe.usedIngredients || []),
+        ...(recipe.missedIngredients || []),
+      ];
+      const ings = all.map(ing => {
+        const name = (ing.name || ing.originalName || '').toLowerCase();
+        const inPantry = pantryNames.some(p => p.includes(name) || name.includes(p));
+        return {
+          name: ing.name || ing.originalName,
+          amount: ing.amount,
+          unit: ing.unit,
+          image: ing.image,
+          in_pantry: inPantry,
+        };
+      });
+      return {
+        id: recipe.id,
+        title: recipe.title,
+        image: recipe.image,
+        used_count: recipe.usedIngredientCount,
+        missed_count: recipe.missedIngredientCount,
+        ingredients: ings,
+        have_count: ings.filter(i => i.in_pantry).length,
+        need_count: ings.filter(i => !i.in_pantry).length,
+      };
+    });
+
+    const payload = { recipes: enriched, pantry_items: pantryNames };
+    await setRecipeCache(cacheKey, 'spoonacular_pantry', payload);
+    res.json(payload);
+  } catch (err) {
+    console.error('Spoonacular pantry error:', err);
+    res.status(500).json({ error: 'Failed to fetch pantry recipes' });
   }
 });
 

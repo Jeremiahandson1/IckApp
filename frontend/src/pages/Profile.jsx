@@ -315,11 +315,19 @@ export default function Profile() {
                     </div>
                   </button>
 
-                  {/* Sub-type selector for thyroid */}
+                  {/* Sub-type selector (thyroid + kidney) */}
                   {isSelected && subTypes && subTypes.length > 0 && (
-                    <div className="ml-10 mt-1 mb-1 flex gap-2">
+                    <div className="ml-10 mt-1 mb-1 flex gap-2 flex-wrap">
                       {subTypes.map(st => {
-                        const subLabels = { hypo: 'Hypothyroid', hyper: 'Hyperthyroid', hashimotos: "Hashimoto's" };
+                        const subLabels = {
+                          hypo: 'Hypothyroid',
+                          hyper: 'Hyperthyroid',
+                          hashimotos: "Hashimoto's",
+                          general: 'Early CKD / No diagnosis',
+                          'ckd-3-4': 'CKD 3-4',
+                          dialysis: 'Dialysis',
+                          stones: 'Kidney Stones',
+                        };
                         return (
                           <button
                             key={st}
@@ -363,7 +371,10 @@ export default function Profile() {
             <div className="flex flex-wrap gap-2">
               {userConditions.map(uc => {
                 const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
-                const subLabels = { hypo: 'Hypo', hyper: 'Hyper', hashimotos: "Hashimoto's" };
+                const subLabels = {
+                  hypo: 'Hypo', hyper: 'Hyper', hashimotos: "Hashimoto's",
+                  general: 'General', 'ckd-3-4': 'CKD 3-4', dialysis: 'Dialysis', stones: 'Stones',
+                };
                 return (
                   <span key={uc.id} className="px-3 py-1 bg-[rgba(200,241,53,0.08)] text-[#c8f135] rounded-full text-xs font-medium">
                     {CONDITION_ICONS[uc.slug] || ''} {uc.name}{uc.sub_type ? ` (${subLabels[uc.sub_type] || uc.sub_type})` : ''}

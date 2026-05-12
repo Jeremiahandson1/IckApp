@@ -455,13 +455,15 @@ export default function ProductResult() {
                   </div>
                 ) : conditionScores.map(cs => {
                   const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
-                  const scoreColor = cs.score >= 75 ? 'bg-green-500/10 text-green-400' :
+                  const noScore = cs.score == null;
+                  const scoreColor = noScore ? 'bg-[#1e1e1e] text-[#888]' :
+                    cs.score >= 75 ? 'bg-green-500/10 text-green-400' :
                     cs.score >= 50 ? 'bg-amber-500/10 text-amber-400' :
                     cs.score >= 25 ? 'bg-orange-500/10 text-orange-400' :
                     'bg-red-500/10 text-red-400';
                   return (
                     <div key={cs.slug} className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${scoreColor}`}>
-                      {CONDITION_ICONS[cs.slug] || ''} {cs.label}: {cs.score}
+                      {CONDITION_ICONS[cs.slug] || ''} {cs.label}: {noScore ? '\u2014' : cs.score}
                     </div>
                   );
                 })}
@@ -1207,7 +1209,7 @@ function ConditionFlagsSection({ conditionScore }) {
   const [expanded, setExpanded] = useState(false);
   const cs = conditionScore;
   const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
-  const SEVERITY_ICONS = { good: '\u2705', warn: '\u26A0\uFE0F', avoid: '\uD83D\uDEAB' };
+  const SEVERITY_ICONS = { good: '\u2705', warn: '\u26A0\uFE0F', avoid: '\uD83D\uDEAB', info: '\u2139\uFE0F' };
 
   return (
     <div className="bg-[#111] rounded-sm overflow-hidden border border-[#2a2a2a]">
@@ -1224,19 +1226,28 @@ function ConditionFlagsSection({ conditionScore }) {
         <div className="px-3 pb-3 space-y-2 border-t border-[#2a2a2a] pt-2">
           {cs.flags.map((flag, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span className="text-sm flex-shrink-0 mt-0.5">{SEVERITY_ICONS[flag.severity] || ''}</span>
+              <span className="text-sm flex-shrink-0 mt-0.5">{SEVERITY_ICONS[flag.severity] || '\u2139\uFE0F'}</span>
               <div className="min-w-0">
                 <p className={`text-sm font-medium ${
                   flag.severity === 'avoid' ? 'text-red-400' :
                   flag.severity === 'warn' ? 'text-amber-400' :
-                  'text-green-400'
+                  flag.severity === 'good' ? 'text-green-400' :
+                  'text-[#888]'
                 }`}>
-                  {flag.ingredient || flag.nutrient || ''}
+                  {flag.ingredient || flag.nutrient || (flag.severity === 'info' ? 'Note' : '')}
                 </p>
                 <p className="text-xs text-[#888]">{flag.reason}</p>
+                {flag.source && (
+                  <p className="text-[10px] text-[#555] mt-0.5 italic">Source: {flag.source}</p>
+                )}
               </div>
             </div>
           ))}
+          {cs.disclaimer && (
+            <p className="text-[10px] text-[#555] pt-2 border-t border-[#1a1a1a] italic">
+              {cs.disclaimer}
+            </p>
+          )}
         </div>
       )}
     </div>

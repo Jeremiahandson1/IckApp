@@ -217,7 +217,7 @@ export default function Subscription() {
           {[
             { icon: Zap, text: 'Pantry management', desc: 'Track everything in your kitchen, get health audit' },
             { icon: Shield, text: 'Velocity tracking', desc: 'Know when you\'ll run out — avoid emergency junk food buys' },
-            { icon: ChefHat, text: 'Full recipe library', desc: 'Homemade versions of processed foods your family loves' },
+            { icon: ChefHat, text: 'Recipes & meal discovery', desc: '47 curated swaps for processed foods + search and cook-from-pantry powered by Spoonacular' },
             { icon: ShoppingCart, text: 'Smart shopping lists', desc: 'Auto-generated from what you\'re running low on' },
             { icon: TrendingUp, text: 'Progress analytics', desc: 'Detailed health trends, achievements, and family reports' },
             { icon: Target, text: 'Family profiles', desc: 'Track allergens and dietary preferences for each family member' },
@@ -263,6 +263,13 @@ export default function Subscription() {
         <p className="font-medium text-[#666]">Our promise</p>
         <p>No ads. No affiliate links. No sponsored recommendations.</p>
         <p>Every score is independent. We make money from subscriptions, not from selling you products.</p>
+      </div>
+
+      {/* Medical / data disclaimer */}
+      <div className="pt-4 mt-2 border-t border-[#1e1e1e]">
+        <p className="text-[10px] text-[#555] leading-relaxed text-center px-2">
+          Informational only — not medical advice. Condition-specific scoring is grounded in published clinical guidelines (AHA, ADA, KDOQI, ATA, FDA) but does not account for your medications, labs, or individual context. Consult your physician or registered dietitian before making dietary changes based on a health condition.
+        </p>
       </div>
     </div>
   );

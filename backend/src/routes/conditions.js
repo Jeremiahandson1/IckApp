@@ -1,7 +1,7 @@
 import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { scoreForCondition } from '../utils/conditionScorer.js';
+import { scoreForCondition, RULES_VERSION, DISCLAIMER } from '../utils/conditionScorer.v2.js';
 
 const router = express.Router();
 
@@ -120,13 +120,14 @@ router.get('/score/:productId', async (req, res) => {
     // Check cache (7-day TTL)
     const conditionScores = [];
     for (const { slug, subType } of requested) {
-      // Check cache
+      // Check cache (scoped to current rules version — old v1 rows never match)
       const cached = await pool.query(
         `SELECT score, flags FROM product_condition_scores
          WHERE product_id = $1 AND condition_slug = $2
            AND (sub_type = $3 OR ($3 IS NULL AND sub_type IS NULL))
+           AND rules_version = $4
            AND cached_at > NOW() - INTERVAL '7 days'`,
-        [product.id, slug, subType]
+        [product.id, slug, subType, RULES_VERSION]
       );
 
       if (cached.rows.length > 0) {
@@ -137,19 +138,23 @@ router.get('/score/:productId', async (req, res) => {
           label: buildLabel(slug, subType),
           score: row.score,
           flags: typeof row.flags === 'string' ? JSON.parse(row.flags) : row.flags,
+          rulesVersion: RULES_VERSION,
+          disclaimer: DISCLAIMER,
         });
       } else {
         // Compute score
         const result = scoreForCondition(product, slug, subType);
         conditionScores.push(result);
 
-        // Cache it
-        await pool.query(
-          `INSERT INTO product_condition_scores (product_id, condition_slug, sub_type, score, flags, cached_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())
-           ON CONFLICT DO NOTHING`,
-          [product.id, slug, subType, result.score, JSON.stringify(result.flags)]
-        );
+        // Cache it (skip cache if score is null — e.g. missing ingredients)
+        if (result.score != null) {
+          await pool.query(
+            `INSERT INTO product_condition_scores (product_id, condition_slug, sub_type, score, flags, rules_version, cached_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())
+             ON CONFLICT DO NOTHING`,
+            [product.id, slug, subType, result.score, JSON.stringify(result.flags), RULES_VERSION]
+          );
+        }
       }
     }
 
@@ -157,6 +162,8 @@ router.get('/score/:productId', async (req, res) => {
       productId: product.id,
       normalScore: product.total_score,
       conditionScores,
+      rulesVersion: RULES_VERSION,
+      disclaimer: DISCLAIMER,
     });
   } catch (err) {
     console.error('Condition score error:', err);
@@ -166,7 +173,10 @@ router.get('/score/:productId', async (req, res) => {
 
 function buildLabel(slug, subType) {
   const labels = { thyroid: 'Thyroid', diabetes: 'Diabetes', heart: 'Heart', kidney: 'Kidney', celiac: 'Celiac' };
-  const subLabels = { hypo: 'Hypo', hyper: 'Hyper', hashimotos: "Hashimoto's" };
+  const subLabels = {
+    hypo: 'Hypo', hyper: 'Hyper', hashimotos: "Hashimoto's",
+    general: 'General', 'ckd-3-4': 'CKD 3-4', dialysis: 'Dialysis', stones: 'Kidney Stones',
+  };
   const base = labels[slug] || slug;
   return subType ? `${base} (${subLabels[subType] || subType})` : base;
 }
