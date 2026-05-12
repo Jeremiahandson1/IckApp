@@ -106,7 +106,11 @@ export default function Scan() {
             return { width: w, height: h };
           },
           aspectRatio: 1.0,
-          formatsToSupport: [0, 1, 2, 3, 4, 5, 6],
+          // Product barcodes only: QR(0), CODE_39(3), CODE_128(5), ITF(8),
+          // EAN_13(9), EAN_8(10), UPC_A(14), UPC_E(15). Original list was missing
+          // every UPC/EAN format — the only reason it worked was the native
+          // BarcodeDetector fallback below catching them.
+          formatsToSupport: [0, 3, 5, 8, 9, 10, 14, 15],
           experimentalFeatures: { useBarCodeDetectorIfSupported: !isIOS },
           rememberLastUsedCamera: true,
           showTorchButtonIfSupported: false,

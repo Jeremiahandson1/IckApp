@@ -4,7 +4,11 @@ import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning
 export const isNative = Capacitor.isNativePlatform();
 
 export function shouldUseNativeScanner() {
-  return false; // Always use html5-qrcode — MLKit causes issues on Android
+  // iOS: use ML Kit native scanner (much more reliable than html5-qrcode).
+  // Android: keep html5-qrcode for now — MLKit had issues here that need
+  // re-investigation on real hardware before re-enabling.
+  if (!Capacitor.isNativePlatform()) return false;
+  return Capacitor.getPlatform() === 'ios';
 }
 
 export async function isScanSupported() {
