@@ -10,11 +10,16 @@ const TABS = [
   { id: 'pantry',   label: 'From Pantry',     sub: 'Cook what you have' },
 ];
 
+const PAGE_SIZE = 50;
+
 export default function Recipes() {
   const [tab, setTab] = useState('curated');
   const [recipes, setRecipes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(null);
   const [spoonacularDown, setSpoonacularDown] = useState(false);
 
   // Curated-tab filters
@@ -38,20 +43,52 @@ export default function Recipes() {
   };
 
   // ── Tab: Curated ──
+  // Build the filter-only param string used by both list + count endpoints.
+  const buildCuratedParams = () => {
+    const p = new URLSearchParams();
+    if (filter.category)   p.append('category', filter.category);
+    if (filter.difficulty) p.append('difficulty', filter.difficulty);
+    if (filter.maxTime)    p.append('max_time', filter.maxTime);
+    if (filter.kidFriendly) p.append('kid_friendly', 'true');
+    return p;
+  };
+
   const loadCurated = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filter.category) params.append('category', filter.category);
-      if (filter.difficulty) params.append('difficulty', filter.difficulty);
-      if (filter.maxTime) params.append('max_time', filter.maxTime);
-      if (filter.kidFriendly) params.append('kid_friendly', 'true');
-      const res = await api.get(`/recipes?${params.toString()}`);
-      setRecipes(Array.isArray(res) ? res : []);
+      const params = buildCuratedParams();
+      params.append('limit', String(PAGE_SIZE));
+      params.append('offset', '0');
+      const [res, countRes] = await Promise.all([
+        api.get(`/recipes?${params.toString()}`),
+        api.get(`/recipes/meta/count?${buildCuratedParams().toString()}`).catch(() => null),
+      ]);
+      const list = Array.isArray(res) ? res : [];
+      setRecipes(list);
+      setHasMore(list.length === PAGE_SIZE);
+      setTotalCount(countRes?.total ?? null);
     } catch {
       showToast('Failed to load recipes', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreCurated = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const params = buildCuratedParams();
+      params.append('limit', String(PAGE_SIZE));
+      params.append('offset', String(recipes.length));
+      const res = await api.get(`/recipes?${params.toString()}`);
+      const list = Array.isArray(res) ? res : [];
+      setRecipes(prev => [...prev, ...list]);
+      setHasMore(list.length === PAGE_SIZE);
+    } catch {
+      showToast('Failed to load more', 'error');
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -218,12 +255,25 @@ export default function Recipes() {
             <EmptyState icon="🍳" title="No curated recipes match" body="Try adjusting your filters." />
           ) : (
             <>
-              <p className="text-sm text-[#666] mb-3">{recipes.length} curated swaps</p>
+              <p className="text-sm text-[#666] mb-3">
+                Showing {recipes.length}
+                {totalCount != null && totalCount !== recipes.length && ` of ${totalCount}`}
+                {' '}recipe{recipes.length !== 1 ? 's' : ''}
+              </p>
               <div className="space-y-3">
                 {recipes.map(recipe => (
                   <CuratedCard key={recipe.id} recipe={recipe} getDifficultyColor={getDifficultyColor} />
                 ))}
               </div>
+              {hasMore && (
+                <button
+                  onClick={loadMoreCurated}
+                  disabled={loadingMore}
+                  className="w-full mt-4 py-3 bg-[rgba(200,241,53,0.08)] border border-[#c8f135]/30 text-[#c8f135] rounded-sm text-sm font-medium disabled:opacity-50"
+                >
+                  {loadingMore ? 'Loading…' : `Load more (${totalCount != null ? totalCount - recipes.length : 'more'} remaining)`}
+                </button>
+              )}
             </>
           )}
         </>
