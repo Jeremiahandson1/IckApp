@@ -14,7 +14,13 @@
  * Sources referenced inline by short tag — full citations at bottom of file.
  */
 
-export const RULES_VERSION = '2.0.0';
+// Rules version is checked against cached scores in product_condition_scores.
+// Bump on any change to the rule set so old cached rows expire.
+//
+//   2.0.0 — initial v2 release
+//   2.1.0 — added mixed-evidence Hashimoto/Hypo rules + capped condition
+//           scores at the product's general score
+export const RULES_VERSION = '2.1.0';
 
 export const DISCLAIMER =
   'Informational only — not medical advice. Consult your clinician or registered dietitian for condition-specific dietary guidance.';
@@ -136,6 +142,12 @@ const SOURCES = {
   ATA_HYPO: 'ATA Guidelines for Treatment of Hypothyroidism (2014)',
   ATA_HYPER: 'ATA Guidelines for Hyperthyroidism and Other Causes of Thyrotoxicosis (2016)',
   AACE_THYROID: 'AACE/ACE Clinical Practice Guidelines for Hypothyroidism (2012)',
+  // Mixed-evidence sources — used for rules with biological mechanism + clinical
+  // signal but without a major society guideline endorsement. Flagged on
+  // returned objects with `evidence: 'mixed'` so the UI can distinguish them.
+  NIH_SELENIUM: 'NIH ODS — Selenium and thyroid function (Antioxid Redox Signal 2012; Thyroid Res 2017)',
+  AUTOIMMUNE_DIET: 'Reviews on dietary patterns in autoimmune thyroiditis — anti-inflammatory pattern, omega-3, ultra-processed food (Endocrine 2020; Front Endocrinol 2021)',
+  GLUTEN_HASHIMOTO: 'Mixed evidence for gluten-free trials in Hashimoto\'s — Krysiak et al. Exp Clin Endocrinol Diabetes 2019; small RCTs only, no society endorsement',
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -839,45 +851,135 @@ function scoreThyroid(ingredients, n, subType) {
 
   // ── HYPO and HASHIMOTO'S ──
   //
-  // Per ATA 2014 and AACE 2012: no specific dietary restrictions are
-  // recommended for hypothyroidism in iodine-sufficient regions. The
-  // clinically relevant guidance is medication-timing.
+  // Two tiers of guidance:
   //
-  // For Hashimoto's specifically: ATA does NOT endorse gluten-free or
-  // dairy-free diets in the absence of concurrent celiac disease.
+  //   Strong evidence (guideline-endorsed): no specific diet restrictions
+  //     are formally recommended by ATA/AACE in iodine-sufficient regions.
+  //     The clinically relevant intervention is medication-timing.
   //
-  // We therefore do not deduct points for diet for these sub-types.
-  // Instead, we surface medication-timing flags as informational.
+  //   Mixed evidence (mechanism + small clinical signal): autoimmune
+  //     thyroiditis (Hashimoto's) may respond to an anti-inflammatory
+  //     dietary pattern — lower ultra-processed food load, higher
+  //     omega-3 and selenium intake. Some patients also report symptom
+  //     improvement on gluten-free trials, but society guidelines have
+  //     NOT endorsed this. We surface these as informational flags or
+  //     mild adjustments tagged with evidence: 'mixed' so the UI can
+  //     show them at a lower confidence tier.
 
+  // ── Strong-evidence: levothyroxine timing ──
   if (text) {
     const interferer = firstMatch(text, LEVOTHYROXINE_INTERFERENCE);
     if (interferer) {
       flags.push({
-        ingredient: interferer, severity: 'info',
+        ingredient: interferer, severity: 'info', evidence: 'strong',
         reason: 'May interfere with levothyroxine absorption — if you take thyroid hormone replacement, separate this product by ≥4 hours',
         source: SOURCES.ATA_HYPO,
       });
     }
-    // High-iodine in iodine-sufficient regions: optional informational note
+    // High-iodine in iodine-sufficient regions: informational only
     if (hasAny(text, HIGH_IODINE_SEAWEED)) {
       flags.push({
-        ingredient: firstMatch(text, HIGH_IODINE_SEAWEED), severity: 'info',
+        ingredient: firstMatch(text, HIGH_IODINE_SEAWEED), severity: 'info', evidence: 'strong',
         reason: 'High iodine source — moderate intake is fine for most; discuss with your endocrinologist if you have autoimmune thyroid disease',
         source: SOURCES.AACE_THYROID,
       });
     }
   }
 
-  // Informational note for Hashimoto's specifically
-  if (sub === 'hashimotos') {
+  // ── Mixed-evidence: anti-inflammatory diet pattern, Hashimoto's especially ──
+  // The autoimmune-thyroiditis literature (not society guidelines) suggests
+  // ultra-processed food load and inflammatory dietary patterns may
+  // contribute to symptom burden. Penalties are mild and reversible.
+
+  if (n.trans_fat_g != null && n.trans_fat_g > 0) {
+    score -= 10;
     flags.push({
-      severity: 'info',
-      reason: 'No specific dietary restriction is recommended for Hashimoto\'s by endocrine societies in the absence of concurrent celiac disease — gluten-free / dairy-free diets are not evidence-based for thyroid antibody reduction',
-      source: SOURCES.ATA_HYPO,
+      nutrient: `trans fat: ${n.trans_fat_g}g/100g`, severity: 'warn', evidence: 'mixed',
+      reason: 'Trans fats are pro-inflammatory — emerging evidence suggests they may worsen autoimmune-thyroid symptom burden',
+      source: SOURCES.AUTOIMMUNE_DIET,
+    });
+  } else if (text && hasAny(text, TRANS_FAT_INGREDIENT)) {
+    score -= 10;
+    flags.push({
+      ingredient: 'partially hydrogenated oil', severity: 'warn', evidence: 'mixed',
+      reason: 'Industrial trans fat source — pro-inflammatory',
+      source: SOURCES.AUTOIMMUNE_DIET,
     });
   }
 
-  return { score, flags };
+  if (n.added_sugars_g != null && n.added_sugars_g > 22.5) {
+    score -= 5;
+    flags.push({
+      nutrient: `added sugars: ${n.added_sugars_g}g/100g`, severity: 'warn', evidence: 'mixed',
+      reason: 'High added sugar — inflammatory pattern may aggravate autoimmune thyroid symptoms',
+      source: SOURCES.AUTOIMMUNE_DIET,
+    });
+  }
+
+  if (n.saturated_fat_g != null && n.saturated_fat_g > 5) {
+    score -= 5;
+    flags.push({
+      nutrient: `saturated fat: ${n.saturated_fat_g}g/100g`, severity: 'warn', evidence: 'mixed',
+      reason: 'High saturated fat — may contribute to inflammatory load',
+      source: SOURCES.AUTOIMMUNE_DIET,
+    });
+  }
+
+  if (n.sodium_mg != null && n.sodium_mg > 1200) {
+    score -= 5;
+    flags.push({
+      nutrient: `sodium: ${n.sodium_mg}mg/100g`, severity: 'warn', evidence: 'mixed',
+      reason: 'Very high sodium — high-sodium dietary patterns associated with worsened autoimmune disease activity (mixed clinical evidence)',
+      source: SOURCES.AUTOIMMUNE_DIET,
+    });
+  }
+
+  // ── Mixed-evidence: positive signals ──
+  if (text) {
+    if (hasAny(text, ['brazil nut', 'brazil nuts', 'sunflower seed', 'sunflower seeds'])) {
+      score += 5;
+      flags.push({
+        ingredient: firstMatch(text, ['brazil nut', 'brazil nuts', 'sunflower seed', 'sunflower seeds']),
+        severity: 'good', evidence: 'mixed',
+        reason: 'Selenium-rich food — selenium supports thyroid hormone metabolism; small RCTs suggest benefit in autoimmune thyroiditis',
+        source: SOURCES.NIH_SELENIUM,
+      });
+    }
+    if (hasAny(text, OMEGA3_TERMS)) {
+      score += 5;
+      flags.push({
+        ingredient: firstMatch(text, OMEGA3_TERMS),
+        severity: 'good', evidence: 'mixed',
+        reason: 'Omega-3 source — anti-inflammatory, emerging evidence in autoimmune thyroid disease',
+        source: SOURCES.AUTOIMMUNE_DIET,
+      });
+    }
+  }
+
+  // ── Hashimoto's-specific: gluten and dairy info flags ──
+  if (sub === 'hashimotos') {
+    // Note: we deliberately do NOT deduct points for gluten/dairy here.
+    // Society guidelines do not endorse restriction. But the evidence is
+    // mixed enough that patients should know.
+    if (text && hasAny(text, ['wheat', 'wheat flour', 'barley', 'rye', 'malt'])) {
+      flags.push({
+        ingredient: firstMatch(text, ['wheat', 'wheat flour', 'barley', 'rye', 'malt']),
+        severity: 'info', evidence: 'mixed',
+        reason: 'Mixed evidence: some Hashimoto\'s patients report symptom improvement on a gluten-free trial. Society guidelines do NOT endorse routine gluten avoidance without concurrent celiac disease. Discuss with your endocrinologist before eliminating.',
+        source: SOURCES.GLUTEN_HASHIMOTO,
+      });
+    }
+    if (text && hasAny(text, ['milk', 'cheese', 'cream', 'butter', 'whey', 'casein'])) {
+      flags.push({
+        ingredient: firstMatch(text, ['milk', 'cheese', 'cream', 'butter', 'whey', 'casein']),
+        severity: 'info', evidence: 'mixed',
+        reason: 'Mixed evidence on dairy in Hashimoto\'s — some patients have concurrent lactose or A1-casein sensitivity. No society guideline recommends routine restriction.',
+        source: SOURCES.AUTOIMMUNE_DIET,
+      });
+    }
+  }
+
+  return { score: clamp(score), flags };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

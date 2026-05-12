@@ -160,13 +160,26 @@ router.get('/score/:productId', async (req, res) => {
         [product.id, slug, subType, RULES_VERSION]
       );
 
+      // A condition score should never display HIGHER than the product's
+      // general (normal) score — otherwise a junk-food product with no
+      // condition-specific concerns looks misleadingly "great for you" at
+      // 100 while the normal score is, say, 35. Cap at normal score.
+      const capAtNormal = (rawScore) => {
+        if (rawScore == null) return rawScore;
+        if (product.total_score == null) return rawScore;
+        return Math.min(rawScore, Math.round(product.total_score));
+      };
+
       if (cached.rows.length > 0) {
         const row = cached.rows[0];
+        const cappedScore = capAtNormal(row.score);
         conditionScores.push({
           slug,
           subType,
           label: buildLabel(slug, subType),
-          score: row.score,
+          score: cappedScore,
+          rawConditionScore: row.score,
+          cappedByNormal: cappedScore !== row.score,
           flags: typeof row.flags === 'string' ? JSON.parse(row.flags) : row.flags,
           rulesVersion: RULES_VERSION,
           disclaimer: DISCLAIMER,
@@ -174,9 +187,18 @@ router.get('/score/:productId', async (req, res) => {
       } else {
         // Compute score
         const result = scoreForCondition(product, slug, subType);
-        conditionScores.push(result);
+        const cappedScore = capAtNormal(result.score);
+        conditionScores.push({
+          ...result,
+          score: cappedScore,
+          rawConditionScore: result.score,
+          cappedByNormal: cappedScore !== result.score,
+        });
 
-        // Cache it (skip cache if score is null — e.g. missing ingredients)
+        // Cache the RAW condition score (not the capped one) — caps depend
+        // on a product's general score, which can change as the scoring
+        // engine evolves. Cache the per-condition truth and recompute the
+        // cap on every read.
         if (result.score != null) {
           await pool.query(
             `INSERT INTO product_condition_scores (product_id, condition_slug, sub_type, score, flags, rules_version, cached_at)

@@ -16,7 +16,7 @@ const CONDITION_SUMMARIES = [
   { slug: 'heart',    name: 'Heart Disease / Cholesterol', body: 'Trans fat (any amount) is a hard avoid. Saturated fat, sodium, and added sugar use the UK FSA per-100g traffic-light thresholds. Processed meats penalized per IARC. Omega-3 sources, soluble fiber, and whole grains rewarded.' },
   { slug: 'diabetes', name: 'Diabetes / Blood Sugar',      body: 'Added sugar penalized at three tiers (FSA "moderate," "high," "very high"). Carbohydrate-to-fiber ratio used as a glycemic-load proxy. Whole grains and high fiber rewarded.' },
   { slug: 'kidney',   name: 'Kidney Disease',              body: 'Stage-aware. Phosphate additives penalized universally (absorbed at ~90% vs 40–60% for natural phosphorus). Protein and potassium restrictions only kick in for CKD 3-4 or dialysis stages. Oxalate flagged only for the calcium-oxalate stones subtype.' },
-  { slug: 'thyroid',  name: 'Thyroid Disease',             body: "Hyperthyroidism: high-iodine seaweeds (kelp, kombu, etc.) and added iodine penalized — both can genuinely worsen thyrotoxicosis. Hypothyroidism and Hashimoto's: no diet-based deductions (per ATA 2014 and AACE 2012, no dietary restriction is recommended in iodine-sufficient regions), only informational flags for ingredients that interfere with levothyroxine absorption." },
+  { slug: 'thyroid',  name: 'Thyroid Disease',             body: "Hyperthyroidism: high-iodine seaweeds (kelp, kombu, etc.) and added iodine penalized — both can genuinely worsen thyrotoxicosis. Hypothyroidism and Hashimoto's: medication-timing flags for ingredients that interfere with levothyroxine absorption (strong evidence), plus mild adjustments for an anti-inflammatory dietary pattern — trans fat, ultra-processed sugar/sodium load, and bonuses for selenium-rich foods and omega-3 sources (mixed evidence). Hashimoto's specifically: gluten and dairy surfaced as informational only — small studies suggest some patients benefit from elimination trials, but no society guideline endorses this." },
 ];
 
 export default function AboutScoring() {
@@ -86,6 +86,34 @@ export default function AboutScoring() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Evidence tiers */}
+      <section className="mb-6">
+        <h2 className="text-base font-semibold text-[#f4f4f0] mb-3">Evidence Tiers</h2>
+        <p className="text-sm text-[#888] mb-3 leading-relaxed">
+          Rules carry an evidence tier so you can tell society-endorsed guidance apart from emerging research:
+        </p>
+        <div className="space-y-2">
+          <div className="bg-[#0d0d0d] rounded-sm p-3 border border-[#1e1e1e]">
+            <span className="inline-block px-2 py-0.5 text-[10px] font-mono bg-[rgba(200,241,53,0.1)] text-[#c8f135] rounded mr-2 align-middle">STRONG</span>
+            <span className="text-xs text-[#bbb] align-middle">Endorsed by a major professional society (AHA, ADA, KDOQI, ATA, FDA, Celiac Disease Foundation). Reliable enough that we deduct meaningful points.</span>
+          </div>
+          <div className="bg-[#0d0d0d] rounded-sm p-3 border border-[#1e1e1e]">
+            <span className="inline-block px-2 py-0.5 text-[10px] font-mono bg-amber-500/10 text-amber-300 rounded mr-2 align-middle">MIXED</span>
+            <span className="text-xs text-[#bbb] align-middle">Plausible mechanism + clinical signal from smaller studies, but not society-endorsed. Used for milder deductions (typically −5 to −10) or informational flags so you know the research exists.</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Score capping note */}
+      <section className="bg-[#0d0d0d] rounded-sm p-4 mb-5 border border-[#1e1e1e]">
+        <h2 className="text-base font-semibold text-[#f4f4f0] mb-2">Score Capping</h2>
+        <p className="text-sm text-[#bbb] leading-relaxed">
+          A condition score is never displayed higher than the product's general (Normal) score. A junky processed
+          food with no condition-specific concerns shouldn't look like a superfood just because there's no rule
+          matching your condition. We cap at the general score so a 30/100 product reads as 30 for every condition.
+        </p>
       </section>
 
       {/* Sources */}

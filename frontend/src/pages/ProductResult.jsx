@@ -461,9 +461,17 @@ export default function ProductResult() {
                     cs.score >= 50 ? 'bg-amber-500/10 text-amber-400' :
                     cs.score >= 25 ? 'bg-orange-500/10 text-orange-400' :
                     'bg-red-500/10 text-red-400';
+                  const capTitle = cs.cappedByNormal
+                    ? `Condition-specific score was ${cs.rawConditionScore} but capped to the general score (${cs.score}). See "Score Capping" in About Scoring.`
+                    : undefined;
                   return (
-                    <div key={cs.slug} className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${scoreColor}`}>
+                    <div
+                      key={cs.slug}
+                      className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${scoreColor}`}
+                      title={capTitle}
+                    >
                       {CONDITION_ICONS[cs.slug] || ''} {cs.label}: {noScore ? '\u2014' : cs.score}
+                      {cs.cappedByNormal && <span className="ml-1 text-[10px] opacity-70">\u25B2</span>}
                     </div>
                   );
                 })}
@@ -1254,6 +1262,14 @@ function ConditionFlagsSection({ conditionScore }) {
                   'text-[#888]'
                 }`}>
                   {flag.ingredient || flag.nutrient || (flag.severity === 'info' ? 'Note' : '')}
+                  {flag.evidence === 'mixed' && (
+                    <span
+                      className="ml-2 inline-block px-1.5 py-0.5 text-[9px] font-mono bg-amber-500/10 text-amber-300 rounded align-middle"
+                      title="Mixed evidence \u2014 not formally endorsed by a major society, but supported by smaller clinical studies + mechanism"
+                    >
+                      MIXED EVIDENCE
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-[#888]">{flag.reason}</p>
                 {flag.source && (

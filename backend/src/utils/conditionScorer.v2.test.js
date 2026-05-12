@@ -229,13 +229,94 @@ describe('conditionScorer.v2', () => {
       expect(r.score).toBe(100);
     });
 
-    it("hashimotos: does NOT deduct for wheat in absence of celiac (v1 bug fixed)", () => {
+    it("hashimotos: does NOT deduct for wheat (no penalty, only info flag with mixed-evidence note)", () => {
       const r = scoreForCondition(
         product('wheat flour, water, salt'),
         'thyroid',
         'hashimotos',
       );
+      // No deduction (society guidelines don't endorse gluten-free for Hashimoto's)
       expect(r.score).toBe(100);
+      // But user is informed that mixed evidence exists
+      const wheatFlag = r.flags.find(f => /gluten/i.test(f.reason || ''));
+      expect(wheatFlag).toBeDefined();
+      expect(wheatFlag.evidence).toBe('mixed');
+      expect(wheatFlag.severity).toBe('info');
+    });
+
+    it('hashimotos: penalizes trans fat (mixed-evidence anti-inflammatory rule)', () => {
+      const r = scoreForCondition(
+        product('flour, partially hydrogenated soybean oil', { trans_fat: 0.5 }),
+        'thyroid',
+        'hashimotos',
+      );
+      expect(r.score).toBeLessThan(100);
+      const transFlag = r.flags.find(f => f.evidence === 'mixed' && /trans fat/i.test(f.reason || ''));
+      expect(transFlag).toBeDefined();
+    });
+
+    it('hashimotos: rewards brazil nuts (selenium, mixed-evidence)', () => {
+      const r = scoreForCondition(
+        product('brazil nuts, sea salt'),
+        'thyroid',
+        'hashimotos',
+      );
+      const seleniumFlag = r.flags.find(f => f.severity === 'good' && f.evidence === 'mixed' && /selenium/i.test(f.reason || ''));
+      expect(seleniumFlag).toBeDefined();
+    });
+
+    it('hashimotos: rewards omega-3 sources (anti-inflammatory)', () => {
+      const r = scoreForCondition(
+        product('salmon, lemon, salt'),
+        'thyroid',
+        'hashimotos',
+      );
+      const omega3Flag = r.flags.find(f => f.severity === 'good' && f.evidence === 'mixed' && /omega-3|anti-inflammatory/i.test(f.reason || ''));
+      expect(omega3Flag).toBeDefined();
+    });
+
+    it('hashimotos: penalizes high sugar product', () => {
+      const r = scoreForCondition(
+        product('sugar, corn syrup', { added_sugars: 35 }),
+        'thyroid',
+        'hashimotos',
+      );
+      expect(r.score).toBeLessThan(100);
+      const sugarFlag = r.flags.find(f => f.evidence === 'mixed' && /sugar/i.test(f.reason || ''));
+      expect(sugarFlag).toBeDefined();
+    });
+
+    it('hypo: same mixed-evidence pattern applies (without Hashimoto gluten/dairy info flags)', () => {
+      const r = scoreForCondition(
+        product('flour, partially hydrogenated oil, sugar', { trans_fat: 1, added_sugars: 25 }),
+        'thyroid',
+        'hypo',
+      );
+      expect(r.score).toBeLessThan(100);
+      // Should have trans fat + sugar penalties but NOT the gluten info flag
+      const transFlag = r.flags.find(f => /trans fat/i.test(f.reason || ''));
+      expect(transFlag).toBeDefined();
+      const glutenFlag = r.flags.find(f => /gluten/i.test(f.reason || ''));
+      expect(glutenFlag).toBeUndefined();
+    });
+
+    it('hashimotos + healthy product: score stays at 100', () => {
+      const r = scoreForCondition(
+        product('quinoa, water'),
+        'thyroid',
+        'hashimotos',
+      );
+      expect(r.score).toBe(100);
+    });
+
+    it('mixed-evidence flags are tagged with evidence: "mixed"', () => {
+      const r = scoreForCondition(
+        product('salmon, brazil nuts'),
+        'thyroid',
+        'hashimotos',
+      );
+      const mixedFlags = r.flags.filter(f => f.evidence === 'mixed');
+      expect(mixedFlags.length).toBeGreaterThan(0);
     });
 
     it('hypo: informational flag for soy protein isolate (med-timing)', () => {
