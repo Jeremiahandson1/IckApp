@@ -203,14 +203,14 @@ function parseDifficulty(val) {
   if (!val) return null;
   const n = parseInt(val, 10);
   if (Number.isFinite(n)) {
-    if (n <= 2) return 'Easy';
-    if (n === 3) return 'Medium';
-    return 'Hard';
+    if (n <= 2) return 'easy';
+    if (n === 3) return 'medium';
+    return 'hard';
   }
   const s = String(val).toLowerCase().trim();
-  if (s.startsWith('easy')) return 'Easy';
-  if (s.startsWith('med')) return 'Medium';
-  if (s.startsWith('hard') || s.startsWith('diff')) return 'Hard';
+  if (s.startsWith('easy')) return 'easy';
+  if (s.startsWith('med')) return 'medium';
+  if (s.startsWith('hard') || s.startsWith('diff')) return 'hard';
   return null;
 }
 

@@ -43,48 +43,45 @@ async function setRecipeCache(cacheKey, cacheType, data) {
   }
 }
 
+// Build the WHERE-clause + params from query string filters.
+// Used by both GET /recipes and GET /recipes/meta/count so they stay in sync.
+function buildRecipeFilter(q) {
+  const { category, difficulty, max_time, kid_friendly } = q;
+  const where = ['1=1'];
+  const params = [];
+  if (category) {
+    params.push(category);
+    where.push(`replaces_category = $${params.length}`);
+  }
+  if (difficulty) {
+    params.push(String(difficulty).toLowerCase());
+    where.push(`LOWER(difficulty) = $${params.length}`);
+  }
+  if (max_time) {
+    params.push(parseInt(max_time, 10));
+    where.push(`total_time_minutes <= $${params.length}`);
+  }
+  if (kid_friendly === 'true') {
+    where.push(`kid_friendly = true`);
+  }
+  return { whereSql: where.join(' AND '), params };
+}
+
 // Get all recipes — supports limit/offset pagination.
 // Returns a flat array (backward-compatible). Clients infer "has more" by
 // checking whether the returned array length equals the limit they requested.
 router.get('/', async (req, res) => {
   try {
-    const { category, difficulty, max_time, kid_friendly } = req.query;
-
-    // Pagination: default 50, hard cap 200 to prevent runaway payloads.
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-    let query = 'SELECT * FROM recipes WHERE 1=1';
-    const params = [];
-    let paramCount = 0;
+    const { whereSql, params } = buildRecipeFilter(req.query);
+    params.push(limit, offset);
+    const sql = `SELECT * FROM recipes WHERE ${whereSql}
+                 ORDER BY name
+                 LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
-    if (category) {
-      paramCount++;
-      query += ` AND replaces_category = $${paramCount}`;
-      params.push(category);
-    }
-    if (difficulty) {
-      paramCount++;
-      query += ` AND difficulty = $${paramCount}`;
-      params.push(difficulty);
-    }
-    if (max_time) {
-      paramCount++;
-      query += ` AND total_time_minutes <= $${paramCount}`;
-      params.push(parseInt(max_time, 10));
-    }
-    if (kid_friendly === 'true') {
-      query += ' AND kid_friendly = true';
-    }
-
-    paramCount++;
-    query += ` ORDER BY name LIMIT $${paramCount}`;
-    params.push(limit);
-    paramCount++;
-    query += ` OFFSET $${paramCount}`;
-    params.push(offset);
-
-    const result = await pool.query(query, params);
+    const result = await pool.query(sql, params);
     res.json(result.rows);
   } catch (err) {
     console.error('Recipes fetch error:', err);
@@ -92,19 +89,15 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Count endpoint — used by the frontend to render "X recipes total" without
-// scanning the whole paginated list. Same filters as GET /.
+// Count endpoint — used by the frontend to render "X of Y" without
+// scanning the whole paginated list. Same filter logic as GET /.
 router.get('/meta/count', async (req, res) => {
   try {
-    const { category, difficulty, max_time, kid_friendly } = req.query;
-    let query = 'SELECT COUNT(*)::int AS total FROM recipes WHERE 1=1';
-    const params = [];
-    let paramCount = 0;
-    if (category)   { paramCount++; query += ` AND replaces_category = $${paramCount}`; params.push(category); }
-    if (difficulty) { paramCount++; query += ` AND difficulty = $${paramCount}`; params.push(difficulty); }
-    if (max_time)   { paramCount++; query += ` AND total_time_minutes <= $${paramCount}`; params.push(parseInt(max_time, 10)); }
-    if (kid_friendly === 'true') query += ' AND kid_friendly = true';
-    const result = await pool.query(query, params);
+    const { whereSql, params } = buildRecipeFilter(req.query);
+    const result = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM recipes WHERE ${whereSql}`,
+      params
+    );
     res.json({ total: result.rows[0].total });
   } catch (err) {
     console.error('Recipes count error:', err);

@@ -102,6 +102,9 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="text-base font-semibold text-[#f4f4f0] mb-2">Medical Disclaimer</h2>
           <p>Ick provides informational nutrition guidance. Condition-specific scoring is grounded in published clinical guidelines (AHA, ADA, KDOQI, ATA, FDA) but is not personalized to your labs, medications, or clinical context. Ick is not a medical device. Always consult your physician or registered dietitian before making dietary changes based on a health condition.</p>
+          <p className="mt-2">
+            <a href="/about-scoring" className="text-[#c8f135] underline">Read the full scoring methodology and citation list →</a>
+          </p>
         </section>
 
         <section>

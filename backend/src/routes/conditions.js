@@ -5,6 +5,36 @@ import { scoreForCondition, RULES_VERSION, DISCLAIMER } from '../utils/condition
 
 const router = express.Router();
 
+// Sources registry — short tag → full citation text. Mirrors the SOURCES
+// constant in conditionScorer.v2.js. Exposed publicly so the frontend can
+// render a methodology page without duplicating the list.
+const SOURCES = {
+  CDF: 'Celiac Disease Foundation — Sources of Gluten',
+  FDA_GF: 'FDA 21 CFR §101.91 — Gluten-Free Labeling Final Rule (2013)',
+  AHA_2021: 'AHA 2021 Dietary Guidance to Improve Cardiovascular Health (Circulation 2021;144:e472–e487)',
+  AHA_TRANS: 'AHA 2017 Presidential Advisory — Dietary Fats and CVD (Circulation 2017;136:e1–e23)',
+  AHA_SUGAR: 'AHA 2016 Scientific Statement — Added Sugars and CVD (Circulation 2016;134:e362–e364)',
+  FSA_TRAFFIC: 'UK FSA Front-of-Pack Traffic-Light Nutritional Labelling Guidance (2016)',
+  IARC_MEAT: 'IARC Monograph 114 — Red and Processed Meat (Lancet Oncol 2015;16:1599–1600)',
+  ADA_2024: 'American Diabetes Association — Standards of Care in Diabetes 2024 (Diabetes Care 47 Suppl 1)',
+  ADA_NUTRITION: 'ADA/AACE Nutrition Therapy Consensus 2019 (Diabetes Care 2019;42:731–754)',
+  KDOQI_2020: 'KDOQI 2020 Clinical Practice Guideline for Nutrition in CKD (Am J Kidney Dis 2020;76(3 Suppl 1):S1–S107)',
+  NKF_PHOS: 'National Kidney Foundation — Phosphorus Additives in Food',
+  AUA_STONES: 'AUA/EAU Medical Management of Kidney Stones (J Urol 2014;192:316–324)',
+  ATA_HYPO: "ATA Guidelines for Treatment of Hypothyroidism (Thyroid 2014;24:1670–1751)",
+  ATA_HYPER: "ATA 2016 Guidelines for Hyperthyroidism and Other Causes of Thyrotoxicosis (Thyroid 2016;26:1343–1421)",
+  AACE_THYROID: 'AACE/ACE Clinical Practice Guidelines for Hypothyroidism in Adults (Endocr Pract 2012;18:988–1028)',
+};
+
+// GET /api/conditions/sources — public methodology metadata
+router.get('/sources', (_req, res) => {
+  res.json({
+    rulesVersion: RULES_VERSION,
+    disclaimer: DISCLAIMER,
+    sources: SOURCES,
+  });
+});
+
 // ── GET /api/conditions — list all available conditions (no auth) ──
 router.get('/', async (req, res) => {
   try {

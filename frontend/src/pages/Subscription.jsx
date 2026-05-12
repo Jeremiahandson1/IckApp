@@ -268,7 +268,8 @@ export default function Subscription() {
       {/* Medical / data disclaimer */}
       <div className="pt-4 mt-2 border-t border-[#1e1e1e]">
         <p className="text-[10px] text-[#555] leading-relaxed text-center px-2">
-          Informational only — not medical advice. Condition-specific scoring is grounded in published clinical guidelines (AHA, ADA, KDOQI, ATA, FDA) but does not account for your medications, labs, or individual context. Consult your physician or registered dietitian before making dietary changes based on a health condition.
+          Informational only — not medical advice. Condition-specific scoring is grounded in published clinical guidelines (AHA, ADA, KDOQI, ATA, FDA) but does not account for your medications, labs, or individual context. Consult your physician or registered dietitian before making dietary changes based on a health condition.{' '}
+          <a href="/about-scoring" className="text-[#c8f135] underline">See methodology</a>.
         </p>
       </div>
     </div>
