@@ -37,10 +37,42 @@ async function getHarmfulIngredients() {
 async function getCompanies() {
   const now = Date.now();
   if (_cachedCompanies && (now - _companyCacheTime) < CACHE_TTL) return _cachedCompanies;
-  const result = await pool.query('SELECT name, parent_company, behavior_score, controversies, transparency_rating FROM companies');
+  const result = await pool.query('SELECT id, name, parent_company, behavior_score, controversies, transparency_rating FROM companies');
   _cachedCompanies = result.rows;
   _companyCacheTime = now;
   return _cachedCompanies;
+}
+
+// Brand alias cache: in-memory Map<normalized-alias, {company_id, behavior_score, name}>
+// Populated from brand_aliases JOIN companies. Same TTL as companies cache.
+let _cachedAliasMap = null;
+let _aliasCacheTime = 0;
+
+function normalizeAlias(s) {
+  if (!s) return '';
+  return String(s)
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+async function getAliasMap() {
+  const now = Date.now();
+  if (_cachedAliasMap && (now - _aliasCacheTime) < CACHE_TTL) return _cachedAliasMap;
+  try {
+    const result = await pool.query(
+      `SELECT ba.alias, c.id AS company_id, c.name, c.behavior_score
+       FROM brand_aliases ba JOIN companies c ON ba.company_id = c.id`
+    );
+    const map = new Map();
+    for (const row of result.rows) map.set(row.alias, row);
+    _cachedAliasMap = map;
+  } catch {
+    // Table may not exist yet on a fresh deploy — fall back to empty map.
+    _cachedAliasMap = new Map();
+  }
+  _aliasCacheTime = now;
+  return _cachedAliasMap;
 }
 
 // ============================================================
@@ -260,11 +292,21 @@ function computeProcessingScore(opts) {
 // DIMENSION 5: COMPANY BEHAVIOR (10%)
 // ============================================================
 
-function computeCompanyBehaviorScore(brand, companies) {
+function computeCompanyBehaviorScore(brand, companies, aliasMap) {
+  // Stage 1 (fastest): exact normalized alias match via brand_aliases.
+  if (aliasMap && brand) {
+    const norm = normalizeAlias(brand);
+    if (norm) {
+      const hit = aliasMap.get(norm);
+      if (hit && hit.behavior_score != null) return clamp(hit.behavior_score);
+    }
+  }
+
+  // Stage 2 (legacy fallback): substring match against companies.name /
+  // parent_company. Kept for brands not yet in brand_aliases.
   const company = matchCompany(brand, companies);
   if (!company) return 50; // Unknown company = neutral
 
-  // Use the behavior_score from the companies table (0-100)
   if (company.behavior_score != null) {
     return clamp(company.behavior_score);
   }
@@ -369,6 +411,7 @@ export async function scoreProduct(opts = {}) {
   } = opts;
 
   const companies = await getCompanies();
+  const aliasMap = await getAliasMap();
 
   // ── DIMENSION 1: Harmful Ingredients (40%) ──
   const { score: harmfulIngredientsScore, found: harmfulFound, missing_data: missingIngredients } =
@@ -386,10 +429,22 @@ export async function scoreProduct(opts = {}) {
   const processingScore = computeProcessingScore({ nova_group, ingredients });
 
   // ── DIMENSION 5: Company Behavior (10%) ──
-  const companyBehaviorScore = computeCompanyBehaviorScore(brand, companies);
+  const companyBehaviorScore = computeCompanyBehaviorScore(brand, companies, aliasMap);
 
   // ── Display-only data ──
-  const company = matchCompany(brand, companies);
+  // Resolve the matched company for display. Prefer the brand_aliases path,
+  // fall back to substring matching against the companies table.
+  let company = null;
+  if (brand) {
+    const norm = normalizeAlias(brand);
+    if (norm) {
+      const aliasHit = aliasMap.get(norm);
+      if (aliasHit) {
+        company = companies.find(c => c.id === aliasHit.company_id) || aliasHit;
+      }
+    }
+    if (!company) company = matchCompany(brand, companies);
+  }
   const allergens = extractAllergens(allergens_tags);
   const isOrganic = detectOrganic(labels, is_organic);
 

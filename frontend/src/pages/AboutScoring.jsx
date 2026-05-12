@@ -8,7 +8,7 @@ const DIMENSIONS = [
   { name: 'Banned Elsewhere',    weight: '20%', body: 'Counts how many of the product\'s ingredients are banned or restricted in major regulatory regions outside the US (EU, UK, Japan, Canada, Australia).' },
   { name: 'Transparency',        weight: '15%', body: 'Penalizes products with missing or vague ingredient lists ("natural flavors," undisclosed sources). Rewards clear, complete labeling.' },
   { name: 'Processing',          weight: '15%', body: 'Uses the NOVA classification: minimally processed foods score highest; ultra-processed foods (with industrial additives, isolates, and reconstructed ingredients) score lowest.' },
-  { name: 'Company Behavior',    weight: '10%', body: 'Tracks the parent company\'s record on consumer-protection lawsuits, ingredient transparency, and historical product-safety issues.' },
+  { name: 'Company Behavior',    weight: '10%', body: 'Maps each product\'s brand to its parent company via a curated brand-portfolio dataset (~30 major food/beverage conglomerates and their owned brands). Each parent has a behavior score that reflects historical record on labor, environmental, and consumer-safety issues. Unmatched brands score neutral (50/100) — we don\'t penalize unknowns.' },
 ];
 
 const CONDITION_SUMMARIES = [
