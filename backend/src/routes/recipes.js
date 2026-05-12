@@ -397,8 +397,8 @@ router.get('/spoonacular/search', optionalAuth, async (req, res) => {
   }
 
   try {
-    const { q = '', cuisine, diet, intolerances, max_time, number = 12 } = req.query;
-    const cappedNumber = Math.min(parseInt(number, 10) || 12, 24);
+    const { q = '', cuisine, diet, intolerances, max_time, number = 24 } = req.query;
+    const cappedNumber = Math.min(parseInt(number, 10) || 24, 50);
 
     // Cache key normalizes query/filter inputs so "Salmon" and "salmon  " hit
     // the same row. TTL: 24h — Spoonacular's catalog doesn't churn fast enough

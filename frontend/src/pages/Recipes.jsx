@@ -100,7 +100,7 @@ export default function Recipes() {
       const res = await recipesApi.spoonacularSearch({
         q: searchQ,
         diet: searchDiet,
-        number: 12,
+        number: 24,
       });
       setRecipes(Array.isArray(res?.recipes) ? res.recipes : []);
     } catch (err) {
