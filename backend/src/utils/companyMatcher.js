@@ -13,11 +13,18 @@ import pool from '../db/init.js';
 
 const SIMILARITY_THRESHOLD = 0.55;
 
+// Corporate-entity suffixes / regional qualifiers that should be stripped
+// before alias matching. Without this, "Danone US LLC" → "danoneusllc"
+// wouldn't match the "danone" alias even though it's clearly the same
+// company.
+const SUFFIX_PATTERN = /\b(inc|llc|ltd|corp|corporation|co|company|usa|us|na|north[\s-]america|n[\s-]a|brands|foods|group|holdings|gmbh|s[\s-]a|sa|ag|plc|llp|limited)\b/gi;
+
 export function normalizeBrand(s) {
   if (!s) return '';
   return String(s)
     .toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')   // strip diacritics
+    .replace(SUFFIX_PATTERN, ' ')                        // strip corporate suffixes
     .replace(/[^a-z0-9]/g, '');
 }
 

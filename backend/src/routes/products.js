@@ -57,29 +57,71 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
           let image_url = product.image_url || null;
           let brand = product.brand || '';
 
-          // If no ingredients in DB, try to fetch from Open Food Facts
+          // If no ingredients in DB, hydrate from external sources with a
+          // hard timeout — OFF can be slow or unavailable, and silently
+          // returning a half-empty record was producing the "ingredients
+          // missing" / "scan returns nothing" / "third try works" UX bug
+          // users were hitting.
           if (!ingredients || ingredients.length < 3) {
-            try {
-              const offRes = await fetch(
-                `https://world.openfoodfacts.org/api/v0/product/${upc}.json`,
-                { headers: { 'User-Agent': 'Ick/1.0' } }
-              );
-              const offData = await offRes.json();
-              if (offData.status === 1 && offData.product) {
-                const p = offData.product;
-                ingredients = p.ingredients_text || p.ingredients_text_en || '';
-                nutriscore_grade = p.nutriscore_grade || nutriscore_grade;
-                nova_group = p.nova_group || nova_group;
-                nutriments = p.nutriments || nutriments;
-                allergens_tags = p.allergens_tags || allergens_tags;
-                image_url = p.image_url || p.image_front_url || image_url;
-                if (!brand || brand === 'Unknown Brand' || brand === 'Unknown') {
-                  brand = p.brands || brand;
-                }
-                console.log(`[re-score] Fetched OFF data for ${upc}: ingredients=${ingredients.length}chars nova=${nova_group}`);
+            const tryOff = async () => {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 4000); // 4s hard cap
+              try {
+                const r = await fetch(
+                  `https://world.openfoodfacts.org/api/v0/product/${upc}.json`,
+                  { headers: { 'User-Agent': 'Ick/1.0' }, signal: controller.signal }
+                );
+                const data = await r.json();
+                if (data?.status === 1 && data.product) return data.product;
+              } catch (e) {
+                console.warn(`[re-score] OFF fetch failed for ${upc}: ${e.name === 'AbortError' ? 'timeout' : e.message}`);
+              } finally { clearTimeout(timer); }
+              return null;
+            };
+
+            // 1) Try Open Food Facts first (largest dataset)
+            const offProduct = await tryOff();
+            if (offProduct) {
+              ingredients = offProduct.ingredients_text || offProduct.ingredients_text_en || '';
+              nutriscore_grade = offProduct.nutriscore_grade || nutriscore_grade;
+              nova_group = offProduct.nova_group || nova_group;
+              nutriments = offProduct.nutriments || nutriments;
+              allergens_tags = offProduct.allergens_tags || allergens_tags;
+              image_url = offProduct.image_url || offProduct.image_front_url || image_url;
+              if (!brand || brand === 'Unknown Brand' || brand === 'Unknown') {
+                brand = offProduct.brands || brand;
               }
-            } catch (fetchErr) {
-              console.warn(`[re-score] OFF fetch failed for ${upc}:`, fetchErr.message);
+              console.log(`[re-score] Fetched OFF data for ${upc}: ingredients=${ingredients.length}chars`);
+            }
+
+            // 2) Still empty? Fall through to USDA FoodData Central
+            if (!ingredients || ingredients.length < 3) {
+              try {
+                const usdaProduct = await usdaLookup(upc);
+                if (usdaProduct && usdaProduct.ingredients) {
+                  ingredients = usdaProduct.ingredients;
+                  if (!image_url) image_url = usdaProduct.image_url || null;
+                  if (!brand || brand === 'Unknown Brand') brand = usdaProduct.brand || brand;
+                  if (!nutriments) nutriments = usdaProduct.nutrition_facts || null;
+                  console.log(`[re-score] Fetched USDA data for ${upc}: ingredients=${ingredients.length}chars`);
+                }
+              } catch (e) {
+                console.warn(`[re-score] USDA fetch failed for ${upc}: ${e.message}`);
+              }
+            }
+
+            // 3) Still empty? Try FatSecret as a last resort
+            if (!ingredients || ingredients.length < 3) {
+              try {
+                const fsProduct = await fatsecretLookup(upc);
+                if (fsProduct && fsProduct.ingredients) {
+                  ingredients = fsProduct.ingredients;
+                  if (!brand || brand === 'Unknown Brand') brand = fsProduct.brand || brand;
+                  console.log(`[re-score] Fetched FatSecret data for ${upc}: ingredients=${ingredients.length}chars`);
+                }
+              } catch (e) {
+                console.warn(`[re-score] FatSecret fetch failed for ${upc}: ${e.message}`);
+              }
             }
           }
 
@@ -164,14 +206,24 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
       });
     }
 
-    // If not in our DB, fetch from Open Food Facts
-    const offResponse = await fetch(
-      `https://world.openfoodfacts.org/api/v0/product/${upc}.json`,
-      { headers: { 'User-Agent': 'Ick/1.0' } }
-    );
-    const offData = await offResponse.json();
+    // If not in our DB, fetch from Open Food Facts with a hard 4s timeout
+    // so a slow/down OFF doesn't hang the whole scan request.
+    const offData = await (async () => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      try {
+        const r = await fetch(
+          `https://world.openfoodfacts.org/api/v0/product/${upc}.json`,
+          { headers: { 'User-Agent': 'Ick/1.0' }, signal: ctrl.signal }
+        );
+        return await r.json();
+      } catch (e) {
+        console.warn(`[scan] OFF fetch failed for ${upc}: ${e.name === 'AbortError' ? 'timeout' : e.message}`);
+        return null;
+      } finally { clearTimeout(timer); }
+    })();
 
-    if (offData.status !== 1 || !offData.product) {
+    if (!offData || offData.status !== 1 || !offData.product) {
       // ═══ FALLBACK 2: USDA FoodData Central ═══
       // 380,000+ branded US products — free API
       const usdaProduct = await usdaLookup(upc);

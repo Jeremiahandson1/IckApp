@@ -48,11 +48,17 @@ async function getCompanies() {
 let _cachedAliasMap = null;
 let _aliasCacheTime = 0;
 
+// Strip corporate-entity suffixes (LLC, Inc, USA, NA, etc.) before matching
+// so "Danone US LLC" / "PepsiCo Inc" / "Nestlé USA" all resolve to their
+// core brand name.
+const _SUFFIX_RE = /\b(inc|llc|ltd|corp|corporation|co|company|usa|us|na|north[\s-]america|n[\s-]a|brands|foods|group|holdings|gmbh|s[\s-]a|sa|ag|plc|llp|limited)\b/gi;
+
 function normalizeAlias(s) {
   if (!s) return '';
   return String(s)
     .toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(_SUFFIX_RE, ' ')
     .replace(/[^a-z0-9]/g, '');
 }
 

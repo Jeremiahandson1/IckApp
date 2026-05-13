@@ -40,7 +40,7 @@ async function main() {
          SET company_id = $1, company_behavior_score = $2
          WHERE company_id IS NULL
            AND brand IS NOT NULL AND brand != ''
-           AND regexp_replace(lower(brand), '[^a-z0-9]', '', 'g') = $3`,
+           AND normalize_brand(brand) = $3`,
         [company_id, behavior_score, alias]
       );
       if (r.rowCount > 0) {

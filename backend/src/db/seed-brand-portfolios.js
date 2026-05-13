@@ -20,11 +20,16 @@ const pool = new Pool({
   query_timeout: 30000,
 });
 
+// Mirror the matcher's suffix-stripping so seeded aliases collapse the
+// same way as runtime brand strings.
+const SEED_SUFFIX_RE = /\b(inc|llc|ltd|corp|corporation|co|company|usa|us|na|north[\s-]america|n[\s-]a|brands|foods|group|holdings|gmbh|s[\s-]a|sa|ag|plc|llp|limited)\b/gi;
+
 function normalizeAlias(s) {
   if (!s) return '';
   return s
     .toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')  // strip accents
+    .replace(SEED_SUFFIX_RE, ' ')
     .replace(/[^a-z0-9]/g, '');
 }
 
