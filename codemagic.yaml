@@ -110,6 +110,19 @@ workflows:
             echo "APP_STORE_APP_ID not set — skipping auto-increment (build will use the default 1)"
           fi
 
+      - name: Fetch + install signing files (cert + provisioning profile)
+        script: |
+          # Codemagic's app_store_connect integration handles credentials,
+          # but we still need to download the provisioning profile, add
+          # the cert to the build keychain, and have xcode-project write
+          # the export_options.plist that build-ipa reads.
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
       - name: Build .ipa with xcodebuild
         script: |
           xcode-project build-ipa \
