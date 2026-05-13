@@ -193,7 +193,12 @@ app.listen(PORT, '0.0.0.0', () => {
     const hiCount = await pool.query('SELECT COUNT(*) FROM harmful_ingredients');
     const coCount = await pool.query('SELECT COUNT(*) FROM companies');
     const hiNeedsSeed = parseInt(hiCount.rows[0].count) === 0;
-    const coNeedsSeed = parseInt(coCount.rows[0].count) < 100; // reseed when new companies are added
+    // Only re-seed if the table is genuinely empty. We used to reseed when
+    // count was below an arbitrary threshold ("< 100"), but that fought
+    // against dedup-companies.js: after dedup brought us under that line,
+    // the next backend restart restored the redundant rows from seed.js.
+    // brand-portfolios.js is now the source of truth for company data.
+    const coNeedsSeed = parseInt(coCount.rows[0].count) === 0;
     if (hiNeedsSeed || coNeedsSeed) {
       const { harmfulIngredients, companies } = await import('./db/seed.js');
       if (hiNeedsSeed) {
