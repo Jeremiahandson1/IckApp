@@ -73,11 +73,20 @@ workflows:
       - name: Set up Capacitor iOS native project
         script: |
           cd frontend
-          # Add iOS platform if not present (regenerated on every build)
-          if [ ! -d "ios" ]; then
-            npx cap add ios
-          fi
+          # Always nuke + re-add. cap add ios is not idempotent; a partial
+          # ios/ folder from a prior failed run can cause the Podfile to
+          # be missing while the directory exists, which would silently
+          # skip the conditional `cap add` below.
+          rm -rf ios
+          npx cap add ios
           npx cap sync ios
+          # Sanity-check what was generated; fail loudly if Podfile is missing.
+          echo "----- ios/App contents -----"
+          ls -la ios/App
+          if [ ! -f "ios/App/Podfile" ]; then
+            echo "ERROR: cap add ios did not produce ios/App/Podfile" >&2
+            exit 1
+          fi
 
       - name: Install CocoaPods
         script: |
