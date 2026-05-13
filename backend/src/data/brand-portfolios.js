@@ -973,4 +973,242 @@ export const PORTFOLIOS = [
       { name: 'Wholesome Pantry' },
     ],
   },
+
+  // ── SECOND WAVE: more regional grocers + co-ops + Kroger sub-banners ────
+
+  {
+    parent: 'Hy-Vee',
+    behavior_score: 75,
+    tier: 'better',
+    controversies: ['Employee-owned (ESOP) Midwest regional'],
+    parent_aliases: ['hyvee', 'hy vee'],
+    brands: [
+      { name: 'Hy-Vee',            aliases: ['hyvee'] },
+      { name: 'That\'s Smart!',    aliases: ['thats smart'] },
+      { name: 'Basics' },
+    ],
+  },
+  {
+    parent: 'WinCo Foods',
+    behavior_score: 72,
+    tier: 'better',
+    controversies: ['Employee-owned (ESOP) Western regional'],
+    parent_aliases: ['winco'],
+    brands: [
+      { name: 'WinCo',             aliases: ['winco foods'] },
+    ],
+  },
+  {
+    parent: 'Weis Markets',
+    behavior_score: 60,
+    tier: 'mid-tier',
+    controversies: ['Family-controlled regional, mid-Atlantic'],
+    parent_aliases: ['weis'],
+    brands: [
+      { name: 'Weis' },
+      { name: 'Weis Quality' },
+    ],
+  },
+  {
+    parent: 'Giant Eagle',
+    behavior_score: 60,
+    tier: 'mid-tier',
+    controversies: ['Family-owned Pittsburgh-area regional'],
+    parent_aliases: [],
+    brands: [
+      { name: 'Giant Eagle' },
+      { name: 'Market District' },
+      { name: 'Nature\'s Basket',  aliases: ['natures basket'] },
+    ],
+  },
+  {
+    parent: 'Schnucks',
+    behavior_score: 65,
+    tier: 'mid-tier',
+    controversies: ['Family-owned Midwest regional'],
+    parent_aliases: ['schnuck markets'],
+    brands: [{ name: 'Schnucks' }],
+  },
+  {
+    parent: 'Demoulas Market Basket',
+    behavior_score: 75,
+    tier: 'better',
+    controversies: ['New England regional, family-owned, well-regarded'],
+    parent_aliases: ['demoulas', 'market basket'],
+    brands: [
+      { name: 'Market Basket' },
+    ],
+  },
+  {
+    parent: 'Raley\'s',
+    behavior_score: 65,
+    tier: 'mid-tier',
+    controversies: ['Northern California regional'],
+    parent_aliases: ['raleys'],
+    brands: [
+      { name: 'Raley\'s',          aliases: ['raleys'] },
+      { name: 'Nob Hill Foods' },
+    ],
+  },
+  {
+    parent: 'Tops Friendly Markets',
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: ['Northeast regional, recent ownership changes'],
+    parent_aliases: ['tops markets', 'tops'],
+    brands: [{ name: 'Tops' }],
+  },
+  {
+    parent: 'Lidl US',
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: ['German discount chain (Schwarz Group)', 'Limited supplier transparency'],
+    parent_aliases: ['lidl', 'schwarz group'],
+    brands: [
+      { name: 'Lidl' },
+      { name: 'Preferred Selection' },
+      { name: 'Pueblo Lindo' },    // also Aldi has this — collision ok
+    ],
+  },
+  {
+    parent: 'SpartanNash',
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: ['Wholesale distributor / Midwest retail'],
+    parent_aliases: ['spartan nash'],
+    brands: [
+      { name: 'Spartan' },
+      { name: 'Family Fare' },
+      { name: 'Our Family' },      // 646 products
+    ],
+  },
+  {
+    parent: 'Topco Associates',
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: ['Cooperative serving 50+ independent grocers'],
+    parent_aliases: ['topco'],
+    brands: [
+      { name: 'Food Club' },
+      { name: 'Top Care' },
+      { name: 'Full Circle Market' },
+      { name: 'Wide Awake Coffee' },
+      { name: 'Paws Premium' },
+      { name: 'Valu Time' },
+      { name: 'Shopper\'s Value',  aliases: ['shoppers value'] },
+      { name: 'Pinnacle' },
+    ],
+  },
+  {
+    parent: 'Associated Wholesale Grocers',
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: ['Cooperative for independent Midwest/South grocers'],
+    parent_aliases: ['awg'],
+    brands: [
+      { name: 'Best Choice' },
+      { name: 'Always Save' },
+      { name: 'Clearly Organic' },
+      { name: 'Superior Selections' },
+    ],
+  },
+  {
+    parent: 'Dollar General',
+    behavior_score: 35,
+    tier: 'conglomerate-low',
+    controversies: [
+      'OSHA worker safety fines', 'Food access in food deserts criticism',
+      'Limited fresh produce',
+    ],
+    parent_aliases: [],
+    brands: [
+      { name: 'Clover Valley' },
+      { name: 'Smart & Simple',    aliases: ['smart simple'] },
+      { name: 'DG Home',           aliases: ['dghome'] },
+      { name: 'Heartland Harvest' },
+    ],
+  },
+  {
+    parent: 'Goya Foods',
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: ['Family-owned Hispanic foods', 'Some political controversy in past leadership'],
+    parent_aliases: ['goya'],
+    brands: [
+      { name: 'Goya' },
+      { name: 'Cafe Pilon',        aliases: ['cafe pilón'] },
+    ],
+  },
+  {
+    parent: 'Sheetz',
+    behavior_score: 60,
+    tier: 'mid-tier',
+    controversies: ['Family-owned mid-Atlantic convenience chain'],
+    parent_aliases: [],
+    brands: [{ name: 'Sheetz' }],
+  },
+  {
+    parent: 'Perdue Farms',
+    behavior_score: 45,
+    tier: 'big-food-mid',
+    controversies: ['Animal welfare concerns', 'Contract farmer disputes', 'Antibiotic use historically'],
+    parent_aliases: ['perdue'],
+    brands: [
+      { name: 'Perdue' },
+      { name: 'Coleman Natural' },
+    ],
+  },
+
+  // Add additional aliases to existing entries via "sub-banner" portfolios.
+  // These are owned by parents already seeded; we just need their brand
+  // strings to map to the same company_id.
+
+  {
+    parent: 'The Kroger Co.',     // already exists — seed will reuse company_id
+    behavior_score: 55,
+    tier: 'mid-tier',
+    controversies: [],
+    parent_aliases: [],
+    brands: [
+      // Sub-banners (Kroger acquisitions over the years)
+      { name: 'Harris Teeter' },
+      { name: 'Roundy\'s',         aliases: ['roundys'] },
+      { name: 'Fred Meyer' },
+      { name: 'Ralphs' },
+      { name: 'Fry\'s Food',       aliases: ['frys food'] },
+      { name: 'Smith\'s Food',     aliases: ['smiths food'] },
+      { name: 'King Soopers' },
+      { name: 'QFC' },
+      { name: 'Pick \'n Save',     aliases: ['pick n save'] },
+      { name: 'Mariano\'s',        aliases: ['marianos'] },
+      // Private-label variants not in first seed
+      { name: 'Simple Truth Organic' },
+      { name: 'Kroger Brand' },
+    ],
+  },
+
+  {
+    parent: 'Whole Foods Market', // already exists
+    behavior_score: 60,
+    tier: 'mid-tier',
+    controversies: [],
+    parent_aliases: [],
+    brands: [
+      { name: '365 Whole Foods Market' },
+      { name: '365 by Whole Foods Market' },
+    ],
+  },
+
+  {
+    parent: 'Target',             // already exists
+    behavior_score: 60,
+    tier: 'mid-tier',
+    controversies: [],
+    parent_aliases: [],
+    brands: [
+      { name: 'Target Stores' },
+      { name: 'Cat & Jack',        aliases: ['cat jack'] },        // some food/snack items
+      { name: 'Smartly' },
+    ],
+  },
 ];
