@@ -47,7 +47,7 @@ workflows:
         # TestFlight + App Store URL). Used to auto-increment the
         # build number from the latest TestFlight/App Store build.
         APP_STORE_APP_ID: "6769029765"
-      node: 20.x
+      node: 20
       xcode: latest
       cocoapods: default
 
@@ -133,7 +133,7 @@ workflows:
         - google_play_credentials   # optional, for Play Store upload
       vars:
         PACKAGE_NAME: "com.ickthatish.app"
-      node: 20.x
+      node: 20
       java: 17
 
     triggering:
