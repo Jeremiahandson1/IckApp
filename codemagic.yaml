@@ -7,7 +7,7 @@
 # Prerequisites (set in Codemagic UI, not here):
 #
 #   iOS:
-#     - Apple Developer team_id + bundle identifier "com.ick.app"
+#     - Apple Developer team_id + bundle identifier "com.ickthatish.app"
 #     - "App Store Connect API Key" integration configured
 #     - Automatic code signing enabled (or manual cert/profile uploaded)
 #
@@ -38,13 +38,13 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.ick.app
+        bundle_identifier: com.ickthatish.app
       groups:
         - app_store_credentials   # holds APP_STORE_APPLE_ID etc. (Codemagic UI)
       vars:
         XCODE_WORKSPACE: "frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-        BUNDLE_ID: "com.ick.app"
+        BUNDLE_ID: "com.ickthatish.app"
         # APP_STORE_APP_ID — set this in Codemagic UI (Settings → Environment
         # Variables) once your app exists in App Store Connect. With it set,
         # the build-number step auto-increments from App Store Connect's
@@ -134,7 +134,7 @@ workflows:
       groups:
         - google_play_credentials   # optional, for Play Store upload
       vars:
-        PACKAGE_NAME: "com.ick.app"
+        PACKAGE_NAME: "com.ickthatish.app"
       node: 20.x
       java: 17
 

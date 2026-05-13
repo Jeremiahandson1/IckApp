@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.ick.app',
+  appId: 'com.ickthatish.app',
   appName: 'Ick',
   webDir: 'dist',
 
