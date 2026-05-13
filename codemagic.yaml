@@ -39,8 +39,6 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.ickthatish.app
-      groups:
-        - app_store_credentials   # holds APP_STORE_APPLE_ID etc. (Codemagic UI)
       vars:
         XCODE_WORKSPACE: "frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
