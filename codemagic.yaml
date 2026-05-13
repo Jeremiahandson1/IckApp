@@ -45,7 +45,10 @@ workflows:
         XCODE_WORKSPACE: "frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.ick.app"
-        APP_STORE_APP_ID: ""    # set in Codemagic UI to enable TestFlight upload
+        # APP_STORE_APP_ID — set this in Codemagic UI (Settings → Environment
+        # Variables) once your app exists in App Store Connect. With it set,
+        # the build-number step auto-increments from App Store Connect's
+        # latest. Without it, build number stays at the default (1).
       node: 20.x
       xcode: latest
       cocoapods: default
@@ -86,9 +89,14 @@ workflows:
       - name: Set build number (auto-increment from App Store Connect)
         script: |
           cd frontend/ios/App
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo "0")
-          NEW_BUILD_NUMBER=$(($LATEST_BUILD_NUMBER + 1))
-          agvtool new-version -all $NEW_BUILD_NUMBER
+          if [ -n "$APP_STORE_APP_ID" ]; then
+            LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo "0")
+            NEW_BUILD_NUMBER=$(($LATEST_BUILD_NUMBER + 1))
+            agvtool new-version -all $NEW_BUILD_NUMBER
+            echo "Set build number to $NEW_BUILD_NUMBER"
+          else
+            echo "APP_STORE_APP_ID not set — skipping auto-increment (build will use the default 1)"
+          fi
 
       - name: Build .ipa with xcodebuild
         script: |
