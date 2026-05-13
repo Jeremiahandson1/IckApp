@@ -778,7 +778,40 @@ export async function initDatabase() {
       -- Per-serving nutrition (from imported sources that publish nutrition data)
       ALTER TABLE recipes ADD COLUMN IF NOT EXISTS nutrition_facts JSONB;
       CREATE INDEX IF NOT EXISTS idx_recipes_source ON recipes(source);
+
+      -- Postgres extensions needed for company-behavior brand matching.
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+      CREATE EXTENSION IF NOT EXISTS unaccent;
+
+      -- brand_aliases maps normalized brand strings → parent company.
+      -- Filled by seed-brand-portfolios.js.
+      CREATE TABLE IF NOT EXISTS brand_aliases (
+        alias        VARCHAR(255) PRIMARY KEY,
+        alias_display VARCHAR(255) NOT NULL,
+        company_id   INT REFERENCES companies(id) ON DELETE CASCADE,
+        created_at   TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_brand_aliases_company ON brand_aliases(company_id);
+      CREATE INDEX IF NOT EXISTS idx_brand_aliases_trgm ON brand_aliases USING gin (alias gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_products_company_id ON products(company_id);
     `);
+
+    // normalize_brand() — used by both the in-memory matcher (mirror in
+    // JS) and the SQL backfill index. Strips diacritics, corporate
+    // suffixes (LLC, Inc, USA, etc.), and non-alphanumeric chars.
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION normalize_brand(s text) RETURNS text AS $body$
+        SELECT regexp_replace(
+          regexp_replace(
+            public.unaccent(lower(coalesce(s, ''))),
+            '\\m(inc|llc|ltd|corp|corporation|co|company|usa|us|na|north[ -]america|n[ -]a|brands|foods|group|holdings|gmbh|sa|ag|plc|llp|limited)\\M',
+            ' ', 'g'
+          ),
+          '[^a-z0-9]', '', 'g'
+        )
+      $body$ LANGUAGE SQL IMMUTABLE;
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_brand_norm ON products (normalize_brand(brand))`);
     console.log(`  migrations applied (${Date.now() - t1}ms)`);
 
     console.log(`Database initialized in ${Date.now() - t0}ms`);
