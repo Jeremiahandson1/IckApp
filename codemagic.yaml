@@ -1,0 +1,179 @@
+# Codemagic CI/CD for Ick (Capacitor 8 + React + Vite).
+#
+# Two workflows:
+#   - ios-workflow      → builds iOS .ipa, uploads to App Store Connect / TestFlight
+#   - android-workflow  → builds signed AAB, uploads to Google Play (optional)
+#
+# Prerequisites (set in Codemagic UI, not here):
+#
+#   iOS:
+#     - Apple Developer team_id + bundle identifier "com.ick.app"
+#     - "App Store Connect API Key" integration configured
+#     - Automatic code signing enabled (or manual cert/profile uploaded)
+#
+#   Android:
+#     - Upload your keystore.jks to Codemagic
+#     - Set env vars in encrypted "keystore_credentials" group:
+#         CM_KEYSTORE_PATH       (auto by Codemagic)
+#         CM_KEYSTORE_PASSWORD
+#         CM_KEY_ALIAS
+#         CM_KEY_PASSWORD
+#     - For Play Store publishing: upload service-account JSON
+#
+# Repo layout:
+#   frontend/  → Vite + React app with Capacitor config
+#   The ios/ and android/ native folders are gitignored; Capacitor
+#   regenerates them on each build via `cap add` + `cap sync`.
+
+workflows:
+  # ============================================================
+  # iOS WORKFLOW
+  # ============================================================
+  ios-workflow:
+    name: Ick iOS Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: codemagic_api_key   # name configured in Codemagic UI
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.ick.app
+      groups:
+        - app_store_credentials   # holds APP_STORE_APPLE_ID etc. (Codemagic UI)
+      vars:
+        XCODE_WORKSPACE: "frontend/ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        BUNDLE_ID: "com.ick.app"
+        APP_STORE_APP_ID: ""    # set in Codemagic UI to enable TestFlight upload
+      node: 20.x
+      xcode: latest
+      cocoapods: default
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
+
+    scripts:
+      - name: Install frontend deps
+        script: |
+          cd frontend
+          npm ci
+
+      - name: Build web (Vite)
+        script: |
+          cd frontend
+          npm run build
+
+      - name: Set up Capacitor iOS native project
+        script: |
+          cd frontend
+          # Add iOS platform if not present (regenerated on every build)
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+
+      - name: Install CocoaPods
+        script: |
+          cd frontend/ios/App
+          pod install --repo-update
+
+      - name: Set build number (auto-increment from App Store Connect)
+        script: |
+          cd frontend/ios/App
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo "0")
+          NEW_BUILD_NUMBER=$(($LATEST_BUILD_NUMBER + 1))
+          agvtool new-version -all $NEW_BUILD_NUMBER
+
+      - name: Build .ipa with xcodebuild
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - frontend/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+
+    publishing:
+      # email:
+      #   recipients:
+      #     - dairystatebreaks@gmail.com
+      #   notify:
+      #     success: true
+      #     failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true     # automatic TestFlight upload
+        # submit_to_app_store: false   # set true when ready to ship to App Store review
+
+  # ============================================================
+  # ANDROID WORKFLOW (optional — you may already build locally)
+  # ============================================================
+  android-workflow:
+    name: Ick Android Build
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      android_signing:
+        - keystore_reference    # name your keystore as "keystore_reference" in Codemagic UI
+      groups:
+        - google_play_credentials   # optional, for Play Store upload
+      vars:
+        PACKAGE_NAME: "com.ick.app"
+      node: 20.x
+      java: 17
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
+
+    scripts:
+      - name: Install frontend deps
+        script: |
+          cd frontend
+          npm ci
+
+      - name: Build web (Vite)
+        script: |
+          cd frontend
+          npm run build
+
+      - name: Set up Capacitor Android project
+        script: |
+          cd frontend
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Set Gradle versionCode (auto-increment)
+        script: |
+          cd frontend/android/app
+          # Codemagic exposes BUILD_NUMBER per build
+          sed -i "s/versionCode .*/versionCode $BUILD_NUMBER/" build.gradle
+
+      - name: Build signed AAB
+        script: |
+          cd frontend/android
+          ./gradlew bundleRelease
+
+    artifacts:
+      - frontend/android/app/build/outputs/**/*.aab
+      - frontend/android/app/build/outputs/**/*.apk
+
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal       # internal | alpha | beta | production
+        submit_as_draft: true
