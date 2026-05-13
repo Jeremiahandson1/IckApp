@@ -45,10 +45,10 @@ workflows:
         XCODE_WORKSPACE: "frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.ickthatish.app"
-        # APP_STORE_APP_ID — set this in Codemagic UI (Settings → Environment
-        # Variables) once your app exists in App Store Connect. With it set,
-        # the build-number step auto-increments from App Store Connect's
-        # latest. Without it, build number stays at the default (1).
+        # Numeric App Store App ID — not sensitive (visible in every
+        # TestFlight + App Store URL). Used to auto-increment the
+        # build number from the latest TestFlight/App Store build.
+        APP_STORE_APP_ID: "6769029765"
       node: 20.x
       xcode: latest
       cocoapods: default
