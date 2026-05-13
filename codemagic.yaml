@@ -40,7 +40,10 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.ickthatish.app
       vars:
-        XCODE_WORKSPACE: "frontend/ios/App/App.xcworkspace"
+        # Capacitor 8 uses Swift Package Manager, not CocoaPods. The
+        # workspace file no longer exists — we build the .xcodeproj
+        # directly. Xcode resolves SPM packages automatically.
+        XCODE_PROJECT: "frontend/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.ickthatish.app"
         # Numeric App Store App ID — not sensitive (visible in every
@@ -49,7 +52,6 @@ workflows:
         APP_STORE_APP_ID: "6769029765"
       node: 22
       xcode: latest
-      cocoapods: default
 
     triggering:
       events:
@@ -73,25 +75,28 @@ workflows:
       - name: Set up Capacitor iOS native project
         script: |
           cd frontend
-          # Always nuke + re-add. cap add ios is not idempotent; a partial
-          # ios/ folder from a prior failed run can cause the Podfile to
-          # be missing while the directory exists, which would silently
-          # skip the conditional `cap add` below.
+          # Capacitor 8 generates an SPM-based iOS project (no Podfile,
+          # no .xcworkspace). cap add ios is not idempotent — always
+          # nuke + re-add for a clean slate.
           rm -rf ios
           npx cap add ios
           npx cap sync ios
-          # Sanity-check what was generated; fail loudly if Podfile is missing.
           echo "----- ios/App contents -----"
           ls -la ios/App
-          if [ ! -f "ios/App/Podfile" ]; then
-            echo "ERROR: cap add ios did not produce ios/App/Podfile" >&2
+          if [ ! -d "ios/App/App.xcodeproj" ]; then
+            echo "ERROR: cap add ios did not produce App.xcodeproj" >&2
             exit 1
           fi
 
-      - name: Install CocoaPods
+      - name: Resolve Swift Package dependencies
         script: |
+          # Xcode normally resolves SPM deps automatically during build,
+          # but pre-resolving makes failures more legible (network /
+          # checksum issues surface here, not during xcodebuild).
           cd frontend/ios/App
-          pod install --repo-update
+          xcodebuild -resolvePackageDependencies \
+            -project App.xcodeproj \
+            -scheme App
 
       - name: Set build number (auto-increment from App Store Connect)
         script: |
@@ -108,7 +113,7 @@ workflows:
       - name: Build .ipa with xcodebuild
         script: |
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
 
     artifacts:
