@@ -38,7 +38,6 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        team_id: 63XSWU8M5Z
         bundle_identifier: com.ickthatish.app
       groups:
         - app_store_credentials   # holds APP_STORE_APPLE_ID etc. (Codemagic UI)
