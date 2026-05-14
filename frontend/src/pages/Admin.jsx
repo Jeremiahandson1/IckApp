@@ -13,7 +13,8 @@ import { admin } from '../utils/api';
 import {
   LayoutDashboard, Users as UsersIcon, CreditCard, Inbox,
   ChefHat, Building2, Tag, ToggleLeft, History, ChevronLeft, ChevronRight,
-  Search, Trash2, Edit2, Plus, X, AlertCircle, Check,
+  Search, Trash2, Edit2, Plus, X, AlertCircle, Check, Download,
+  Command as CommandIcon, LogIn, Megaphone, Mail, Bell, Send,
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -25,6 +26,7 @@ const SECTIONS = [
   { key: 'companies',     label: 'Companies',      icon: Building2 },
   { key: 'brands',        label: 'Brand Aliases',  icon: Tag },
   { key: 'flags',         label: 'Feature Flags',  icon: ToggleLeft },
+  { key: 'broadcast',     label: 'Broadcast',      icon: Megaphone },
   { key: 'audit',         label: 'Audit Log',      icon: History },
 ];
 
@@ -37,10 +39,23 @@ export default function Admin() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const section = params.get('section') || 'dashboard';
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     if (user && !user.is_admin) navigate('/', { replace: true });
   }, [user, navigate]);
+
+  // Global Cmd/Ctrl+K → open palette
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (!user?.is_admin) return null;
 
@@ -49,6 +64,11 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#f4f4f0] flex">
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onJump={setSection}
+      />
       {/* Sidebar */}
       <aside className="w-56 flex-shrink-0 bg-[#0d0d0d] border-r border-[#1e1e1e] py-4">
         <div className="px-4 mb-6">
@@ -75,7 +95,15 @@ export default function Admin() {
             );
           })}
         </nav>
-        <div className="px-4 mt-6 pt-4 border-t border-[#1e1e1e]">
+        <div className="px-4 mt-6 pt-4 border-t border-[#1e1e1e] space-y-2">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="w-full flex items-center gap-2 text-xs text-[#666] hover:text-[#ddd]"
+          >
+            <CommandIcon className="w-3 h-3" />
+            Quick jump
+            <kbd className="ml-auto text-[10px] font-mono bg-[#1a1a1a] px-1.5 py-0.5 rounded">⌘K</kbd>
+          </button>
           <button
             onClick={() => navigate('/')}
             className="text-xs text-[#666] hover:text-[#ddd]"
@@ -251,6 +279,116 @@ function useConfirm() {
   return [confirm, <ConfirmDialog key="cd" {...state} onConfirm={onConfirm} onCancel={onCancel} />];
 }
 
+function ExportButton({ resource }) {
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const click = async () => {
+    setBusy(true);
+    try {
+      await admin.exportCsv(resource);
+      showToast(`Exported ${resource} CSV`, 'success');
+    } catch (e) {
+      showToast(e.message || 'Export failed', 'error');
+    } finally { setBusy(false); }
+  };
+  return (
+    <Btn onClick={click} disabled={busy}>
+      <Download className="w-3.5 h-3.5" />
+      {busy ? 'Exporting…' : 'Export CSV'}
+    </Btn>
+  );
+}
+
+// ── Command palette (Cmd/Ctrl+K) ──────────────────────────────────────────
+// Quick keyboard-driven jump-to-section + simple actions. Listens for the
+// shortcut globally inside the Admin shell. Renders a small modal with a
+// search input; matches are sections by name. Hitting Enter on a match
+// navigates via setSection.
+function CommandPalette({ open, onClose, onJump }) {
+  const [q, setQ] = useState('');
+  const inputRef = useRef(null);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setQ('');
+      setSelectedIdx(0);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  const matches = useMemo(() => {
+    const lower = q.toLowerCase().trim();
+    if (!lower) return SECTIONS;
+    return SECTIONS.filter(s => s.label.toLowerCase().includes(lower) || s.key.includes(lower));
+  }, [q]);
+
+  useEffect(() => { setSelectedIdx(0); }, [q]);
+
+  if (!open) return null;
+
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIdx(i => Math.min(i + 1, matches.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIdx(i => Math.max(0, i - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const m = matches[selectedIdx];
+      if (m) { onJump(m.key); onClose(); }
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/60 flex items-start justify-center pt-32 p-4" onClick={onClose}>
+      <div className="bg-[#111] border border-[#2a2a2a] rounded-sm w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="px-3 py-2 border-b border-[#1e1e1e] flex items-center gap-2">
+          <Search className="w-4 h-4 text-[#555]" />
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={onKey}
+            placeholder="Jump to section…"
+            className="flex-1 bg-transparent text-sm text-[#ddd] outline-none placeholder:text-[#555]"
+          />
+          <kbd className="text-[10px] font-mono text-[#555] bg-[#1a1a1a] px-1.5 py-0.5 rounded">ESC</kbd>
+        </div>
+        <ul className="py-1 max-h-80 overflow-y-auto">
+          {matches.length === 0 ? (
+            <li className="px-3 py-3 text-sm text-[#666] text-center">No matches</li>
+          ) : matches.map((m, i) => {
+            const Icon = m.icon;
+            const active = i === selectedIdx;
+            return (
+              <li key={m.key}>
+                <button
+                  onClick={() => { onJump(m.key); onClose(); }}
+                  onMouseEnter={() => setSelectedIdx(i)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left ${
+                    active ? 'bg-[#1a1a1a] text-[#c8f135]' : 'text-[#bbb]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {m.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="px-3 py-2 border-t border-[#1e1e1e] text-[10px] font-mono text-[#555] flex gap-3">
+          <span><kbd className="bg-[#1a1a1a] px-1 rounded">↑↓</kbd> navigate</span>
+          <span><kbd className="bg-[#1a1a1a] px-1 rounded">↵</kbd> select</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Debounce hook for search inputs
 function useDebounced(value, delay = 300) {
   const [v, setV] = useState(value);
@@ -415,6 +553,7 @@ function UsersSection() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ users: [], total: 0 });
   const [loading, setLoading] = useState(true);
+  const [drawerUserId, setDrawerUserId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -484,7 +623,12 @@ function UsersSection() {
       <SectionHeader
         title="Users"
         subtitle={`${data.total.toLocaleString()} total`}
-        actions={<SearchInput value={search} onChange={setSearch} placeholder="Email or name…" />}
+        actions={
+          <>
+            <SearchInput value={search} onChange={setSearch} placeholder="Email or name…" />
+            <ExportButton resource="users" />
+          </>
+        }
       />
       {confirmEl}
 
@@ -505,10 +649,10 @@ function UsersSection() {
             : data.users.map(u => (
               <tr key={u.id} className="hover:bg-[#111]">
                 <Td>
-                  <div className="flex items-center gap-2">
+                  <button onClick={() => setDrawerUserId(u.id)} className="flex items-center gap-2 hover:text-[#c8f135]">
                     {u.email}
                     {u.is_admin && <span className="text-[9px] font-mono bg-[#c8f135]/15 text-[#c8f135] px-1.5 py-0.5 rounded">ADMIN</span>}
-                  </div>
+                  </button>
                 </Td>
                 <Td className="text-[#888]">{u.name || '—'}</Td>
                 <Td className="font-mono text-[#888]">{u.scans}</Td>
@@ -533,7 +677,216 @@ function UsersSection() {
         </tbody>
       </Table>
       <Pagination page={page} total={data.total} limit={25} onPage={setPage} />
+
+      {drawerUserId && (
+        <UserDetailDrawer userId={drawerUserId} onClose={() => setDrawerUserId(null)} onMutated={load} />
+      )}
     </>
+  );
+}
+
+// User detail drawer — opens when a user row is clicked. Shows stats +
+// per-user audit history + the same admin actions inline.
+function UserDetailDrawer({ userId, onClose, onMutated }) {
+  const { showToast } = useToast();
+  const [confirm, confirmEl] = useConfirm();
+  const [detail, setDetail] = useState(null);
+  const [audit, setAudit] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [d, a] = await Promise.all([
+        admin.users.get(userId),
+        admin.users.audit(userId).catch(() => ({ actions: [] })),
+      ]);
+      setDetail(d);
+      setAudit(a.actions || []);
+    } catch (e) {
+      showToast(e.message || 'Failed to load user', 'error');
+    } finally { setLoading(false); }
+  }, [userId, showToast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const doAction = async (label, fn, refresh = true) => {
+    try {
+      await fn();
+      showToast(label, 'success');
+      if (refresh) { load(); onMutated?.(); }
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  if (!detail && !loading) return null;
+
+  const u = detail?.user;
+  const s = detail?.stats;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex justify-end" onClick={onClose}>
+      {confirmEl}
+      <div className="bg-[#111] border-l border-[#2a2a2a] w-full max-w-lg h-full overflow-y-auto"
+           onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-[#1e1e1e] flex justify-between items-center sticky top-0 bg-[#111]">
+          <h3 className="font-semibold">User detail</h3>
+          <button onClick={onClose} className="text-[#666] hover:text-[#ddd]">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {loading || !u ? (
+          <div className="p-5"><p className="text-[#666] text-sm">Loading…</p></div>
+        ) : (
+          <div className="p-5 space-y-5">
+            {/* Identity */}
+            <div>
+              <p className="text-sm font-mono text-[#888]">{u.email}</p>
+              <p className="text-lg font-semibold text-[#f4f4f0] mt-0.5">{u.name || '(no name)'}</p>
+              <div className="flex gap-2 mt-2">
+                {u.is_admin && <span className="text-[10px] font-mono bg-[#c8f135]/15 text-[#c8f135] px-1.5 py-0.5 rounded">ADMIN</span>}
+                {u.email_verified_at && <span className="text-[10px] font-mono bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded">VERIFIED</span>}
+                {u.zip_code && <span className="text-[10px] font-mono bg-[#1a1a1a] text-[#bbb] px-1.5 py-0.5 rounded">ZIP {u.zip_code}</span>}
+              </div>
+              <p className="text-[10px] text-[#555] mt-2 font-mono">
+                joined {new Date(u.created_at).toLocaleString()}
+              </p>
+            </div>
+
+            {/* Stats */}
+            <div>
+              <p className="text-xs font-mono text-[#666] uppercase mb-2">Activity</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Scans"           value={s?.scans} />
+                <Stat label="Pantry items"    value={s?.pantry} />
+                <Stat label="Recipes viewed"  value={s?.recipes_viewed} />
+                <Stat label="Contributions"   value={s?.contributions} />
+                <Stat label="Family memberships" value={s?.family_memberships} />
+              </div>
+            </div>
+
+            {/* Subscription */}
+            <div>
+              <p className="text-xs font-mono text-[#666] uppercase mb-2">Subscription</p>
+              {u.sub_plan ? (
+                <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-3 text-sm">
+                  <p><span className="text-[#888]">Plan:</span> <span className="text-[#c8f135] font-mono">{u.sub_plan}</span></p>
+                  <p><span className="text-[#888]">Status:</span> {u.sub_status}</p>
+                  {u.trial_ends_at && <p><span className="text-[#888]">Trial ends:</span> {new Date(u.trial_ends_at).toLocaleString()}</p>}
+                  {u.expires_at && <p><span className="text-[#888]">Expires:</span> {new Date(u.expires_at).toLocaleString()}</p>}
+                </div>
+              ) : (
+                <p className="text-sm text-[#666]">Free tier (no subscription record).</p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div>
+              <p className="text-xs font-mono text-[#666] uppercase mb-2">Actions</p>
+              <div className="flex flex-wrap gap-2">
+                <Btn onClick={async () => {
+                  const ok = await confirm({
+                    title: u.is_admin ? 'Revoke admin?' : 'Grant admin?',
+                    message: `${u.is_admin ? 'Revoke' : 'Grant'} admin access for ${u.email}?`,
+                    danger: u.is_admin, confirmLabel: u.is_admin ? 'Revoke' : 'Grant',
+                  });
+                  if (ok) doAction(u.is_admin ? 'Admin revoked' : 'Admin granted',
+                    () => admin.users.setAdmin(u.id, !u.is_admin));
+                }}>
+                  {u.is_admin ? 'Revoke admin' : 'Grant admin'}
+                </Btn>
+                <Btn onClick={() => doAction('30-day trial granted', () => admin.users.grantTrial(u.id, 30))}>
+                  Grant 30-day trial
+                </Btn>
+                <Btn onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Comp lifetime premium?',
+                    message: `Give ${u.email} lifetime premium with no expiry?`, confirmLabel: 'Comp',
+                  });
+                  if (ok) doAction('Lifetime premium granted', () => admin.users.compPremium(u.id));
+                }}>
+                  Comp lifetime
+                </Btn>
+                <Btn onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Cancel subscription?',
+                    message: `Cancel subscription for ${u.email}? They'll fall back to free tier.`,
+                    confirmLabel: 'Cancel sub', danger: true,
+                  });
+                  if (ok) doAction('Subscription cancelled', () => admin.users.cancelSub(u.id));
+                }}>
+                  Cancel subscription
+                </Btn>
+                <Btn variant="primary" onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Impersonate user?',
+                    message: `Generate a short-lived session for ${u.email}? You'll be logged in as them. Action is audited.`,
+                    confirmLabel: 'Impersonate',
+                  });
+                  if (!ok) return;
+                  try {
+                    const r = await admin.users.impersonate(u.id);
+                    // Store original admin token so we can return
+                    const adminToken = localStorage.getItem('token');
+                    if (adminToken) localStorage.setItem('admin_return_token', adminToken);
+                    localStorage.setItem('token', r.token);
+                    showToast('Impersonating — page will reload', 'success');
+                    setTimeout(() => { window.location.href = '/'; }, 500);
+                  } catch (e) { showToast(e.message || 'Failed', 'error'); }
+                }}>
+                  <LogIn className="w-3.5 h-3.5" /> Impersonate
+                </Btn>
+                <Btn variant="danger" onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Delete user?',
+                    message: `Permanently delete ${u.email} and ALL their data. This cannot be undone.`,
+                    confirmLabel: 'Delete', danger: true,
+                  });
+                  if (ok) {
+                    await doAction('User deleted', () => admin.users.remove(u.id), false);
+                    onClose();
+                    onMutated?.();
+                  }
+                }}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete user
+                </Btn>
+              </div>
+            </div>
+
+            {/* Audit on this user */}
+            <div>
+              <p className="text-xs font-mono text-[#666] uppercase mb-2">Recent admin actions on this user</p>
+              {audit.length === 0 ? (
+                <p className="text-sm text-[#666]">No prior admin actions logged.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {audit.map(a => (
+                    <li key={a.id} className="text-xs flex items-center gap-2 text-[#888]">
+                      <span className="text-[#555] font-mono w-28 flex-shrink-0">
+                        {new Date(a.created_at).toLocaleDateString()}
+                      </span>
+                      <span className="font-mono text-[10px] bg-[#1a1a1a] text-[#c8f135] px-1.5 py-0.5 rounded">
+                        {a.action}
+                      </span>
+                      <span className="text-[#666] truncate">{a.admin_email}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-2.5">
+      <p className="text-[10px] font-mono text-[#666] uppercase">{label}</p>
+      <p className="text-lg font-bold">{value ?? 0}</p>
+    </div>
   );
 }
 
@@ -586,6 +939,7 @@ function SubscriptionsSection() {
               <option value="cancelled">Cancelled</option>
               <option value="expired">Expired</option>
             </select>
+            <ExportButton resource="subscriptions" />
           </div>
         }
       />
@@ -842,6 +1196,7 @@ function RecipesSection() {
                 </option>
               ))}
             </select>
+            <ExportButton resource="recipes" />
           </div>
         }
       />
@@ -1087,6 +1442,7 @@ function CompaniesSection() {
         actions={
           <div className="flex gap-2">
             <SearchInput value={search} onChange={setSearch} placeholder="Company name…" />
+            <ExportButton resource="companies" />
             <Btn variant="primary" onClick={() => setAdding(a => !a)}>
               <Plus className="w-4 h-4" /> New company
             </Btn>
@@ -1273,6 +1629,7 @@ function BrandsSection() {
         actions={
           <div className="flex gap-2">
             <SearchInput value={search} onChange={setSearch} placeholder="Alias or company…" />
+            <ExportButton resource="brand_aliases" />
             <Btn variant="primary" onClick={() => setAdding(a => !a)}>
               <Plus className="w-4 h-4" /> Add alias
             </Btn>
@@ -1455,6 +1812,7 @@ function AuditSection() {
             <SearchInput value={filter.admin_email}
                          onChange={v => setFilter(f => ({ ...f, admin_email: v }))}
                          placeholder="Admin email…" />
+            <ExportButton resource="audit" />
           </div>
         }
       />
@@ -1513,5 +1871,169 @@ const SECTION_COMPONENTS = {
   companies:     CompaniesSection,
   brands:        BrandsSection,
   flags:         FlagsSection,
+  broadcast:     BroadcastSection,
   audit:         AuditSection,
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+// BROADCAST — compose email + push announcements
+// ══════════════════════════════════════════════════════════════════════════
+
+function BroadcastSection() {
+  const { showToast } = useToast();
+  const [segments, setSegments] = useState({});
+  const [segment, setSegment] = useState('all');
+  const [channels, setChannels] = useState({ email: true, push: false });
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  useEffect(() => {
+    admin.broadcast.segments().then(r => setSegments(r.segments || {})).catch(() => {});
+  }, []);
+
+  const SEGMENT_LABELS = {
+    all:      'All users',
+    verified: 'Email verified',
+    premium:  'Premium (active)',
+    trial:    'Active trials',
+    free:     'Free users',
+  };
+
+  const canSend =
+    body.trim() &&
+    (channels.email || channels.push) &&
+    (!channels.email || subject.trim());
+
+  async function onSend() {
+    const channelList = Object.entries(channels).filter(([, v]) => v).map(([k]) => k);
+    const targetCount = segments[segment] ?? 0;
+    if (!window.confirm(
+      `Send to ${targetCount} ${SEGMENT_LABELS[segment]} via ${channelList.join(' + ')}?`
+    )) return;
+
+    setSending(true);
+    setLastResult(null);
+    try {
+      const r = await admin.broadcast.send({ subject, body, segment, channels: channelList });
+      setLastResult(r);
+      showToast(`Sent to ${r.recipients} recipients`, 'success');
+      setSubject('');
+      setBody('');
+    } catch (e) {
+      showToast(e.message || 'Broadcast failed', 'error');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Broadcast" subtitle="Send a message to a user segment over email and/or push." />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-5">
+          <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+            <p className="text-xs uppercase tracking-wider text-[#666] font-mono">Audience</p>
+            <div className="grid grid-cols-1 gap-2 mt-2">
+              {Object.keys(SEGMENT_LABELS).map(k => (
+                <label key={k}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition ${
+                    segment === k
+                      ? 'border-[#c8f135] bg-[#c8f135]/10'
+                      : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+                  }`}>
+                  <span className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={segment === k}
+                      onChange={() => setSegment(k)}
+                      className="accent-[#c8f135]"
+                    />
+                    {SEGMENT_LABELS[k]}
+                  </span>
+                  <span className="text-xs text-[#888] font-mono">
+                    {segments[k] != null ? `${segments[k].toLocaleString()} users` : '…'}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+            <p className="text-xs uppercase tracking-wider text-[#666] font-mono">Channels</p>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition ${
+                channels.email ? 'border-[#c8f135] bg-[#c8f135]/10' : 'border-[#2a2a2a]'
+              }`}>
+                <input type="checkbox" checked={channels.email}
+                  onChange={e => setChannels(c => ({ ...c, email: e.target.checked }))}
+                  className="accent-[#c8f135]" />
+                <Mail className="w-4 h-4" /> <span className="text-sm">Email</span>
+              </label>
+              <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition ${
+                channels.push ? 'border-[#c8f135] bg-[#c8f135]/10' : 'border-[#2a2a2a]'
+              }`}>
+                <input type="checkbox" checked={channels.push}
+                  onChange={e => setChannels(c => ({ ...c, push: e.target.checked }))}
+                  className="accent-[#c8f135]" />
+                <Bell className="w-4 h-4" /> <span className="text-sm">Push</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-[#666] font-mono">
+            Subject {channels.email && <span className="text-[#c8f135]">*</span>}
+          </p>
+          <input
+            type="text"
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            placeholder="What's the message about?"
+            maxLength={140}
+            className="w-full mt-2 px-3 py-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg text-sm focus:border-[#c8f135] outline-none"
+          />
+          <div className="text-xs text-[#666] mt-1 font-mono">{subject.length}/140</div>
+
+          <p className="text-xs uppercase tracking-wider text-[#666] font-mono mt-4">Body</p>
+          <textarea
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            placeholder="Plain text. Newlines are preserved."
+            rows={10}
+            maxLength={4000}
+            className="w-full mt-2 px-3 py-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg text-sm focus:border-[#c8f135] outline-none resize-none font-mono"
+          />
+          <div className="text-xs text-[#666] mt-1 font-mono">{body.length}/4000</div>
+
+          <button
+            onClick={onSend}
+            disabled={!canSend || sending}
+            className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[#c8f135] text-[#0a0a0a] font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#d4ff48]"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? 'Sending…' : `Send to ${segments[segment]?.toLocaleString() ?? '…'} users`}
+          </button>
+
+          {lastResult && (
+            <div className="mt-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg text-xs font-mono text-[#bbb] space-y-1">
+              <div>Recipients: {lastResult.recipients}</div>
+              {lastResult.email && (
+                <div>Email — sent: {lastResult.email.sent}, failed: {lastResult.email.failed}</div>
+              )}
+              {lastResult.push && (
+                <div>
+                  Push — sent: {lastResult.push.sent}, expired: {lastResult.push.expired},
+                  no-sub: {lastResult.push.no_sub}, failed: {lastResult.push.failed}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

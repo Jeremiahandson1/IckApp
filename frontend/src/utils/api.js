@@ -360,11 +360,32 @@ export const admin = {
   users: {
     list:        (params)    => api.get(`/admin/users?${qs(params)}`),
     get:         (id)        => api.get(`/admin/users/${id}`),
+    audit:       (id)        => api.get(`/admin/users/${id}/audit`),
+    impersonate: (id)        => api.post(`/admin/users/${id}/impersonate`, {}),
     setAdmin:    (id, on)    => api.put(`/admin/users/${id}/admin`, { is_admin: on }),
     grantTrial:  (id, days)  => api.post(`/admin/users/${id}/grant-trial`, { days }),
     compPremium: (id)        => api.post(`/admin/users/${id}/comp-premium`, {}),
     cancelSub:   (id)        => api.post(`/admin/users/${id}/cancel-subscription`, {}),
     remove:      (id)        => api.delete(`/admin/users/${id}`),
+  },
+
+  // Fetches CSV with auth header, triggers a browser download.
+  // Plain <a href> wouldn't work since the export endpoint requires Bearer auth.
+  exportCsv: async (resource) => {
+    const token = localStorage.getItem('token');
+    const r = await fetch(`${API_URL}/admin/export/${resource}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!r.ok) throw new Error(`Export failed (HTTP ${r.status})`);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ick-${resource}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   },
 
   subscriptions: {
@@ -399,6 +420,11 @@ export const admin = {
     list:        ()          => api.get(`/admin/flags`),
     toggle:      (key, on)   => api.patch(`/admin/flags/${encodeURIComponent(key)}`, { enabled: on }),
     create:      (data)      => api.post(`/admin/flags`, data),
+  },
+
+  broadcast: {
+    segments:    ()          => api.get(`/admin/broadcast/segments`),
+    send:        (data)      => api.post(`/admin/broadcast`, data),
   },
 
   audit: {

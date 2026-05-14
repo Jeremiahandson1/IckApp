@@ -2,8 +2,11 @@
 // Every mutation logs to admin_actions.
 
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import pool from '../../db/init.js';
 import { logAdminAction } from '../../utils/adminAudit.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-CHANGE-ME';
 
 const router = express.Router();
 
@@ -81,6 +84,22 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /admin/users/:id/audit — actions targeting this user
+router.get('/:id/audit', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, admin_email, action, details, created_at
+       FROM admin_actions
+       WHERE target_type = 'user' AND target_id = $1
+       ORDER BY created_at DESC LIMIT 50`,
+      [String(req.params.id)]
+    );
+    res.json({ actions: r.rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load audit' });
+  }
+});
+
 // PUT /admin/users/:id/admin — toggle admin role
 router.put('/:id/admin', async (req, res) => {
   try {
@@ -148,6 +167,35 @@ router.post('/:id/cancel-subscription', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to cancel' });
+  }
+});
+
+// POST /admin/users/:id/impersonate — mint a 1-hour JWT for the target user.
+// Token has an "imp" marker recording the original admin id so the app can
+// show a banner and we have an audit trail when the imp uses any feature.
+router.post('/:id/impersonate', async (req, res) => {
+  try {
+    const u = await pool.query(
+      `SELECT id, email FROM users WHERE id = $1`,
+      [req.params.id]
+    );
+    if (u.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const target = u.rows[0];
+
+    const token = jwt.sign(
+      { id: target.id, email: target.email, imp: true, imp_by: req.user.id },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    await logAdminAction(req, 'impersonate', 'user', req.params.id, {
+      email: target.email,
+    });
+
+    res.json({ token, user: { id: target.id, email: target.email } });
+  } catch (err) {
+    console.error('impersonate error:', err);
+    res.status(500).json({ error: 'Failed to mint impersonation token' });
   }
 });
 

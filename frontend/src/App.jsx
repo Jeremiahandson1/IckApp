@@ -6,6 +6,7 @@ import { isNative } from './utils/platform';
 // Layout
 import AppLayout from './components/layout/AppLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import ImpersonationBanner from './components/common/ImpersonationBanner';
 
 // Pages
 import Landing from './pages/Landing';
@@ -160,6 +161,7 @@ export default function App() {
   return (
     <>
       <NativeLifecycle />
+      <ImpersonationBanner />
       <Routes>
       {/* First visit → onboarding. Already onboarded → /scan */}
       <Route path="/" element={<FirstVisitGate />} />

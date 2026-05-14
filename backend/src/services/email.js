@@ -27,6 +27,23 @@ async function getResend() {
   return resendClient;
 }
 
+// Send the same email to a list of recipients with light concurrency control
+// so we don't slam Resend's API. Returns aggregate {sent, failed}.
+export async function sendBroadcastEmail({ recipients, subject, html, text }) {
+  const out = { sent: 0, failed: 0 };
+  const CONCURRENCY = 5;
+  for (let i = 0; i < recipients.length; i += CONCURRENCY) {
+    const batch = recipients.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(to =>
+      send({ to, subject, html, text }).catch(() => ({ ok: false }))
+    ));
+    for (const r of results) {
+      if (r.ok) out.sent++; else out.failed++;
+    }
+  }
+  return out;
+}
+
 async function send({ to, subject, html, text }) {
   const resend = await getResend();
   if (!resend) return { ok: false, reason: 'email_disabled' };

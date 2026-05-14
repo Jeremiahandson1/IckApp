@@ -13,6 +13,7 @@ import brandsRouter        from './admin/brands.js';
 import recipesRouter       from './admin/recipes.js';
 import flagsRouter         from './admin/flags.js';
 import auditRouter         from './admin/audit.js';
+import broadcastRouter     from './admin/broadcast.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -158,6 +159,94 @@ router.get('/products/gaps', async (req, res) => {
   }
 });
 
+// ── CSV export ────────────────────────────────────────────────────────────
+// GET /admin/export/:resource?…filters
+//
+// Streams CSV with appropriate Content-Disposition. Resources currently
+// supported: users, subscriptions, companies, recipes, brand_aliases, audit.
+// Filters mirror the JSON list endpoints for each resource.
+
+function csvCell(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') v = JSON.stringify(v);
+  const s = String(v);
+  return s.includes(',') || s.includes('"') || s.includes('\n')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+}
+function toCsv(rows, columns) {
+  const header = columns.join(',');
+  const body = rows.map(r => columns.map(c => csvCell(r[c])).join(',')).join('\n');
+  return header + '\n' + body;
+}
+
+const EXPORT_QUERIES = {
+  users: {
+    sql: `SELECT u.id, u.email, u.name, u.zip_code, u.is_admin, u.created_at,
+                 u.email_verified_at,
+                 s.plan AS sub_plan, s.status AS sub_status,
+                 (SELECT COUNT(*) FROM scan_logs WHERE user_id = u.id) AS scans
+          FROM users u LEFT JOIN subscriptions s ON s.user_id = u.id
+          ORDER BY u.created_at DESC LIMIT 50000`,
+    columns: ['id', 'email', 'name', 'zip_code', 'is_admin', 'created_at',
+              'email_verified_at', 'sub_plan', 'sub_status', 'scans'],
+  },
+  subscriptions: {
+    sql: `SELECT s.user_id, u.email, s.plan, s.status,
+                 s.trial_ends_at, s.expires_at, s.stripe_customer_id, s.created_at
+          FROM subscriptions s JOIN users u ON s.user_id = u.id
+          ORDER BY s.created_at DESC LIMIT 50000`,
+    columns: ['user_id', 'email', 'plan', 'status', 'trial_ends_at', 'expires_at',
+              'stripe_customer_id', 'created_at'],
+  },
+  companies: {
+    sql: `SELECT c.id, c.name, c.parent_company, c.behavior_score, c.controversies,
+                 c.transparency_rating,
+                 (SELECT COUNT(*) FROM products WHERE company_id = c.id) AS product_count,
+                 (SELECT COUNT(*) FROM brand_aliases WHERE company_id = c.id) AS alias_count
+          FROM companies c ORDER BY c.name LIMIT 5000`,
+    columns: ['id', 'name', 'parent_company', 'behavior_score', 'controversies',
+              'transparency_rating', 'product_count', 'alias_count'],
+  },
+  recipes: {
+    sql: `SELECT id, name, source, source_url, replaces_category, difficulty,
+                 total_time_minutes, servings, kid_friendly, dietary_tags, created_at
+          FROM recipes ORDER BY created_at DESC LIMIT 50000`,
+    columns: ['id', 'name', 'source', 'source_url', 'replaces_category', 'difficulty',
+              'total_time_minutes', 'servings', 'kid_friendly', 'dietary_tags', 'created_at'],
+  },
+  brand_aliases: {
+    sql: `SELECT ba.alias, ba.alias_display, c.name AS company_name, c.behavior_score, ba.created_at
+          FROM brand_aliases ba JOIN companies c ON ba.company_id = c.id
+          ORDER BY c.name, ba.alias LIMIT 50000`,
+    columns: ['alias', 'alias_display', 'company_name', 'behavior_score', 'created_at'],
+  },
+  audit: {
+    sql: `SELECT id, admin_email, action, target_type, target_id, details,
+                 ip_address, created_at
+          FROM admin_actions ORDER BY created_at DESC LIMIT 50000`,
+    columns: ['id', 'admin_email', 'action', 'target_type', 'target_id', 'details',
+              'ip_address', 'created_at'],
+  },
+};
+
+router.get('/export/:resource', async (req, res) => {
+  const config = EXPORT_QUERIES[req.params.resource];
+  if (!config) return res.status(400).json({ error: 'Unknown resource' });
+
+  try {
+    const r = await pool.query(config.sql);
+    const csv = toCsv(r.rows, config.columns);
+    const filename = `ick-${req.params.resource}-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('CSV export error:', err);
+    res.status(500).json({ error: 'Export failed' });
+  }
+});
+
 // ── Mount sub-routers ──────────────────────────────────────────────────────
 router.use('/users',          usersRouter);
 router.use('/subscriptions',  subscriptionsRouter);
@@ -166,5 +255,6 @@ router.use('/brand-aliases',  brandsRouter);
 router.use('/recipes',        recipesRouter);
 router.use('/flags',          flagsRouter);
 router.use('/audit',          auditRouter);
+router.use('/broadcast',      broadcastRouter);
 
 export default router;
