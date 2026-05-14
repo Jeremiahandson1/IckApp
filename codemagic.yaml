@@ -162,7 +162,10 @@ workflows:
       vars:
         PACKAGE_NAME: "com.ickthatish.app"
       node: 22
-      java: 17
+      # Capacitor 8's generated android build.gradle declares
+      # sourceCompatibility/targetCompatibility = JavaVersion.VERSION_21,
+      # so the runner needs JDK 21. Older Cap (6/7) only needed 17.
+      java: 21
 
     triggering:
       events:
