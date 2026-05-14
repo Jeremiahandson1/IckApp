@@ -194,8 +194,12 @@ workflows:
       - name: Set Gradle versionCode (auto-increment)
         script: |
           cd frontend/android/app
-          # Codemagic exposes BUILD_NUMBER per build
-          sed -i "s/versionCode .*/versionCode $BUILD_NUMBER/" build.gradle
+          # Codemagic exposes BUILD_NUMBER per build. We use perl instead
+          # of sed because BSD sed (macOS) needs `-i ''` while GNU sed
+          # (Linux) needs `-i` with no arg — perl's -i syntax is identical
+          # on both platforms.
+          perl -i -pe "s/versionCode .*/versionCode $BUILD_NUMBER/" build.gradle
+          grep "versionCode" build.gradle
 
       - name: Build signed AAB
         script: |
