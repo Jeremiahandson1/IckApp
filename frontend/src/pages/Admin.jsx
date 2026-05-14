@@ -1,526 +1,1133 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+// Admin console — sidebar shell + 9 sections.
+//
+// Sections use a shared DataTable for visual consistency. Every mutation
+// fires a toast and is logged server-side to admin_actions for audit.
+//
+// URL state: ?section=brands maps to active section, so back/forward works.
+
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import api from '../utils/api';
+import { admin } from '../utils/api';
+import {
+  LayoutDashboard, Users as UsersIcon, CreditCard, Inbox,
+  ChefHat, Building2, Tag, ToggleLeft, History, ChevronLeft, ChevronRight,
+  Search, Trash2, Edit2, Plus, X, AlertCircle, Check,
+} from 'lucide-react';
 
-// ── Tab constants ─────────────────────────────────────────────────────────────
-const TABS = ['Dashboard', 'Users', 'Contributions', 'Products'];
+const SECTIONS = [
+  { key: 'dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
+  { key: 'users',         label: 'Users',          icon: UsersIcon },
+  { key: 'subscriptions', label: 'Subscriptions',  icon: CreditCard },
+  { key: 'contributions', label: 'Contributions',  icon: Inbox },
+  { key: 'recipes',       label: 'Recipes',        icon: ChefHat },
+  { key: 'companies',     label: 'Companies',      icon: Building2 },
+  { key: 'brands',        label: 'Brand Aliases',  icon: Tag },
+  { key: 'flags',         label: 'Feature Flags',  icon: ToggleLeft },
+  { key: 'audit',         label: 'Audit Log',      icon: History },
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHELL
+// ══════════════════════════════════════════════════════════════════════════
 
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { showToast } = useToast();
-  const [tab, setTab] = useState('Dashboard');
+  const [params, setParams] = useSearchParams();
+  const section = params.get('section') || 'dashboard';
 
-  // Redirect non-admins
   useEffect(() => {
     if (user && !user.is_admin) navigate('/', { replace: true });
-  }, [user]);
+  }, [user, navigate]);
 
   if (!user?.is_admin) return null;
 
-  return (
-    <div className="min-h-screen bg-[#0d0d0d] text-white pb-20">
-      {/* Header */}
-      <div className="bg-[#111] border-b border-[#2a2a2a] px-4 py-4">
-        <h1 className="text-xl font-bold">Admin</h1>
-      </div>
+  const setSection = (key) => setParams({ section: key });
+  const ActiveSection = SECTION_COMPONENTS[section] || DashboardSection;
 
-      {/* Tabs */}
-      <div className="flex border-b border-[#2a2a2a] bg-[#111] overflow-x-auto">
-        {TABS.map(t => (
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-[#f4f4f0] flex">
+      {/* Sidebar */}
+      <aside className="w-56 flex-shrink-0 bg-[#0d0d0d] border-r border-[#1e1e1e] py-4">
+        <div className="px-4 mb-6">
+          <p className="text-xs text-[#666] font-mono uppercase tracking-wider">Ick Admin</p>
+          <p className="text-sm text-[#bbb] mt-0.5">{user.email}</p>
+        </div>
+        <nav className="space-y-0.5">
+          {SECTIONS.map(s => {
+            const Icon = s.icon;
+            const active = s.key === section;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setSection(s.key)}
+                className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
+                  active
+                    ? 'bg-[rgba(200,241,53,0.08)] text-[#c8f135] border-l-2 border-[#c8f135]'
+                    : 'text-[#888] hover:text-[#ddd] hover:bg-[#1a1a1a] border-l-2 border-transparent'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {s.label}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="px-4 mt-6 pt-4 border-t border-[#1e1e1e]">
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-              tab === t
-                ? 'border-[#c8f135] text-[#c8f135]'
-                : 'border-transparent text-[#888] hover:text-[#ddd]'
-            }`}
+            onClick={() => navigate('/')}
+            className="text-xs text-[#666] hover:text-[#ddd]"
           >
-            {t}
+            ← Back to app
           </button>
-        ))}
-      </div>
+        </div>
+      </aside>
 
-      {/* Tab content */}
-      <div className="p-4">
-        {tab === 'Dashboard'    && <DashboardTab showToast={showToast} />}
-        {tab === 'Users'        && <UsersTab showToast={showToast} />}
-        {tab === 'Contributions'&& <ContributionsTab showToast={showToast} />}
-        {tab === 'Products'     && <ProductsTab showToast={showToast} />}
-      </div>
+      {/* Content */}
+      <main className="flex-1 p-6 max-w-[1400px]">
+        <ActiveSection />
+      </main>
     </div>
   );
 }
 
-// ── Dashboard tab ─────────────────────────────────────────────────────────────
-function DashboardTab({ showToast }) {
-  const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
+// ══════════════════════════════════════════════════════════════════════════
+// SHARED COMPONENTS
+// ══════════════════════════════════════════════════════════════════════════
 
-  useEffect(() => {
-    api.get('/admin/health')
-      .then(setHealth)
-      .catch(() => showToast('Failed to load health data', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <Spinner />;
-  if (!health)  return <p className="text-[#888]">No data.</p>;
-
-  const cards = [
-    { label: 'Total Users',       value: health.users?.total,          sub: `+${health.users?.new_7d} this week` },
-    { label: 'Total Products',    value: health.products?.total,       sub: `${health.products?.scored} scored` },
-    { label: 'Scans (24h)',       value: health.scans?.last_24h,       sub: `${health.scans?.total} all time` },
-    { label: 'Active Pantry Items', value: health.pantry?.active,      sub: `${health.pantry?.total} total` },
-    { label: 'Recipes',           value: health.recipes?.total,        sub: null },
-    { label: 'Sightings',         value: health.sightings?.total,      sub: `${health.sightings?.recent} recent` },
-    { label: 'Flyer Items',       value: health.flyer_availability?.total, sub: `${health.flyer_availability?.active} active` },
-    { label: 'Curated Items',     value: health.curated_availability?.total, sub: null },
-  ];
-
-  const pending = health.contributions?.pending || 0;
-
+function SectionHeader({ title, subtitle, actions }) {
   return (
-    <div className="space-y-6">
-      {pending > 0 && (
-        <div className="bg-[rgba(200,241,53,0.06)] border border-[#c8f135]/30 rounded-sm p-4 text-[#a8cc20] text-sm">
-          ⚠️ {pending} product contribution{pending !== 1 ? 's' : ''} pending review
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        {cards.map(c => (
-          <div key={c.label} className="bg-[#111] rounded-sm p-4">
-            <p className="text-2xl font-bold">{c.value ?? '—'}</p>
-            <p className="text-sm text-[#888] mt-1">{c.label}</p>
-            {c.sub && <p className="text-xs text-[#666] mt-0.5">{c.sub}</p>}
-          </div>
-        ))}
+    <div className="flex items-end justify-between mb-5 pb-4 border-b border-[#1e1e1e]">
+      <div>
+        <h1 className="text-2xl font-bold text-[#f4f4f0]">{title}</h1>
+        {subtitle && <p className="text-sm text-[#888] mt-1">{subtitle}</p>}
       </div>
-
-      {health.subscriptions?.length > 0 && (
-        <div className="bg-[#111] rounded-sm p-4">
-          <h3 className="font-semibold mb-3">Subscriptions</h3>
-          <div className="space-y-2">
-            {health.subscriptions.map((s, i) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span className="text-[#888] capitalize">{s.plan} / {s.status}</span>
-                <span className="font-medium">{s.count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="flex items-center gap-2">{actions}</div>
     </div>
   );
 }
 
-// ── Users tab ─────────────────────────────────────────────────────────────────
-function UsersTab({ showToast }) {
-  const [users, setUsers] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [actionUser, setActionUser] = useState(null); // user being actioned
+function StatCard({ label, value, hint }) {
+  return (
+    <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+      <p className="text-xs uppercase tracking-wider text-[#666]">{label}</p>
+      <p className="text-2xl font-bold text-[#f4f4f0] mt-1">
+        {typeof value === 'number' ? value.toLocaleString() : (value ?? '—')}
+      </p>
+      {hint && <p className="text-xs text-[#666] mt-1">{hint}</p>}
+    </div>
+  );
+}
 
-  const limit = 25;
+function SearchInput({ value, onChange, placeholder = 'Search…', autoFocus = false }) {
+  return (
+    <div className="relative flex-1 max-w-sm">
+      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#555]" />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        className="w-full pl-9 pr-3 py-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm text-sm text-[#ddd] placeholder:text-[#555] focus:outline-none focus:border-[#c8f135]/40"
+      />
+    </div>
+  );
+}
+
+function Pagination({ page, total, limit, onPage }) {
+  const pages = Math.max(1, Math.ceil(total / limit));
+  if (pages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between mt-3 text-sm">
+      <p className="text-[#666]">
+        Page {page} of {pages} ({total.toLocaleString()} total)
+      </p>
+      <div className="flex gap-1">
+        <button
+          onClick={() => onPage(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="px-2 py-1 bg-[#1a1a1a] hover:bg-[#222] text-[#bbb] rounded-sm disabled:opacity-30"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onPage(Math.min(pages, page + 1))}
+          disabled={page >= pages}
+          className="px-2 py-1 bg-[#1a1a1a] hover:bg-[#222] text-[#bbb] rounded-sm disabled:opacity-30"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ message = 'Nothing here yet.' }) {
+  return (
+    <div className="bg-[#0d0d0d] border border-dashed border-[#2a2a2a] rounded-sm p-10 text-center text-[#666]">
+      {message}
+    </div>
+  );
+}
+
+function LoadingRow({ cols = 4 }) {
+  return (
+    <tr className="border-b border-[#1a1a1a]">
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="px-3 py-3">
+          <div className="h-3 bg-[#1a1a1a] rounded-sm animate-pulse" style={{ width: `${30 + (i * 13) % 60}%` }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function Table({ children, className = '' }) {
+  return (
+    <div className={`bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm overflow-x-auto ${className}`}>
+      <table className="w-full text-sm">{children}</table>
+    </div>
+  );
+}
+
+function Th({ children, className = '' }) {
+  return (
+    <th className={`px-3 py-2 text-left text-[10px] font-mono uppercase tracking-wider text-[#666] bg-[#111] border-b border-[#1e1e1e] ${className}`}>
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, className = '' }) {
+  return (
+    <td className={`px-3 py-2 text-[#ddd] border-b border-[#1a1a1a] ${className}`}>
+      {children}
+    </td>
+  );
+}
+
+function Btn({ children, variant = 'default', size = 'sm', ...props }) {
+  const base = 'inline-flex items-center gap-1.5 rounded-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+  const sizes = { sm: 'px-2.5 py-1.5 text-xs', md: 'px-3 py-2 text-sm' };
+  const variants = {
+    default: 'bg-[#1a1a1a] hover:bg-[#222] text-[#ddd] border border-[#2a2a2a]',
+    primary: 'bg-[#c8f135] hover:bg-[#b8e125] text-[#0a0a0a]',
+    danger:  'bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30',
+    ghost:   'text-[#888] hover:text-[#ddd] hover:bg-[#1a1a1a]',
+  };
+  return (
+    <button className={`${base} ${sizes[size]} ${variants[variant]}`} {...props}>
+      {children}
+    </button>
+  );
+}
+
+function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', danger = false, onConfirm, onCancel }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCancel}>
+      <div className="bg-[#111] border border-[#2a2a2a] rounded-sm max-w-md w-full mx-4 p-5" onClick={e => e.stopPropagation()}>
+        <h3 className="font-semibold text-[#f4f4f0]">{title}</h3>
+        <p className="text-sm text-[#bbb] mt-2 mb-4">{message}</p>
+        <div className="flex justify-end gap-2">
+          <Btn onClick={onCancel}>Cancel</Btn>
+          <Btn variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>{confirmLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function useConfirm() {
+  const [state, setState] = useState({ open: false });
+  const confirm = (opts) => new Promise(resolve => {
+    setState({ open: true, ...opts, _resolve: resolve });
+  });
+  const onConfirm = () => { state._resolve?.(true);  setState({ open: false }); };
+  const onCancel  = () => { state._resolve?.(false); setState({ open: false }); };
+  return [confirm, <ConfirmDialog key="cd" {...state} onConfirm={onConfirm} onCancel={onCancel} />];
+}
+
+// Debounce hook for search inputs
+function useDebounced(value, delay = 300) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SECTIONS
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function DashboardSection() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page, limit });
-      if (search) params.set('search', search);
-      const res = await api.get(`/admin/users?${params}`);
-      setUsers(res.users);
-      setTotal(res.total);
+      setData(await admin.health());
     } catch {
-      showToast('Failed to load users', 'error');
+      showToast('Failed to load dashboard', 'error');
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [showToast]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
-  };
+  if (loading && !data) return <SectionHeader title="Dashboard" />;
+  if (!data) return <EmptyState message="Dashboard data unavailable." />;
+
+  const pendingContribs = data.contributions?.pending || 0;
+
+  return (
+    <>
+      <SectionHeader
+        title="Dashboard"
+        subtitle="System health snapshot — refresh to update."
+        actions={<Btn onClick={load}>Refresh</Btn>}
+      />
+
+      {pendingContribs > 0 && (
+        <div className="mb-5 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-sm flex items-center gap-2 text-sm text-amber-300">
+          <AlertCircle className="w-4 h-4" />
+          {pendingContribs} product contribution{pendingContribs !== 1 ? 's' : ''} pending review.
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Users"    value={data.users?.total}    hint={`+${data.users?.new_24h || 0} in 24h`} />
+        <StatCard label="Products" value={data.products?.total} hint={`${data.products?.with_company || 0} with company`} />
+        <StatCard label="Scans"    value={data.scans?.total}    hint={`${data.scans?.last_24h || 0} in 24h`} />
+        <StatCard label="Pantry"   value={data.pantry?.active}  hint={`${data.pantry?.total || 0} total`} />
+        <StatCard label="Recipes"  value={data.recipes?.total}  hint={`${data.recipes?.wikibooks || 0} from Wikibooks`} />
+        <StatCard label="Companies"     value={data.companies?.total} />
+        <StatCard label="Brand Aliases" value={data.brand_aliases?.total} />
+        <StatCard label="Audit (24h)"   value={data.audit?.last_24h} hint={`${data.audit?.total || 0} all-time`} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+          <h3 className="text-sm font-semibold mb-3">Subscriptions</h3>
+          {data.subscriptions?.length === 0 ? (
+            <p className="text-xs text-[#666]">No subscriptions yet.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {data.subscriptions?.map(s => (
+                <li key={`${s.plan}-${s.status}`} className="flex justify-between text-[#bbb]">
+                  <span>{s.plan} / {s.status}</span>
+                  <span className="font-mono text-[#888]">{s.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+          <h3 className="text-sm font-semibold mb-3">Feature flags</h3>
+          <p className="text-sm text-[#bbb]">
+            <span className="text-[#c8f135]">{data.flags?.on || 0}</span> on /{' '}
+            <span className="text-[#666]">{data.flags?.off || 0}</span> off
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────
+function UsersSection() {
+  const { showToast } = useToast();
+  const [confirm, confirmEl] = useConfirm();
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search, 300);
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState({ users: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setData(await admin.users.list({ search: debouncedSearch, page, limit: 25 }));
+    } catch { showToast('Failed to load users', 'error'); }
+    finally { setLoading(false); }
+  }, [debouncedSearch, page, showToast]);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch]);
+  useEffect(() => { load(); }, [load]);
 
   const toggleAdmin = async (u) => {
+    const ok = await confirm({
+      title: u.is_admin ? 'Revoke admin?' : 'Grant admin?',
+      message: `${u.is_admin ? 'Revoke' : 'Grant'} admin access for ${u.email}?`,
+      confirmLabel: u.is_admin ? 'Revoke' : 'Grant',
+      danger: u.is_admin,
+    });
+    if (!ok) return;
     try {
-      await api.put(`/admin/users/${u.id}/admin`, { is_admin: !u.is_admin });
-      showToast(`${u.email} ${!u.is_admin ? 'promoted to' : 'removed from'} admin`, 'success');
+      await admin.users.setAdmin(u.id, !u.is_admin);
+      showToast(`Admin ${u.is_admin ? 'revoked' : 'granted'}`, 'success');
       load();
-    } catch (err) {
-      showToast(err.message || 'Failed', 'error');
-    }
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
   };
 
   const grantTrial = async (u, days) => {
     try {
-      await api.post(`/admin/users/${u.id}/grant-trial`, { days });
-      showToast(`Granted ${days}-day trial to ${u.email}`, 'success');
-      setActionUser(null);
+      await admin.users.grantTrial(u.id, days);
+      showToast(`Granted ${days}-day trial`, 'success');
       load();
-    } catch (err) {
-      showToast(err.message || 'Failed', 'error');
-    }
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
   };
 
-  const pages = Math.ceil(total / limit);
+  const compPremium = async (u) => {
+    const ok = await confirm({
+      title: 'Comp lifetime premium?',
+      message: `Give ${u.email} lifetime premium with no expiry?`,
+      confirmLabel: 'Comp',
+    });
+    if (!ok) return;
+    try {
+      await admin.users.compPremium(u.id);
+      showToast('Lifetime premium granted', 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  const deleteUser = async (u) => {
+    const ok = await confirm({
+      title: 'Delete user?',
+      message: `Permanently delete ${u.email} and all their data? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await admin.users.remove(u.id);
+      showToast('User deleted', 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <input
-          value={searchInput}
-          onChange={e => setSearchInput(e.target.value)}
-          placeholder="Search by email or name..."
-          className="flex-1 px-4 py-2 bg-[#111] border border-[#333] rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
-        />
-        <button
-          type="submit"
-          className="px-4 py-2 bg-[#c8f135] text-white rounded-sm text-sm font-medium"
-        >
-          Search
-        </button>
-      </form>
+    <>
+      <SectionHeader
+        title="Users"
+        subtitle={`${data.total.toLocaleString()} total`}
+        actions={<SearchInput value={search} onChange={setSearch} placeholder="Email or name…" />}
+      />
+      {confirmEl}
 
-      <p className="text-sm text-[#888]">{total} users{search ? ` matching "${search}"` : ''}</p>
-
-      {loading ? <Spinner /> : (
-        <div className="space-y-2">
-          {users.map(u => (
-            <div key={u.id} className="bg-[#111] rounded-sm p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{u.name || '(no name)'}</p>
-                  <p className="text-sm text-[#888] truncate">{u.email}</p>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {u.is_admin && <Badge color="orange">Admin</Badge>}
-                    {u.sub_status === 'active' && <Badge color="green">{u.plan}</Badge>}
-                    <Badge color="gray">{u.pantry_count} pantry</Badge>
-                    <Badge color="gray">{u.total_products_scanned ?? 0} scans</Badge>
+      <Table>
+        <thead>
+          <tr>
+            <Th>Email</Th>
+            <Th>Name</Th>
+            <Th>Scans</Th>
+            <Th>Subscription</Th>
+            <Th>Joined</Th>
+            <Th>Actions</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && data.users.length === 0
+            ? Array.from({ length: 6 }).map((_, i) => <LoadingRow key={i} cols={6} />)
+            : data.users.map(u => (
+              <tr key={u.id} className="hover:bg-[#111]">
+                <Td>
+                  <div className="flex items-center gap-2">
+                    {u.email}
+                    {u.is_admin && <span className="text-[9px] font-mono bg-[#c8f135]/15 text-[#c8f135] px-1.5 py-0.5 rounded">ADMIN</span>}
                   </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => setActionUser(u)}
-                    className="px-3 py-1.5 bg-[#1e1e1e] text-[#bbb] rounded-sm text-xs font-medium"
-                  >
-                    Actions
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {pages > 1 && (
-        <div className="flex gap-2 justify-center">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm disabled:opacity-40">← Prev</button>
-          <span className="px-3 py-1.5 text-sm text-[#888]">{page} / {pages}</span>
-          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm disabled:opacity-40">Next →</button>
-        </div>
-      )}
-
-      {/* Action modal */}
-      {actionUser && (
-        <Modal onClose={() => setActionUser(null)} title={actionUser.email}>
-          <div className="space-y-3">
-            <button
-              onClick={() => { toggleAdmin(actionUser); setActionUser(null); }}
-              className="w-full py-3 bg-[#1e1e1e] rounded-sm text-sm font-medium text-left px-4"
-            >
-              {actionUser.is_admin ? '🔴 Remove Admin' : '🟢 Make Admin'}
-            </button>
-            <div className="text-xs text-[#666] px-1">Grant free trial</div>
-            {[7, 14, 30, 90].map(d => (
-              <button
-                key={d}
-                onClick={() => grantTrial(actionUser, d)}
-                className="w-full py-3 bg-[#1e1e1e] rounded-sm text-sm font-medium text-left px-4"
-              >
-                🎁 Grant {d}-day trial
-              </button>
+                </Td>
+                <Td className="text-[#888]">{u.name || '—'}</Td>
+                <Td className="font-mono text-[#888]">{u.scans}</Td>
+                <Td>
+                  {u.sub_status === 'active' ? (
+                    <span className="text-[#c8f135] text-xs font-mono">{u.sub_plan}</span>
+                  ) : (
+                    <span className="text-[#666] text-xs">free</span>
+                  )}
+                </Td>
+                <Td className="text-[#666] text-xs">{new Date(u.created_at).toLocaleDateString()}</Td>
+                <Td>
+                  <div className="flex gap-1">
+                    <Btn variant="ghost" onClick={() => toggleAdmin(u)}>{u.is_admin ? 'Un-admin' : 'Admin'}</Btn>
+                    <Btn variant="ghost" onClick={() => grantTrial(u, 30)}>+30d</Btn>
+                    <Btn variant="ghost" onClick={() => compPremium(u)}>Comp</Btn>
+                    <Btn variant="danger" onClick={() => deleteUser(u)}><Trash2 className="w-3 h-3" /></Btn>
+                  </div>
+                </Td>
+              </tr>
             ))}
-          </div>
-        </Modal>
-      )}
-    </div>
+        </tbody>
+      </Table>
+      <Pagination page={page} total={data.total} limit={25} onPage={setPage} />
+    </>
   );
 }
 
-// ── Contributions tab ─────────────────────────────────────────────────────────
-function ContributionsTab({ showToast }) {
-  const [contribs, setContribs] = useState([]);
+// ── Subscriptions ─────────────────────────────────────────────────────────
+function SubscriptionsSection() {
+  const { showToast } = useToast();
+  const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState({ plan: '', status: '' });
+  const [data, setData] = useState({ subscriptions: [], total: 0, summary: [] });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('pending');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/products/admin/contributions?status=${filter}`);
-      setContribs(res.contributions || []);
-    } catch {
-      showToast('Failed to load contributions', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+      setData(await admin.subscriptions.list({ ...filter, page, limit: 25 }));
+    } catch { showToast('Failed to load', 'error'); }
+    finally { setLoading(false); }
+  }, [filter, page, showToast]);
 
   useEffect(() => { load(); }, [load]);
 
-  const approve = async (id) => {
+  const extend = async (s, days) => {
     try {
-      await api.put(`/products/admin/contributions/${id}/approve`);
-      showToast('Contribution approved and product added', 'success');
-      setContribs(c => c.filter(x => x.id !== id));
-    } catch (err) {
-      showToast(err.message || 'Failed to approve', 'error');
-    }
-  };
-
-  const reject = async (id, reason) => {
-    try {
-      await api.put(`/products/admin/contributions/${id}/reject`, { reason });
-      showToast('Contribution rejected', 'success');
-      setContribs(c => c.filter(x => x.id !== id));
-    } catch (err) {
-      showToast(err.message || 'Failed to reject', 'error');
-    }
+      await admin.subscriptions.extend(s.user_id, days);
+      showToast(`Extended by ${days} days`, 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Filter */}
-      <div className="flex gap-2">
-        {['pending', 'approved', 'rejected'].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-sm text-sm font-medium capitalize transition-colors ${
-              filter === f ? 'bg-[#c8f135] text-white' : 'bg-[#1e1e1e] text-[#888]'
-            }`}
-          >
-            {f}
-          </button>
+    <>
+      <SectionHeader
+        title="Subscriptions"
+        subtitle={`${data.total} matching`}
+        actions={
+          <div className="flex gap-2">
+            <select value={filter.plan} onChange={e => { setFilter(f => ({ ...f, plan: e.target.value })); setPage(1); }}
+                    className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-sm text-[#ddd]">
+              <option value="">All plans</option>
+              <option value="trial">Trial</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+              <option value="comp">Comp</option>
+              <option value="free">Free</option>
+            </select>
+            <select value={filter.status} onChange={e => { setFilter(f => ({ ...f, status: e.target.value })); setPage(1); }}
+                    className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-sm text-[#ddd]">
+              <option value="">Any status</option>
+              <option value="active">Active</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="expired">Expired</option>
+            </select>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        {data.summary?.map(s => (
+          <div key={`${s.plan}-${s.status}`} className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm px-3 py-2">
+            <p className="text-[10px] uppercase font-mono text-[#666]">{s.plan} / {s.status}</p>
+            <p className="text-lg font-bold">{s.n}</p>
+          </div>
         ))}
       </div>
 
-      {loading ? <Spinner /> : contribs.length === 0 ? (
-        <p className="text-[#888] text-sm py-8 text-center">No {filter} contributions.</p>
-      ) : (
-        <div className="space-y-4">
-          {contribs.map(c => (
-            <div key={c.id} className="bg-[#111] rounded-sm p-4 space-y-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold">{c.name}</p>
-                  <p className="text-sm text-[#888]">{c.brand} · UPC: {c.upc}</p>
-                </div>
-                <Badge color={c.status === 'pending' ? 'orange' : c.status === 'approved' ? 'green' : 'red'}>
-                  {c.status}
-                </Badge>
+      <Table>
+        <thead>
+          <tr>
+            <Th>Email</Th>
+            <Th>Plan</Th>
+            <Th>Status</Th>
+            <Th>Trial ends</Th>
+            <Th>Expires</Th>
+            <Th>Actions</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && data.subscriptions.length === 0
+            ? Array.from({ length: 6 }).map((_, i) => <LoadingRow key={i} cols={6} />)
+            : data.subscriptions.map(s => (
+              <tr key={s.user_id} className="hover:bg-[#111]">
+                <Td>{s.email}</Td>
+                <Td><span className="text-xs font-mono text-[#c8f135]">{s.plan}</span></Td>
+                <Td>
+                  <span className={`text-xs ${s.status === 'active' ? 'text-green-400' : 'text-[#888]'}`}>
+                    {s.status}
+                  </span>
+                </Td>
+                <Td className="text-[#666] text-xs">{s.trial_ends_at ? new Date(s.trial_ends_at).toLocaleDateString() : '—'}</Td>
+                <Td className="text-[#666] text-xs">{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : '—'}</Td>
+                <Td>
+                  <Btn variant="ghost" onClick={() => extend(s, 30)}>+30d</Btn>
+                </Td>
+              </tr>
+            ))}
+        </tbody>
+      </Table>
+      <Pagination page={page} total={data.total} limit={25} onPage={setPage} />
+    </>
+  );
+}
+
+// ── Contributions (placeholder; existing review endpoints work) ───────────
+function ContributionsSection() {
+  return (
+    <>
+      <SectionHeader title="Contributions" subtitle="User-submitted product fixes" />
+      <EmptyState message="Contribution review UI is in the legacy admin tab — wire it here once moderation flow is finalized." />
+    </>
+  );
+}
+
+// ── Recipes ───────────────────────────────────────────────────────────────
+function RecipesSection() {
+  const { showToast } = useToast();
+  const [confirm, confirmEl] = useConfirm();
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search);
+  const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState({ source: '', kid_friendly: '' });
+  const [data, setData] = useState({ recipes: [], total: 0, source_breakdown: [] });
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setData(await admin.recipes.list({
+        search: debouncedSearch, ...filter, page, limit: 50,
+      }));
+    } catch { showToast('Failed to load recipes', 'error'); }
+    finally { setLoading(false); }
+  }, [debouncedSearch, filter, page, showToast]);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch, filter]);
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (r) => {
+    const ok = await confirm({
+      title: 'Delete recipe?',
+      message: `Permanently delete "${r.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await admin.recipes.remove(r.id);
+      showToast('Recipe deleted', 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Recipes"
+        subtitle={`${data.total.toLocaleString()} matching`}
+        actions={
+          <div className="flex gap-2 items-center">
+            <SearchInput value={search} onChange={setSearch} placeholder="Recipe name…" />
+            <select value={filter.source}
+                    onChange={e => setFilter(f => ({ ...f, source: e.target.value }))}
+                    className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-sm text-[#ddd]">
+              <option value="">All sources</option>
+              {data.source_breakdown?.map(s => (
+                <option key={s.source} value={s.source === '(null)' ? '' : s.source}>
+                  {s.source} ({s.n})
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      />
+      {confirmEl}
+
+      <Table>
+        <thead>
+          <tr>
+            <Th>Name</Th>
+            <Th>Source</Th>
+            <Th>Time</Th>
+            <Th>Difficulty</Th>
+            <Th>Ingredients</Th>
+            <Th>Kid-friendly</Th>
+            <Th></Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && data.recipes.length === 0
+            ? Array.from({ length: 8 }).map((_, i) => <LoadingRow key={i} cols={7} />)
+            : data.recipes.map(r => (
+              <tr key={r.id} className="hover:bg-[#111]">
+                <Td>
+                  <div className="flex items-center gap-2">
+                    {r.image_url && <span className="text-[10px] text-[#c8f135]">🖼</span>}
+                    {r.name}
+                  </div>
+                </Td>
+                <Td>
+                  <span className="text-[10px] font-mono text-[#888] bg-[#1a1a1a] px-1.5 py-0.5 rounded">
+                    {r.source || '?'}
+                  </span>
+                </Td>
+                <Td className="text-[#888]">{r.total_time_minutes ? `${r.total_time_minutes}m` : '—'}</Td>
+                <Td className="text-[#888] capitalize">{r.difficulty || '—'}</Td>
+                <Td className="font-mono text-[#888]">{r.ing_count}</Td>
+                <Td>{r.kid_friendly ? <Check className="w-4 h-4 text-green-400" /> : <X className="w-4 h-4 text-[#444]" />}</Td>
+                <Td>
+                  <div className="flex gap-1">
+                    {r.source_url && (
+                      <a href={r.source_url} target="_blank" rel="noopener noreferrer"
+                         className="text-[10px] text-[#666] hover:text-[#c8f135] px-2 py-1">↗</a>
+                    )}
+                    <Btn variant="danger" onClick={() => remove(r)}><Trash2 className="w-3 h-3" /></Btn>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+        </tbody>
+      </Table>
+      <Pagination page={page} total={data.total} limit={50} onPage={setPage} />
+    </>
+  );
+}
+
+// ── Companies ─────────────────────────────────────────────────────────────
+function CompaniesSection() {
+  const { showToast } = useToast();
+  const [confirm, confirmEl] = useConfirm();
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search);
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState({ companies: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);  // {id, behavior_score}
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setData(await admin.companies.list({ search: debouncedSearch, page, limit: 50 }));
+    } catch { showToast('Failed to load companies', 'error'); }
+    finally { setLoading(false); }
+  }, [debouncedSearch, page, showToast]);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch]);
+  useEffect(() => { load(); }, [load]);
+
+  const saveScore = async (c) => {
+    try {
+      await admin.companies.update(c.id, { behavior_score: editing.behavior_score });
+      showToast(`Updated ${c.name} score → ${editing.behavior_score}`, 'success');
+      setEditing(null);
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  const remove = async (c) => {
+    const ok = await confirm({
+      title: `Delete ${c.name}?`,
+      message: `Removes the company and breaks all ${c.product_count} linked products. They'll fall back to the neutral 50/100 score.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await admin.companies.remove(c.id);
+      showToast('Company deleted', 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Companies"
+        subtitle={`${data.total} total — click a score to edit inline`}
+        actions={<SearchInput value={search} onChange={setSearch} placeholder="Company name…" />}
+      />
+      {confirmEl}
+
+      <Table>
+        <thead>
+          <tr>
+            <Th>Name</Th>
+            <Th className="w-24">Behavior Score</Th>
+            <Th className="w-20">Products</Th>
+            <Th className="w-20">Aliases</Th>
+            <Th>Controversies</Th>
+            <Th></Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && data.companies.length === 0
+            ? Array.from({ length: 8 }).map((_, i) => <LoadingRow key={i} cols={6} />)
+            : data.companies.map(c => {
+              const isEditing = editing?.id === c.id;
+              const score = isEditing ? editing.behavior_score : c.behavior_score;
+              const scoreColor = score >= 70 ? 'text-green-400' : score >= 50 ? 'text-amber-400' : 'text-red-400';
+              return (
+                <tr key={c.id} className="hover:bg-[#111]">
+                  <Td className="font-medium">{c.name}</Td>
+                  <Td>
+                    {isEditing ? (
+                      <div className="flex gap-1 items-center">
+                        <input
+                          type="number" min="0" max="100"
+                          value={editing.behavior_score}
+                          onChange={e => setEditing(s => ({ ...s, behavior_score: parseInt(e.target.value, 10) || 0 }))}
+                          className="w-14 bg-[#0d0d0d] border border-[#c8f135]/40 rounded-sm px-1.5 py-0.5 text-sm"
+                          autoFocus
+                        />
+                        <Btn variant="primary" onClick={() => saveScore(c)}><Check className="w-3 h-3" /></Btn>
+                        <Btn variant="ghost" onClick={() => setEditing(null)}><X className="w-3 h-3" /></Btn>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setEditing({ id: c.id, behavior_score: c.behavior_score ?? 50 })}
+                        className={`font-mono font-bold ${scoreColor} hover:underline`}
+                      >
+                        {c.behavior_score ?? '—'}
+                      </button>
+                    )}
+                  </Td>
+                  <Td className="font-mono text-[#888]">{c.product_count}</Td>
+                  <Td className="font-mono text-[#888]">{c.alias_count}</Td>
+                  <Td className="text-[#888] text-xs max-w-md truncate">{c.controversies || '—'}</Td>
+                  <Td>
+                    <Btn variant="danger" onClick={() => remove(c)}><Trash2 className="w-3 h-3" /></Btn>
+                  </Td>
+                </tr>
+              );
+            })}
+        </tbody>
+      </Table>
+      <Pagination page={page} total={data.total} limit={50} onPage={setPage} />
+    </>
+  );
+}
+
+// ── Brand Aliases ─────────────────────────────────────────────────────────
+function BrandsSection() {
+  const { showToast } = useToast();
+  const [confirm, confirmEl] = useConfirm();
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search);
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState({ aliases: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [newAlias, setNewAlias] = useState({ display: '', company_id: '' });
+  const [preview, setPreview] = useState(null);
+  const [companies, setCompanies] = useState([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setData(await admin.brandAliases.list({ search: debouncedSearch, page, limit: 50 }));
+    } catch { showToast('Failed to load', 'error'); }
+    finally { setLoading(false); }
+  }, [debouncedSearch, page, showToast]);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch]);
+  useEffect(() => { load(); }, [load]);
+
+  // Load companies list for the add-alias dropdown
+  useEffect(() => {
+    if (!adding) return;
+    admin.companies.list({ limit: 200 }).then(d => setCompanies(d.companies || []));
+  }, [adding]);
+
+  // Live preview of matching products as user types
+  useEffect(() => {
+    if (!newAlias.display) { setPreview(null); return; }
+    const t = setTimeout(async () => {
+      try { setPreview(await admin.brandAliases.preview(newAlias.display)); } catch {/*ignore*/}
+    }, 250);
+    return () => clearTimeout(t);
+  }, [newAlias.display]);
+
+  const create = async () => {
+    if (!newAlias.display || !newAlias.company_id) {
+      showToast('Display name + company required', 'error'); return;
+    }
+    try {
+      const r = await admin.brandAliases.create({
+        alias_display: newAlias.display,
+        company_id: parseInt(newAlias.company_id, 10),
+      });
+      showToast(`Alias added — ${r.products_matched} products matched`, 'success');
+      setAdding(false);
+      setNewAlias({ display: '', company_id: '' });
+      setPreview(null);
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  const remove = async (a) => {
+    const ok = await confirm({
+      title: 'Delete alias?',
+      message: `Remove "${a.alias_display}"? Linked products keep their company assignment.`,
+      confirmLabel: 'Delete', danger: true,
+    });
+    if (!ok) return;
+    try {
+      await admin.brandAliases.remove(a.alias);
+      showToast('Alias deleted', 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Brand Aliases"
+        subtitle={`${data.total} aliases mapped to companies`}
+        actions={
+          <div className="flex gap-2">
+            <SearchInput value={search} onChange={setSearch} placeholder="Alias or company…" />
+            <Btn variant="primary" onClick={() => setAdding(a => !a)}>
+              <Plus className="w-4 h-4" /> Add alias
+            </Btn>
+          </div>
+        }
+      />
+      {confirmEl}
+
+      {adding && (
+        <div className="bg-[#0d0d0d] border border-[#c8f135]/30 rounded-sm p-4 mb-4 space-y-3">
+          <h3 className="text-sm font-semibold">Add brand alias</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Display name</label>
+              <input
+                value={newAlias.display}
+                onChange={e => setNewAlias(s => ({ ...s, display: e.target.value }))}
+                placeholder='e.g. "KitKat" or "Trader Joe&apos;s"'
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Parent company</label>
+              <select
+                value={newAlias.company_id}
+                onChange={e => setNewAlias(s => ({ ...s, company_id: e.target.value }))}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-sm text-[#ddd]"
+              >
+                <option value="">Select…</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} (score {c.behavior_score})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {preview && (
+            <p className="text-xs text-[#888]">
+              Normalized form: <span className="font-mono text-[#c8f135]">{preview.normalized}</span>{' '}
+              — would match <span className="text-[#c8f135] font-bold">{preview.count}</span> unmatched products
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Btn onClick={() => { setAdding(false); setPreview(null); }}>Cancel</Btn>
+            <Btn variant="primary" onClick={create}>Create alias</Btn>
+          </div>
+        </div>
+      )}
+
+      <Table>
+        <thead>
+          <tr>
+            <Th>Display</Th>
+            <Th>Normalized</Th>
+            <Th>Company</Th>
+            <Th>Score</Th>
+            <Th></Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && data.aliases.length === 0
+            ? Array.from({ length: 8 }).map((_, i) => <LoadingRow key={i} cols={5} />)
+            : data.aliases.map(a => (
+              <tr key={a.alias} className="hover:bg-[#111]">
+                <Td>{a.alias_display}</Td>
+                <Td className="font-mono text-[#666] text-xs">{a.alias}</Td>
+                <Td>{a.company_name}</Td>
+                <Td className="font-mono text-[#888]">{a.behavior_score}</Td>
+                <Td>
+                  <Btn variant="danger" onClick={() => remove(a)}><Trash2 className="w-3 h-3" /></Btn>
+                </Td>
+              </tr>
+            ))}
+        </tbody>
+      </Table>
+      <Pagination page={page} total={data.total} limit={50} onPage={setPage} />
+    </>
+  );
+}
+
+// ── Feature Flags ─────────────────────────────────────────────────────────
+function FlagsSection() {
+  const { showToast } = useToast();
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await admin.flags.list();
+      setFlags(d.flags || []);
+    } catch { showToast('Failed to load flags', 'error'); }
+    finally { setLoading(false); }
+  }, [showToast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (f) => {
+    try {
+      await admin.flags.toggle(f.key, !f.enabled);
+      showToast(`${f.key} ${!f.enabled ? 'enabled' : 'disabled'}`, 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Feature Flags"
+        subtitle="Toggle runtime kill-switches without redeploying. Changes propagate within 30 seconds."
+        actions={<Btn onClick={load}>Refresh</Btn>}
+      />
+
+      <div className="space-y-2">
+        {loading && flags.length === 0
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-14 bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm animate-pulse" />
+            ))
+          : flags.map(f => (
+            <div key={f.key} className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4 flex items-center justify-between">
+              <div>
+                <p className="font-mono text-sm text-[#f4f4f0]">{f.key}</p>
+                <p className="text-xs text-[#888] mt-0.5">{f.description}</p>
+                {f.updated_at && (
+                  <p className="text-[10px] text-[#555] mt-1 font-mono">
+                    last updated {new Date(f.updated_at).toLocaleString()}
+                  </p>
+                )}
               </div>
-              {c.ingredients_text && (
-                <div>
-                  <p className="text-xs text-[#666] mb-1">Ingredients</p>
-                  <p className="text-sm text-[#bbb] line-clamp-3">{c.ingredients_text}</p>
-                </div>
-              )}
-              {c.image_url && (
-                <img src={c.image_url} alt={c.name} className="w-16 h-16 object-cover rounded-sm" />
-              )}
-              <p className="text-xs text-[#666]">
-                Submitted by {c.submitter_email || 'anonymous'} · {new Date(c.created_at).toLocaleDateString()}
-              </p>
-              {c.status === 'pending' && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => approve(c.id)}
-                    className="flex-1 py-2 bg-green-600 text-white rounded-sm text-sm font-medium"
-                  >
-                    ✓ Approve
-                  </button>
-                  <button
-                    onClick={() => reject(c.id, 'Rejected by admin')}
-                    className="flex-1 py-2 bg-red-700 text-white rounded-sm text-sm font-medium"
-                  >
-                    ✕ Reject
-                  </button>
-                </div>
-              )}
+              <button
+                onClick={() => toggle(f)}
+                className={`relative w-12 h-6 rounded-full transition-colors ${
+                  f.enabled ? 'bg-[#c8f135]' : 'bg-[#2a2a2a]'
+                }`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${
+                  f.enabled ? 'left-6' : 'left-0.5'
+                }`} />
+              </button>
             </div>
           ))}
-        </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
 
-// ── Products tab ──────────────────────────────────────────────────────────────
-function ProductsTab({ showToast }) {
-  const [gaps, setGaps] = useState(null);
+// ── Audit Log ─────────────────────────────────────────────────────────────
+function AuditSection() {
+  const { showToast } = useToast();
+  const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState({ action: '', admin_email: '' });
+  const [data, setData] = useState({ actions: [], total: 0, action_summary: [] });
   const [loading, setLoading] = useState(true);
-  const [flagging, setFlagging] = useState(false);
-  const [minScore, setMinScore] = useState(75);
-  const [flagResult, setFlagResult] = useState(null);
 
-  useEffect(() => {
-    api.get('/admin/products/gaps')
-      .then(setGaps)
-      .catch(() => showToast('Failed to load product gaps', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const autoFlag = async () => {
-    setFlagging(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await api.post('/admin/products/auto-flag-clean', { min_score: minScore });
-      setFlagResult(res);
-      showToast(`Flagged ${res.flagged} products as clean alternatives`, 'success');
-    } catch (err) {
-      showToast(err.message || 'Failed', 'error');
-    } finally {
-      setFlagging(false);
-    }
-  };
+      setData(await admin.audit.list({ ...filter, page, limit: 50 }));
+    } catch { showToast('Failed to load audit log', 'error'); }
+    finally { setLoading(false); }
+  }, [filter, page, showToast]);
 
-  if (loading) return <Spinner />;
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [filter]);
 
   return (
-    <div className="space-y-6">
-      {/* Data gaps */}
-      {gaps && (
-        <div className="bg-[#111] rounded-sm p-4 space-y-3">
-          <h3 className="font-semibold">Data Gaps</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <GapStat label="Missing Score" value={gaps.no_score} color="red" />
-            <GapStat label="Missing Image" value={gaps.no_image} color="yellow" />
-            <GapStat label="Missing Ingredients" value={gaps.no_ingredients} color="orange" />
+    <>
+      <SectionHeader
+        title="Audit Log"
+        subtitle={`${data.total.toLocaleString()} actions logged`}
+        actions={
+          <div className="flex gap-2">
+            <select value={filter.action}
+                    onChange={e => setFilter(f => ({ ...f, action: e.target.value }))}
+                    className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-sm text-[#ddd]">
+              <option value="">All actions</option>
+              {data.action_summary?.map(a => (
+                <option key={a.action} value={a.action}>{a.action} ({a.n})</option>
+              ))}
+            </select>
+            <SearchInput value={filter.admin_email}
+                         onChange={v => setFilter(f => ({ ...f, admin_email: v }))}
+                         placeholder="Admin email…" />
           </div>
+        }
+      />
 
-          {gaps.samples?.length > 0 && (
-            <div>
-              <p className="text-xs text-[#666] mb-2">Recent products with gaps</p>
-              <div className="space-y-2">
-                {gaps.samples.map(p => (
-                  <div key={p.upc} className="flex justify-between items-center text-sm">
-                    <div className="min-w-0">
-                      <p className="truncate">{p.name || '(unnamed)'}</p>
-                      <p className="text-xs text-[#666]">{p.upc}</p>
-                    </div>
-                    <div className="flex gap-2 shrink-0 ml-2">
-                      {p.total_score == null && <Badge color="red">no score</Badge>}
-                      {!p.image_url && <Badge color="yellow">no image</Badge>}
-                      {p.missing_ingredients && <Badge color="orange">no ingr.</Badge>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Auto-flag clean alternatives */}
-      <div className="bg-[#111] rounded-sm p-4 space-y-4">
-        <h3 className="font-semibold">Auto-Flag Clean Alternatives</h3>
-        <p className="text-sm text-[#888]">
-          Mark all products above a score threshold as clean alternatives, making them available as swap suggestions.
-        </p>
-        <div className="flex gap-3 items-center">
-          <label className="text-sm text-[#bbb]">Min score</label>
-          <input
-            type="number"
-            value={minScore}
-            onChange={e => setMinScore(parseInt(e.target.value) || 0)}
-            min={0}
-            max={100}
-            className="w-20 px-3 py-2 bg-[#1e1e1e] border border-[#333] rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#c8f135]"
-          />
-          <button
-            onClick={autoFlag}
-            disabled={flagging}
-            className="px-4 py-2 bg-[#c8f135] text-white rounded-sm text-sm font-medium disabled:opacity-50"
-          >
-            {flagging ? 'Running...' : 'Run'}
-          </button>
-        </div>
-
-        {flagResult && (
-          <div className="bg-green-900/30 border border-green-800 rounded-sm p-3 text-sm text-green-300">
-            ✓ Flagged {flagResult.flagged} products
-            {flagResult.products?.length > 0 && (
-              <ul className="mt-2 space-y-1 text-xs text-green-400 max-h-40 overflow-auto">
-                {flagResult.products.map(p => (
-                  <li key={p.upc}>{p.name} — score {p.total_score}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+      <Table>
+        <thead>
+          <tr>
+            <Th>When</Th>
+            <Th>Who</Th>
+            <Th>Action</Th>
+            <Th>Target</Th>
+            <Th>Details</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading && data.actions.length === 0
+            ? Array.from({ length: 8 }).map((_, i) => <LoadingRow key={i} cols={5} />)
+            : data.actions.length === 0
+              ? <tr><td colSpan={5} className="px-3 py-10 text-center text-[#666]">No audit entries yet.</td></tr>
+              : data.actions.map(a => (
+                <tr key={a.id} className="hover:bg-[#111]">
+                  <Td className="text-[#888] text-xs whitespace-nowrap">
+                    {new Date(a.created_at).toLocaleString()}
+                  </Td>
+                  <Td className="text-[#ddd] text-xs">{a.admin_email || '(deleted)'}</Td>
+                  <Td>
+                    <span className="text-[10px] font-mono bg-[#1a1a1a] text-[#c8f135] px-1.5 py-0.5 rounded">
+                      {a.action}
+                    </span>
+                  </Td>
+                  <Td className="text-[#888] text-xs">
+                    {a.target_type ? `${a.target_type}/${a.target_id || '*'}` : '—'}
+                  </Td>
+                  <Td className="font-mono text-[10px] text-[#666] max-w-md truncate">
+                    {a.details ? JSON.stringify(a.details) : '—'}
+                  </Td>
+                </tr>
+              ))}
+        </tbody>
+      </Table>
+      <Pagination page={page} total={data.total} limit={50} onPage={setPage} />
+    </>
   );
 }
 
-// ── Shared components ─────────────────────────────────────────────────────────
-function Spinner() {
-  return (
-    <div className="flex justify-center py-12">
-      <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
-    </div>
-  );
-}
+// ══════════════════════════════════════════════════════════════════════════
+// SECTION REGISTRY
+// ══════════════════════════════════════════════════════════════════════════
 
-function Badge({ color, children }) {
-  const colors = {
-    orange: 'bg-[rgba(200,241,53,0.1)] text-[#a8cc20]',
-    green:  'bg-green-500/20 text-green-300',
-    red:    'bg-red-500/20 text-red-300',
-    yellow: 'bg-yellow-500/20 text-yellow-300',
-    gray:   'bg-[#2a2a2a] text-[#888]',
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[color] || colors.gray}`}>
-      {children}
-    </span>
-  );
-}
-
-function GapStat({ label, value, color }) {
-  const colors = { red: 'text-red-400', yellow: 'text-yellow-400', orange: 'text-[#c8f135]' };
-  return (
-    <div className="bg-[#1e1e1e] rounded-sm p-3 text-center">
-      <p className={`text-2xl font-bold ${colors[color]}`}>{value ?? '—'}</p>
-      <p className="text-xs text-[#666] mt-1">{label}</p>
-    </div>
-  );
-}
-
-function Modal({ onClose, title, children }) {
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4">
-      <div className="bg-[#0d0d0d] rounded-sm p-6 w-full max-w-sm space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold truncate">{title}</h3>
-          <button onClick={onClose} className="text-[#888] text-lg leading-none">✕</button>
-        </div>
-        {children}
-        <button onClick={onClose} className="w-full py-3 bg-[#1e1e1e] text-[#888] rounded-sm text-sm">Cancel</button>
-      </div>
-    </div>
-  );
-}
+const SECTION_COMPONENTS = {
+  dashboard:     DashboardSection,
+  users:         UsersSection,
+  subscriptions: SubscriptionsSection,
+  contributions: ContributionsSection,
+  recipes:       RecipesSection,
+  companies:     CompaniesSection,
+  brands:        BrandsSection,
+  flags:         FlagsSection,
+  audit:         AuditSection,
+};

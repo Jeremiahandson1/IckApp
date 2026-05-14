@@ -794,6 +794,46 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_brand_aliases_company ON brand_aliases(company_id);
       CREATE INDEX IF NOT EXISTS idx_brand_aliases_trgm ON brand_aliases USING gin (alias gin_trgm_ops);
       CREATE INDEX IF NOT EXISTS idx_products_company_id ON products(company_id);
+
+      -- Admin audit log: every gated mutation (toggle admin, grant trial,
+      -- edit company score, delete recipe, etc.) is recorded so we can
+      -- answer "who changed what, when, and from where".
+      CREATE TABLE IF NOT EXISTS admin_actions (
+        id SERIAL PRIMARY KEY,
+        admin_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        admin_email VARCHAR(255),          -- denormalized for log readability after user delete
+        action VARCHAR(64) NOT NULL,        -- e.g. 'toggle_admin', 'grant_trial', 'update_company'
+        target_type VARCHAR(32),            -- e.g. 'user', 'company', 'recipe'
+        target_id VARCHAR(64),              -- stringified id (UUID or int)
+        details JSONB,                       -- arbitrary context (before/after, params)
+        ip_address VARCHAR(64),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_admin_actions_created ON admin_actions(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_admin_actions_admin ON admin_actions(admin_user_id);
+      CREATE INDEX IF NOT EXISTS idx_admin_actions_target ON admin_actions(target_type, target_id);
+
+      -- Runtime feature flags: simple key/value switches for kill-switches,
+      -- maintenance mode, etc. Code paths check getFlag('disable_receipt_scanning')
+      -- and similar.
+      CREATE TABLE IF NOT EXISTS feature_flags (
+        key VARCHAR(64) PRIMARY KEY,
+        enabled BOOLEAN NOT NULL DEFAULT false,
+        description TEXT,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        updated_by UUID REFERENCES users(id) ON DELETE SET NULL
+      );
+
+      -- Seed a baseline set of flags (idempotent)
+      INSERT INTO feature_flags (key, enabled, description) VALUES
+        ('maintenance_mode',         false, 'Site-wide maintenance banner + read-only mode'),
+        ('disable_receipt_scanning', false, 'Kill switch for /receipts/scan (OpenAI cost control)'),
+        ('disable_spoonacular',      false, 'Kill switch for /recipes/spoonacular/* endpoints'),
+        ('disable_family_invites',   false, 'Hide family-group invite UI'),
+        ('disable_swap_discovery',   false, 'Disable on-the-fly OFF lookups for swaps'),
+        ('show_beta_banner',         false, 'Show "beta" banner at top of every page')
+      ON CONFLICT (key) DO NOTHING;
     `);
 
     // normalize_brand() — used by both the in-memory matcher (mirror in

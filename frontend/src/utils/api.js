@@ -164,6 +164,14 @@ class ApiClient {
     });
   }
 
+  patch(endpoint, data, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
   delete(endpoint, options = {}) {
     return this.request(endpoint, { ...options, method: 'DELETE' });
   }
@@ -326,4 +334,72 @@ export const account = {
       method: 'DELETE',
       body: JSON.stringify({ password }),
     }),
+};
+
+// ── ADMIN ─────────────────────────────────────────────────────────────────
+// All endpoints are gated by authenticateToken + requireAdmin middleware
+// server-side. Frontend just calls them; backend enforces.
+function qs(params) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params || {})) {
+    if (v != null && v !== '' && v !== false) p.set(k, v);
+  }
+  return p.toString();
+}
+
+export const admin = {
+  health:        ()          => api.get('/admin/health'),
+
+  users: {
+    list:        (params)    => api.get(`/admin/users?${qs(params)}`),
+    get:         (id)        => api.get(`/admin/users/${id}`),
+    setAdmin:    (id, on)    => api.put(`/admin/users/${id}/admin`, { is_admin: on }),
+    grantTrial:  (id, days)  => api.post(`/admin/users/${id}/grant-trial`, { days }),
+    compPremium: (id)        => api.post(`/admin/users/${id}/comp-premium`, {}),
+    cancelSub:   (id)        => api.post(`/admin/users/${id}/cancel-subscription`, {}),
+    remove:      (id)        => api.delete(`/admin/users/${id}`),
+  },
+
+  subscriptions: {
+    list:        (params)    => api.get(`/admin/subscriptions?${qs(params)}`),
+    extend:      (uid, days) => api.post(`/admin/subscriptions/${uid}/extend`, { days }),
+  },
+
+  companies: {
+    list:        (params)    => api.get(`/admin/companies?${qs(params)}`),
+    get:         (id)        => api.get(`/admin/companies/${id}`),
+    update:      (id, data)  => api.patch(`/admin/companies/${id}`, data),
+    create:      (data)      => api.post(`/admin/companies`, data),
+    remove:      (id)        => api.delete(`/admin/companies/${id}`),
+  },
+
+  brandAliases: {
+    list:        (params)    => api.get(`/admin/brand-aliases?${qs(params)}`),
+    create:      (data)      => api.post(`/admin/brand-aliases`, data),
+    remove:      (alias)     => api.delete(`/admin/brand-aliases/${encodeURIComponent(alias)}`),
+    preview:     (display)   => api.post(`/admin/brand-aliases/preview`, { alias_display: display }),
+  },
+
+  recipes: {
+    list:        (params)    => api.get(`/admin/recipes?${qs(params)}`),
+    get:         (id)        => api.get(`/admin/recipes/${id}`),
+    update:      (id, data)  => api.patch(`/admin/recipes/${id}`, data),
+    remove:      (id)        => api.delete(`/admin/recipes/${id}`),
+    bulkDelete:  (ids)       => api.post(`/admin/recipes/bulk-delete`, { ids }),
+  },
+
+  flags: {
+    list:        ()          => api.get(`/admin/flags`),
+    toggle:      (key, on)   => api.patch(`/admin/flags/${encodeURIComponent(key)}`, { enabled: on }),
+    create:      (data)      => api.post(`/admin/flags`, data),
+  },
+
+  audit: {
+    list:        (params)    => api.get(`/admin/audit?${qs(params)}`),
+  },
+
+  products: {
+    gaps:           ()       => api.get(`/admin/products/gaps`),
+    autoFlagClean:  (min)    => api.post(`/admin/products/auto-flag-clean`, { min_score: min }),
+  },
 };

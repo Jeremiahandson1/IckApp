@@ -1,209 +1,132 @@
+// Admin routes index — gates everything behind authenticateToken +
+// requireAdmin, then mounts per-concern sub-routers.
+
 import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 
-const router = express.Router();
+import usersRouter         from './admin/users.js';
+import subscriptionsRouter from './admin/subscriptions.js';
+import companiesRouter     from './admin/companies.js';
+import brandsRouter        from './admin/brands.js';
+import recipesRouter       from './admin/recipes.js';
+import flagsRouter         from './admin/flags.js';
+import auditRouter         from './admin/audit.js';
 
-// All admin routes require auth + admin
+const router = express.Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
 
-// ── System Health ──
+// ── System health (dashboard) ──────────────────────────────────────────────
 router.get('/health', async (req, res) => {
   try {
     const [
-      users,
-      products,
-      scans,
-      pantryItems,
-      recipes,
-      contributions,
-      sightings,
-      subscriptions
+      users, products, scans, pantryItems, recipes, contributions,
+      sightings, subscriptions, companies, brandAliases, auditCount, flags,
     ] = await Promise.all([
-      pool.query('SELECT COUNT(*) as total, COUNT(CASE WHEN created_at > NOW() - INTERVAL \'7 days\' THEN 1 END) as new_7d FROM users'),
-      pool.query('SELECT COUNT(*) as total, COUNT(CASE WHEN total_score IS NOT NULL THEN 1 END) as scored FROM products'),
-      pool.query('SELECT COUNT(*) as total, COUNT(CASE WHEN scanned_at > NOW() - INTERVAL \'24 hours\' THEN 1 END) as last_24h FROM scan_logs'),
-      pool.query('SELECT COUNT(*) as total, COUNT(CASE WHEN status = \'active\' THEN 1 END) as active FROM pantry_items'),
-      pool.query('SELECT COUNT(*) as total FROM recipes'),
-      pool.query(`SELECT status, COUNT(*) as count FROM product_contributions GROUP BY status`),
-      pool.query('SELECT COUNT(*) as total, COUNT(CASE WHEN last_verified_at > NOW() - INTERVAL \'7 days\' THEN 1 END) as recent FROM local_sightings'),
-      pool.query(`SELECT plan, status, COUNT(*) as count FROM subscriptions GROUP BY plan, status`)
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int AS new_7d,
+                         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS new_24h
+                  FROM users`),
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         COUNT(*) FILTER (WHERE total_score IS NOT NULL)::int AS scored,
+                         COUNT(*) FILTER (WHERE company_id IS NOT NULL)::int AS with_company
+                  FROM products`),
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         COUNT(*) FILTER (WHERE scanned_at > NOW() - INTERVAL '24 hours')::int AS last_24h,
+                         COUNT(*) FILTER (WHERE scanned_at > NOW() - INTERVAL '7 days')::int AS last_7d
+                  FROM scan_logs`),
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         COUNT(*) FILTER (WHERE status = 'active')::int AS active
+                  FROM pantry_items`),
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         COUNT(*) FILTER (WHERE source = 'wikibooks')::int AS wikibooks,
+                         COUNT(*) FILTER (WHERE source = 'curated')::int AS curated
+                  FROM recipes`),
+      pool.query(`SELECT status, COUNT(*)::int AS count FROM product_contributions GROUP BY status`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM local_sightings`),
+      pool.query(`SELECT plan, status, COUNT(*)::int AS count FROM subscriptions GROUP BY plan, status`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM companies`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM brand_aliases`),
+      pool.query(`SELECT COUNT(*)::int AS total,
+                         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS last_24h
+                  FROM admin_actions`),
+      pool.query(`SELECT COUNT(*) FILTER (WHERE enabled = true)::int AS on,
+                         COUNT(*) FILTER (WHERE enabled = false)::int AS off
+                  FROM feature_flags`),
     ]);
 
-    // Check for missing tables (non-fatal)
-    let flyerStats = { total: 0, active: 0 };
-    try {
-      const f = await pool.query('SELECT COUNT(*) as total, COUNT(CASE WHEN expires_at > NOW() THEN 1 END) as active FROM flyer_availability');
-      flyerStats = f.rows[0];
-    } catch { /* table may not exist */ }
-
-    let curatedStats = { total: 0 };
-    try {
-      const c = await pool.query('SELECT COUNT(*) as total FROM curated_availability');
-      curatedStats = c.rows[0];
-    } catch { /* table may not exist */ }
+    const contribObj = contributions.rows.reduce((acc, r) => ({ ...acc, [r.status]: r.count }), {});
+    const pendingContribs = contribObj.pending || 0;
 
     res.json({
-      users: { ...users.rows[0] },
-      products: { ...products.rows[0] },
-      scans: { ...scans.rows[0] },
-      pantry: { ...pantryItems.rows[0] },
-      recipes: { total: parseInt(recipes.rows[0].total) },
-      contributions: contributions.rows.reduce((acc, r) => { acc[r.status] = parseInt(r.count); return acc; }, {}),
-      sightings: { ...sightings.rows[0] },
+      users:         users.rows[0],
+      products:      products.rows[0],
+      scans:         scans.rows[0],
+      pantry:        pantryItems.rows[0],
+      recipes:       recipes.rows[0],
+      contributions: { ...contribObj, pending: pendingContribs },
+      sightings:     sightings.rows[0],
       subscriptions: subscriptions.rows,
-      flyer_availability: flyerStats,
-      curated_availability: curatedStats
+      companies:     companies.rows[0],
+      brand_aliases: brandAliases.rows[0],
+      audit:         auditCount.rows[0],
+      flags:         flags.rows[0],
     });
   } catch (err) {
-    console.error('Admin health error:', err);
-    res.status(500).json({ error: 'Failed to get system health' });
+    console.error('admin /health error:', err);
+    res.status(500).json({ error: 'Failed to load system health' });
   }
 });
 
-// ── User Management ──
-
-// List users (paginated)
-router.get('/users', async (req, res) => {
-  try {
-    const { page = 1, limit = 50, search } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-
-    let query = `
-      SELECT u.id, u.email, u.name, u.zip_code, u.is_admin, u.created_at, u.updated_at,
-             e.total_products_scanned, e.total_swaps_clicked,
-             s.plan, s.status as sub_status,
-             (SELECT COUNT(*) FROM pantry_items pi WHERE pi.user_id = u.id AND pi.status = 'active') as pantry_count
-      FROM users u
-      LEFT JOIN user_engagement e ON u.id = e.user_id
-      LEFT JOIN subscriptions s ON u.id = s.user_id
-    `;
-    const params = [];
-    let paramIdx = 1;
-
-    if (search) {
-      query += ` WHERE u.email ILIKE $${paramIdx} OR u.name ILIKE $${paramIdx}`;
-      params.push(`%${search}%`);
-      paramIdx++;
-    }
-
-    query += ` ORDER BY u.created_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
-    params.push(parseInt(limit), offset);
-
-    const result = await pool.query(query, params);
-    // Count respects search filter for accurate pagination
-    const countQuery = search
-      ? `SELECT COUNT(*) FROM users WHERE email ILIKE $1 OR name ILIKE $1`
-      : `SELECT COUNT(*) FROM users`;
-    const countResult = await pool.query(countQuery, search ? [`%${search}%`] : []);
-
-    res.json({
-      users: result.rows,
-      total: parseInt(countResult.rows[0].count),
-      page: parseInt(page),
-      limit: parseInt(limit)
-    });
-  } catch (err) {
-    console.error('Admin users error:', err);
-    res.status(500).json({ error: 'Failed to list users' });
-  }
-});
-
-// Toggle admin status
-router.put('/users/:id/admin', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { is_admin } = req.body;
-
-    // Can't de-admin yourself
-    if (id === req.user.id && !is_admin) {
-      return res.status(400).json({ error: 'Cannot remove your own admin access' });
-    }
-
-    const result = await pool.query(
-      'UPDATE users SET is_admin = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, is_admin',
-      [!!is_admin, id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update admin status' });
-  }
-});
-
-// Grant trial to a user
-router.post('/users/:id/grant-trial', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { days = 30 } = req.body;
-
-    await pool.query(
-      `INSERT INTO subscriptions (user_id, plan, status, trial_started_at, trial_ends_at)
-       VALUES ($1, 'trial', 'active', NOW(), NOW() + (INTERVAL '1 day' * $2))
-       ON CONFLICT (user_id) DO UPDATE SET
-         plan = 'trial', status = 'active',
-         trial_started_at = COALESCE(subscriptions.trial_started_at, NOW()),
-         trial_ends_at = NOW() + (INTERVAL '1 day' * $2)`,
-      [id, days]
-    );
-
-    res.json({ granted: true, days });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to grant trial' });
-  }
-});
-
-// ── Product Management ──
-
-// Bulk set is_clean_alternative for products above score threshold
+// ── Product gaps + bulk operations (kept here, small surface) ─────────────
 router.post('/products/auto-flag-clean', async (req, res) => {
   try {
-    const { min_score = 75 } = req.body;
-
-    const result = await pool.query(
+    const min = parseInt(req.body.min_score, 10) || 75;
+    const r = await pool.query(
       `UPDATE products SET is_clean_alternative = true
        WHERE total_score >= $1 AND total_score IS NOT NULL AND is_clean_alternative = false
        RETURNING upc, name, total_score`,
-      [parseInt(min_score)]
+      [min]
     );
-
-    res.json({ flagged: result.rows.length, products: result.rows });
+    res.json({ flagged: r.rowCount, sample: r.rows.slice(0, 20) });
   } catch (err) {
     res.status(500).json({ error: 'Failed to flag products' });
   }
 });
 
-// Get products missing data (no score, no image, etc.)
 router.get('/products/gaps', async (req, res) => {
   try {
-    const [noScore, noImage, noIngredients] = await Promise.all([
-      pool.query('SELECT COUNT(*) as count FROM products WHERE total_score IS NULL'),
-      pool.query('SELECT COUNT(*) as count FROM products WHERE image_url IS NULL'),
-      pool.query('SELECT COUNT(*) as count FROM products WHERE ingredients IS NULL OR ingredients = \'\'')
-    ]);
-
-    // Sample of worst gaps
+    const counts = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE total_score IS NULL)::int AS no_score,
+        COUNT(*) FILTER (WHERE image_url IS NULL)::int AS no_image,
+        COUNT(*) FILTER (WHERE ingredients IS NULL OR ingredients = '')::int AS no_ingredients,
+        COUNT(*) FILTER (WHERE company_id IS NULL)::int AS no_company,
+        COUNT(*) FILTER (WHERE brand IS NULL OR brand = '')::int AS no_brand
+      FROM products
+    `);
     const samples = await pool.query(
       `SELECT upc, name, brand, total_score, image_url,
-              (ingredients IS NULL OR ingredients = '') as missing_ingredients
+              (ingredients IS NULL OR ingredients = '') AS missing_ingredients
        FROM products
-       WHERE total_score IS NULL OR image_url IS NULL
+       WHERE total_score IS NULL OR image_url IS NULL OR ingredients IS NULL
        ORDER BY created_at DESC LIMIT 20`
     );
-
-    res.json({
-      no_score: parseInt(noScore.rows[0].count),
-      no_image: parseInt(noImage.rows[0].count),
-      no_ingredients: parseInt(noIngredients.rows[0].count),
-      samples: samples.rows
-    });
+    res.json({ ...counts.rows[0], samples: samples.rows });
   } catch (err) {
-    console.error('Product gaps error:', err);
     res.status(500).json({ error: 'Failed to get product gaps' });
   }
 });
+
+// ── Mount sub-routers ──────────────────────────────────────────────────────
+router.use('/users',          usersRouter);
+router.use('/subscriptions',  subscriptionsRouter);
+router.use('/companies',      companiesRouter);
+router.use('/brand-aliases',  brandsRouter);
+router.use('/recipes',        recipesRouter);
+router.use('/flags',          flagsRouter);
+router.use('/audit',          auditRouter);
 
 export default router;
