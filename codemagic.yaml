@@ -152,7 +152,10 @@ workflows:
   android-workflow:
     name: Ick Android Build
     max_build_duration: 60
-    instance_type: linux_x2
+    # mac_mini_m2 matches the iOS workflow so we stay within the free
+    # tier's macOS-minute pool. Android builds fine on macOS — just
+    # needs Gradle + Java. Switch to linux_x2 if you upgrade plans.
+    instance_type: mac_mini_m2
     environment:
       android_signing:
         - keystore_reference   # name your keystore exactly "keystore_reference" in Codemagic UI
