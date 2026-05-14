@@ -155,9 +155,7 @@ workflows:
     instance_type: linux_x2
     environment:
       android_signing:
-        - keystore_reference    # name your keystore as "keystore_reference" in Codemagic UI
-      groups:
-        - google_play_credentials   # optional, for Play Store upload
+        - keystore_reference   # name your keystore exactly "keystore_reference" in Codemagic UI
       vars:
         PACKAGE_NAME: "com.ickthatish.app"
       node: 22
@@ -205,8 +203,11 @@ workflows:
       - frontend/android/app/build/outputs/**/*.aab
       - frontend/android/app/build/outputs/**/*.apk
 
-    publishing:
-      google_play:
-        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal       # internal | alpha | beta | production
-        submit_as_draft: true
+    # Publishing to Google Play is optional and requires a service-account
+    # JSON. To enable, set up the credential in Codemagic UI (Integrations
+    # → Google Play) and uncomment the block below.
+    # publishing:
+    #   google_play:
+    #     credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+    #     track: internal       # internal | alpha | beta | production
+    #     submit_as_draft: true
