@@ -268,13 +268,22 @@ function useDebounced(value, delay = 300) {
 // ── Dashboard ─────────────────────────────────────────────────────────────
 function DashboardSection() {
   const [data, setData] = useState(null);
+  const [external, setExternal] = useState(null);
+  const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await admin.health());
+      const [h, ext, audit] = await Promise.all([
+        admin.health(),
+        admin.externalHealth().catch(() => null),
+        admin.audit.list({ page: 1, limit: 10 }).catch(() => null),
+      ]);
+      setData(h);
+      setExternal(ext);
+      setActivity(audit?.actions || []);
     } catch {
       showToast('Failed to load dashboard', 'error');
     } finally {
@@ -315,7 +324,35 @@ function DashboardSection() {
         <StatCard label="Audit (24h)"   value={data.audit?.last_24h} hint={`${data.audit?.total || 0} all-time`} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* External service health badges */}
+      <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4 mb-4">
+        <h3 className="text-sm font-semibold mb-3">External services</h3>
+        {external ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {external.services.map(s => (
+              <div key={s.name} className="bg-[#111] border border-[#1e1e1e] rounded-sm px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    s.ok ? 'bg-green-400' :
+                    s.error === 'no_api_key' ? 'bg-[#555]' :
+                    'bg-red-400'
+                  }`} />
+                  <span className="text-xs font-mono text-[#bbb] uppercase">{s.name.replace(/_/g, ' ')}</span>
+                </div>
+                <p className="text-[10px] text-[#666] mt-1 font-mono">
+                  {s.ok ? `${s.ms}ms · HTTP ${s.status}` :
+                   s.error === 'no_api_key' ? 'not configured' :
+                   `failed · ${s.error || `HTTP ${s.status}`}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-[#666]">Service health unavailable.</p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
           <h3 className="text-sm font-semibold mb-3">Subscriptions</h3>
           {data.subscriptions?.length === 0 ? (
@@ -339,6 +376,31 @@ function DashboardSection() {
             <span className="text-[#666]">{data.flags?.off || 0}</span> off
           </p>
         </div>
+      </div>
+
+      {/* Activity feed */}
+      <div className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+        <h3 className="text-sm font-semibold mb-3">Recent admin activity</h3>
+        {activity.length === 0 ? (
+          <p className="text-xs text-[#666]">No activity yet — actions taken in this admin will appear here.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {activity.map(a => (
+              <li key={a.id} className="text-xs flex items-center gap-2 text-[#888]">
+                <span className="text-[#555] font-mono w-32 flex-shrink-0">
+                  {new Date(a.created_at).toLocaleString()}
+                </span>
+                <span className="text-[#bbb]">{a.admin_email || '(deleted)'}</span>
+                <span className="font-mono text-[10px] bg-[#1a1a1a] text-[#c8f135] px-1.5 py-0.5 rounded">
+                  {a.action}
+                </span>
+                {a.target_type && (
+                  <span className="text-[#666]">on {a.target_type}/{a.target_id || '*'}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </>
   );
@@ -574,12 +636,150 @@ function SubscriptionsSection() {
   );
 }
 
-// ── Contributions (placeholder; existing review endpoints work) ───────────
+// ── Contributions ─────────────────────────────────────────────────────────
 function ContributionsSection() {
+  const { showToast } = useToast();
+  const [confirm, confirmEl] = useConfirm();
+  const [status, setStatus] = useState('pending');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await admin.contributions.list(status);
+      setItems(Array.isArray(list) ? list : []);
+    } catch { showToast('Failed to load contributions', 'error'); }
+    finally { setLoading(false); }
+  }, [status, showToast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const approve = async (c) => {
+    const ok = await confirm({
+      title: 'Approve contribution?',
+      message: `Insert "${c.name}" (UPC ${c.upc}) into the products catalog and re-score?`,
+      confirmLabel: 'Approve',
+    });
+    if (!ok) return;
+    try {
+      await admin.contributions.approve(c.id);
+      showToast('Contribution approved + product inserted', 'success');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
+  const reject = async (c) => {
+    try {
+      await admin.contributions.reject(c.id, rejectReason || 'No reason provided');
+      showToast('Contribution rejected', 'success');
+      setRejectingId(null);
+      setRejectReason('');
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
   return (
     <>
-      <SectionHeader title="Contributions" subtitle="User-submitted product fixes" />
-      <EmptyState message="Contribution review UI is in the legacy admin tab — wire it here once moderation flow is finalized." />
+      <SectionHeader
+        title="Contributions"
+        subtitle={`${items.length} ${status}`}
+        actions={
+          <div className="flex gap-1">
+            {['pending', 'approved', 'rejected'].map(s => (
+              <button key={s} onClick={() => setStatus(s)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-sm ${
+                        s === status
+                          ? 'bg-[#c8f135] text-[#0a0a0a]'
+                          : 'bg-[#1a1a1a] text-[#888] hover:text-[#ddd]'
+                      }`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        }
+      />
+      {confirmEl}
+
+      {loading && items.length === 0 ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-32 bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm animate-pulse" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState message={`No ${status} contributions.`} />
+      ) : (
+        <div className="space-y-3">
+          {items.map(c => (
+            <div key={c.id} className="bg-[#0d0d0d] border border-[#1e1e1e] rounded-sm p-4">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <p className="font-medium text-[#f4f4f0]">{c.name || '(no name)'}</p>
+                  <p className="text-xs text-[#888] mt-0.5">
+                    {c.brand && <>brand: <span className="text-[#bbb]">{c.brand}</span> · </>}
+                    UPC: <span className="font-mono">{c.upc}</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-[#666]">
+                    {c.submitted_by_email || 'anonymous'}
+                  </p>
+                  <p className="text-[10px] text-[#555] font-mono">
+                    {new Date(c.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {c.ingredients_text && (
+                <div className="mt-3 text-xs text-[#bbb] bg-[#111] p-2 rounded-sm border border-[#1a1a1a]">
+                  <p className="text-[#666] uppercase font-mono text-[10px] mb-1">Ingredients</p>
+                  {c.ingredients_text}
+                </div>
+              )}
+
+              {c.image_url && (
+                <a href={c.image_url} target="_blank" rel="noopener noreferrer"
+                   className="text-[10px] text-[#c8f135] mt-2 inline-block">
+                  View submitted image ↗
+                </a>
+              )}
+
+              {status === 'pending' && (
+                rejectingId === c.id ? (
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)}
+                      placeholder="Reason for rejection (optional)"
+                      className="flex-1 bg-[#111] border border-[#2a2a2a] rounded-sm px-2 py-1.5 text-sm text-[#ddd]"
+                      autoFocus
+                    />
+                    <Btn variant="danger" onClick={() => reject(c)}>Confirm reject</Btn>
+                    <Btn onClick={() => { setRejectingId(null); setRejectReason(''); }}>Cancel</Btn>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex gap-2">
+                    <Btn variant="primary" onClick={() => approve(c)}>
+                      <Check className="w-3 h-3" /> Approve + insert
+                    </Btn>
+                    <Btn variant="danger" onClick={() => setRejectingId(c.id)}>
+                      <X className="w-3 h-3" /> Reject
+                    </Btn>
+                  </div>
+                )
+              )}
+              {status !== 'pending' && c.reviewed_at && (
+                <p className="mt-2 text-[10px] text-[#666] font-mono">
+                  reviewed {new Date(c.reviewed_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -594,6 +794,7 @@ function RecipesSection() {
   const [filter, setFilter] = useState({ source: '', kid_friendly: '' });
   const [data, setData] = useState({ recipes: [], total: 0, source_breakdown: [] });
   const [loading, setLoading] = useState(true);
+  const [editingRecipe, setEditingRecipe] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -684,6 +885,7 @@ function RecipesSection() {
                       <a href={r.source_url} target="_blank" rel="noopener noreferrer"
                          className="text-[10px] text-[#666] hover:text-[#c8f135] px-2 py-1">↗</a>
                     )}
+                    <Btn variant="ghost" onClick={() => setEditingRecipe(r)}><Edit2 className="w-3 h-3" /></Btn>
                     <Btn variant="danger" onClick={() => remove(r)}><Trash2 className="w-3 h-3" /></Btn>
                   </div>
                 </Td>
@@ -692,7 +894,125 @@ function RecipesSection() {
         </tbody>
       </Table>
       <Pagination page={page} total={data.total} limit={50} onPage={setPage} />
+
+      {editingRecipe && (
+        <RecipeEditModal
+          recipe={editingRecipe}
+          onClose={() => setEditingRecipe(null)}
+          onSaved={() => { setEditingRecipe(null); load(); }}
+        />
+      )}
     </>
+  );
+}
+
+// Recipe edit modal — small focused form for the fields admins actually
+// need to fix. Full ingredients/instructions edit is intentionally raw
+// JSON since the schema is JSONB and a structured editor is overkill.
+function RecipeEditModal({ recipe, onClose, onSaved }) {
+  const { showToast } = useToast();
+  const [form, setForm] = useState({
+    name: recipe.name || '',
+    description: recipe.description || '',
+    replaces_category: recipe.replaces_category || '',
+    kid_friendly: !!recipe.kid_friendly,
+    dietary_tags: Array.isArray(recipe.dietary_tags) ? recipe.dietary_tags.join(', ') : '',
+    vs_store_bought: recipe.vs_store_bought || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await admin.recipes.update(recipe.id, {
+        name: form.name,
+        description: form.description || null,
+        replaces_category: form.replaces_category || null,
+        kid_friendly: form.kid_friendly,
+        dietary_tags: form.dietary_tags
+          ? form.dietary_tags.split(',').map(s => s.trim()).filter(Boolean)
+          : [],
+        vs_store_bought: form.vs_store_bought || null,
+      });
+      showToast('Recipe updated', 'success');
+      onSaved();
+    } catch (e) {
+      showToast(e.message || 'Failed to save', 'error');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-[#111] border border-[#2a2a2a] rounded-sm w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+           onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-[#1e1e1e] flex justify-between items-center">
+          <h3 className="font-semibold text-[#f4f4f0]">Edit recipe #{recipe.id}</h3>
+          <button onClick={onClose} className="text-[#666] hover:text-[#ddd]">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="text-xs text-[#888] mb-1 block">Name</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-[#888] mb-1 block">Description</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              rows={2}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Replaces category</label>
+              <input
+                value={form.replaces_category}
+                onChange={e => setForm(f => ({ ...f, replaces_category: e.target.value }))}
+                placeholder="e.g. boxed_mac"
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Dietary tags (comma-separated)</label>
+              <input
+                value={form.dietary_tags}
+                onChange={e => setForm(f => ({ ...f, dietary_tags: e.target.value }))}
+                placeholder="vegetarian, gluten-free"
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-[#888] mb-1 block">Vs. store-bought (one-line pitch)</label>
+            <input
+              value={form.vs_store_bought}
+              onChange={e => setForm(f => ({ ...f, vs_store_bought: e.target.value }))}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-[#bbb]">
+            <input
+              type="checkbox"
+              checked={form.kid_friendly}
+              onChange={e => setForm(f => ({ ...f, kid_friendly: e.target.checked }))}
+              className="w-4 h-4 accent-[#c8f135]"
+            />
+            Kid-friendly
+          </label>
+        </div>
+        <div className="px-5 py-3 border-t border-[#1e1e1e] flex justify-end gap-2">
+          <Btn onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Btn>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -706,6 +1026,8 @@ function CompaniesSection() {
   const [data, setData] = useState({ companies: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);  // {id, behavior_score}
+  const [adding, setAdding] = useState(false);
+  const [newCompany, setNewCompany] = useState({ name: '', behavior_score: 50, controversies: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -742,14 +1064,76 @@ function CompaniesSection() {
     } catch (e) { showToast(e.message || 'Failed', 'error'); }
   };
 
+  const createCompany = async () => {
+    if (!newCompany.name) { showToast('Name required', 'error'); return; }
+    try {
+      await admin.companies.create({
+        name: newCompany.name,
+        behavior_score: newCompany.behavior_score,
+        controversies: newCompany.controversies || null,
+      });
+      showToast(`Created "${newCompany.name}"`, 'success');
+      setAdding(false);
+      setNewCompany({ name: '', behavior_score: 50, controversies: '' });
+      load();
+    } catch (e) { showToast(e.message || 'Failed', 'error'); }
+  };
+
   return (
     <>
       <SectionHeader
         title="Companies"
         subtitle={`${data.total} total — click a score to edit inline`}
-        actions={<SearchInput value={search} onChange={setSearch} placeholder="Company name…" />}
+        actions={
+          <div className="flex gap-2">
+            <SearchInput value={search} onChange={setSearch} placeholder="Company name…" />
+            <Btn variant="primary" onClick={() => setAdding(a => !a)}>
+              <Plus className="w-4 h-4" /> New company
+            </Btn>
+          </div>
+        }
       />
       {confirmEl}
+
+      {adding && (
+        <div className="bg-[#0d0d0d] border border-[#c8f135]/30 rounded-sm p-4 mb-4 space-y-3">
+          <h3 className="text-sm font-semibold">Add company</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Name</label>
+              <input
+                value={newCompany.name}
+                onChange={e => setNewCompany(s => ({ ...s, name: e.target.value }))}
+                placeholder="e.g. Beyond Meat"
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#888] mb-1 block">Behavior score (0-100)</label>
+              <input
+                type="number" min="0" max="100"
+                value={newCompany.behavior_score}
+                onChange={e => setNewCompany(s => ({ ...s, behavior_score: parseInt(e.target.value, 10) || 0 }))}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-[#888] mb-1 block">Controversies (optional)</label>
+            <textarea
+              value={newCompany.controversies}
+              onChange={e => setNewCompany(s => ({ ...s, controversies: e.target.value }))}
+              placeholder="One-line summary or JSON array of strings"
+              rows={2}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-sm px-2.5 py-1.5 text-sm text-[#ddd]"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Btn onClick={() => setAdding(false)}>Cancel</Btn>
+            <Btn variant="primary" onClick={createCompany}>Create</Btn>
+          </div>
+        </div>
+      )}
 
       <Table>
         <thead>

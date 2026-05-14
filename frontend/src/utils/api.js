@@ -349,6 +349,13 @@ function qs(params) {
 
 export const admin = {
   health:        ()          => api.get('/admin/health'),
+  externalHealth: ()         => api.get('/admin/health/external'),
+
+  contributions: {
+    list:    (status = 'pending') => api.get(`/products/admin/contributions?status=${status}`),
+    approve: (id) => api.put(`/products/admin/contributions/${id}/approve`, {}),
+    reject:  (id, reason) => api.put(`/products/admin/contributions/${id}/reject`, { reason }),
+  },
 
   users: {
     list:        (params)    => api.get(`/admin/users?${qs(params)}`),

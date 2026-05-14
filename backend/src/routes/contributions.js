@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { scoreProduct } from '../utils/scoring.js';
+import { logAdminAction } from '../utils/adminAudit.js';
 
 const router = express.Router();
 
@@ -88,6 +89,7 @@ router.put('/:id/approve', async (req, res) => {
       [id]
     );
 
+    await logAdminAction(req, 'approve_contribution', 'contribution', id, { upc: c.upc, name: c.name });
     res.json({ approved: true, upc: c.upc });
   } catch (err) {
     console.error('Approve contribution error:', err);
@@ -107,6 +109,7 @@ router.put('/:id/reject', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Contribution not found' });
 
+    await logAdminAction(req, 'reject_contribution', 'contribution', id, { reason: reason || null });
     res.json({ rejected: true, reason });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject' });

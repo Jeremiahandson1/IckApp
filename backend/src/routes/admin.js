@@ -80,6 +80,44 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// ── External-service health probe ─────────────────────────────────────────
+// Each probe has a hard timeout and a single small request. We return
+// per-service status + latency so the admin dashboard can render badges.
+router.get('/health/external', async (req, res) => {
+  async function probe(name, url, opts = {}) {
+    const t = Date.now();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs || 5000);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal, headers: opts.headers || {} });
+      return { name, ok: r.ok, status: r.status, ms: Date.now() - t };
+    } catch (e) {
+      return { name, ok: false, status: 0, ms: Date.now() - t, error: e.name === 'AbortError' ? 'timeout' : e.message };
+    } finally { clearTimeout(timer); }
+  }
+
+  const probes = [
+    probe('open_food_facts', 'https://world.openfoodfacts.org/api/v0/product/737628064502.json'),
+    probe('usda',            'https://api.nal.usda.gov/fdc/v1/foods/search?api_key=DEMO_KEY&query=ping&pageSize=1'),
+  ];
+  if (process.env.SPOONACULAR_API_KEY) {
+    probes.push(probe('spoonacular',
+      `https://api.spoonacular.com/recipes/complexSearch?apiKey=${process.env.SPOONACULAR_API_KEY}&query=ping&number=1`));
+  } else {
+    probes.push(Promise.resolve({ name: 'spoonacular', ok: false, status: 0, ms: 0, error: 'no_api_key' }));
+  }
+  if (process.env.OPENAI_API_KEY) {
+    probes.push(probe('openai', 'https://api.openai.com/v1/models', {
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    }));
+  } else {
+    probes.push(Promise.resolve({ name: 'openai', ok: false, status: 0, ms: 0, error: 'no_api_key' }));
+  }
+
+  const results = await Promise.all(probes);
+  res.json({ services: results, checked_at: new Date().toISOString() });
+});
+
 // ── Product gaps + bulk operations (kept here, small surface) ─────────────
 router.post('/products/auto-flag-clean', async (req, res) => {
   try {
