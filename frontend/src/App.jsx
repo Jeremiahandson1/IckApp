@@ -36,6 +36,7 @@ import Budget from './pages/Budget';
 import Admin from './pages/Admin';
 import Family from './pages/Family';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Terms from './pages/Terms';
 import Support from './pages/Support';
 import AboutScoring from './pages/AboutScoring';
 import JoinFamily from './pages/JoinFamily';
@@ -203,6 +204,7 @@ export default function App() {
         <Route path="/admin" element={<AuthGate><Admin /></AuthGate>} />
         <Route path="/family" element={<AuthGate><Family /></AuthGate>} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/support" element={<Support />} />
         <Route path="/about-scoring" element={<AboutScoring />} />
       </Route>

@@ -7,23 +7,97 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Ick" />
-    <meta name="description" content="Scan any food barcode. See what's really in it. Red 40? TBHQ? We flag the junk and show you what to buy instead. Free." />
-    <meta name="keywords" content="food scanner, ick app, ingredient checker, harmful additives, barcode scanner, food health, nutri-score, allergen detector, healthy food swap" />
+    <meta name="description" content="The only food app that cleans out your whole house. Scan barcodes, see ingredients banned in Europe, save your pantry, scan receipts, track your household score, and share with your family. Free." />
+    <meta name="keywords" content="food scanner app, banned ingredients, food transparency, pantry tracker, receipt scan, household nutrition, family allergen app, healthy food swap, ingredient checker, barcode scanner, Red 40, TBHQ, ultra-processed food" />
     <meta name="mobile-web-app-capable" content="yes" />
-    
+    <link rel="canonical" href="https://ickthatish.com/" />
+
     <!-- Open Graph (social sharing) -->
-    <meta property="og:title" content="Ick — Know what's really in your food" />
-    <meta property="og:description" content="Scan any barcode. See the junk hiding in the ingredient list. Swap it for something better. Free." />
+    <meta property="og:title" content="IckThatIsh — The only food app that cleans out your whole house" />
+    <meta property="og:description" content="Scan any barcode. See every ingredient banned in Europe that's still in your food. Then replace it, save your pantry, track your progress, and clean out your whole house." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://ick.com" />
+    <meta property="og:url" content="https://ickthatish.com/" />
     <meta property="og:image" content="/icons/icon-512.png" />
-    <meta property="og:site_name" content="Ick" />
-    
+    <meta property="og:site_name" content="IckThatIsh" />
+
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Ick — Scan it. Ick it. Swap it." />
-    <meta name="twitter:description" content="Free food scanner. See what's really in your food. Find better alternatives." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="IckThatIsh — Cleans out your whole house" />
+    <meta name="twitter:description" content="Scan any product. See every ingredient banned in Europe. Save your pantry. Track your household progress. Free, with no brand deals — ever." />
     <meta name="twitter:image" content="/icons/icon-512.png" />
+
+    <!-- Structured data: SoftwareApplication + Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "IckThatIsh",
+          "alternateName": "Ick",
+          "applicationCategory": "HealthApplication",
+          "applicationSubCategory": "Food & Nutrition",
+          "operatingSystem": "Web, iOS, Android",
+          "description": "Food transparency app that scans barcodes, scores products across 5 dimensions (harmful ingredients, banned-elsewhere additives, transparency, processing, company behavior), and helps households clean out their pantry with receipt scanning, family sharing, and household progress tracking.",
+          "url": "https://ickthatish.com/",
+          "image": "https://ickthatish.com/icons/icon-512.png",
+          "offers": [
+            {
+              "@type": "Offer",
+              "name": "Free",
+              "price": "0",
+              "priceCurrency": "USD",
+              "description": "Unlimited barcode scanning, 5-dimension scoring, health-condition scoring, smart swap recommendations, allergen alerts, and 3,668 swap recipes — no account required."
+            },
+            {
+              "@type": "Offer",
+              "name": "Premium Monthly",
+              "price": "4.99",
+              "priceCurrency": "USD",
+              "description": "Pantry Health Audit, Smart Shopping Lists, In-Store Shopping Mode."
+            },
+            {
+              "@type": "Offer",
+              "name": "Premium Annual",
+              "price": "39.99",
+              "priceCurrency": "USD",
+              "description": "All Premium features, billed annually."
+            }
+          ],
+          "featureList": [
+            "Barcode scanner with 845,000+ products",
+            "5-dimension scoring (harmful ingredients, banned-elsewhere, transparency, processing, company behavior)",
+            "Health-condition scoring grounded in AHA, ADA, KDOQI, ATA, FDA guidelines",
+            "Parent-company tracking across 698 brand aliases",
+            "Allergen alerts with per-family-member profiles",
+            "Receipt scan for bulk-adding pantry items",
+            "Household score progress tracking",
+            "Family sharing",
+            "3,668 swap-based recipes",
+            "Pantry Health Audit (Premium)",
+            "Smart Shopping Lists (Premium)"
+          ],
+          "publisher": {
+            "@type": "Organization",
+            "name": "Twomiah LLC"
+          }
+        },
+        {
+          "@type": "Organization",
+          "name": "Twomiah LLC",
+          "url": "https://ickthatish.com/",
+          "logo": "https://ickthatish.com/icons/icon-512.png",
+          "email": "hello@ickthatish.com",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Eau Claire",
+            "addressRegion": "WI",
+            "addressCountry": "US"
+          }
+        }
+      ]
+    }
+    </script>
     
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
@@ -41,7 +115,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     
-    <title>Ick — Scan it. Ick it. Swap it.</title>
+    <title>IckThatIsh — The only food app that cleans out your whole house</title>
     
     <style>
       html, body {

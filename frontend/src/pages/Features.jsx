@@ -190,8 +190,8 @@ export default function Features() {
           <span style={S.footerSub}>A Twomiah Product · Eau Claire, WI</span>
         </div>
         <div style={{ display: 'flex', gap: '24px' }}>
-          <a href="mailto:hello@ickthatish.com?subject=Privacy%20Policy%20Request" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', textDecoration: 'none' }}>Privacy</a>
-          <a href="mailto:hello@ickthatish.com?subject=Terms%20of%20Service%20Request" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', textDecoration: 'none' }}>Terms</a>
+          <button onClick={() => navigate('/privacy-policy')} style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none', background: 'none', border: 'none', padding: 0 }}>Privacy</button>
+          <button onClick={() => navigate('/terms')} style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', cursor: 'pointer', textDecoration: 'none', background: 'none', border: 'none', padding: 0 }}>Terms</button>
           <a href="mailto:hello@ickthatish.com" style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#444', textDecoration: 'none' }}>Contact</a>
         </div>
         <span style={S.footerCopy}>© 2026 Twomiah LLC</span>
