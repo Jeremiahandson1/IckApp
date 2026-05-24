@@ -98,9 +98,32 @@ function clamp(val) {
 // DIMENSION 1: HARMFUL INGREDIENTS (40%)
 // ============================================================
 
+// Detect "ingredient" text that's actually OCR noise / package marketing copy
+// (e.g. "75 Salty Portes GOLDEN SRIRACHA TANGY SWEET JUL2025 NET WT") rather
+// than a real ingredient list. Real lists are comma-separated and contain at
+// least one common food noun. Treat suspicious text as missing data so we
+// don't return a 100/100 "no harmful found" verdict on garbage.
+function looksLikeRealIngredients(text) {
+  if (!text) return false;
+  const t = String(text).trim();
+  if (t.length < 3) return false;
+
+  // Real lists almost always have commas (or semicolons). A run-on string
+  // with zero separators across >30 chars is almost certainly not a list.
+  const sepCount = (t.match(/[,;]/g) || []).length;
+  if (t.length > 30 && sepCount === 0) return false;
+
+  // Must contain at least one common food-list word. Cheap dictionary check
+  // covers the vast majority of real lists; OCR garbage rarely hits these.
+  const FOOD_WORDS = /\b(water|salt|sugar|flour|wheat|corn|rice|oat|barley|rye|milk|cream|butter|cheese|egg|yeast|oil|olive|canola|soy|sunflower|palm|coconut|cocoa|chocolate|vanilla|honey|syrup|starch|protein|whey|gluten|tomato|onion|garlic|pepper|spice|herb|extract|acid|citric|sodium|potassium|calcium|natural|artificial|flavor|color|preservative|enriched|bleached|hydrogenated|lecithin|maltodextrin|dextrose|fructose|sucrose|lactose|beef|chicken|pork|fish|turkey|bean|pea|lentil|nut|almond|peanut|cashew|walnut|seed|fruit|berry|apple|orange|lemon|vegetable|carrot|potato|spinach|kale|mushroom|gum|gelatin|agar|carrageenan|pectin|stevia|aspartame|sucralose|caffeine|cinnamon|garlic|ginger|paprika|cumin|turmeric)\b/i;
+  if (!FOOD_WORDS.test(t)) return false;
+
+  return true;
+}
+
 async function computeHarmfulIngredientsScore(ingredientsText) {
-  if (!ingredientsText || ingredientsText.length < 3) {
-    // No ingredient data = we can't verify safety. Penalize, don't reward.
+  if (!looksLikeRealIngredients(ingredientsText)) {
+    // No usable ingredient data = we can't verify safety. Penalize, don't reward.
     return { score: 30, found: [], missing_data: true };
   }
 
