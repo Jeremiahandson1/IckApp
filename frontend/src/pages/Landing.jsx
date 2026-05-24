@@ -168,7 +168,7 @@ function useIsMobile() {
   return isMobile;
 }
 
-export default function Landing() {
+export default function Landing({ initialScroll } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
@@ -179,19 +179,19 @@ export default function Landing() {
     return () => document.head.removeChild(style);
   }, []);
 
-  // Scroll to hash on mount (handles deep-links like /#compare and the
-  // /compare route that redirects here, plus /#features etc.)
+  // Scroll on mount when either:
+  //  - initialScroll prop is set (e.g. /compare route renders <Landing initialScroll="compare" />)
+  //  - URL has a hash (deep-link to /#compare, /#features)
   useEffect(() => {
-    if (window.location.hash) {
-      const id = window.location.hash.replace('#', '');
-      const tryScroll = () => {
-        const el = document.getElementById(id);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      };
-      // Defer past first paint so the target section exists in the DOM
-      setTimeout(tryScroll, 100);
-    }
-  }, []);
+    const target = initialScroll || (window.location.hash ? window.location.hash.replace('#', '') : null);
+    if (!target) return;
+    const tryScroll = () => {
+      const el = document.getElementById(target);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    // Defer past first paint so the target section exists in the DOM
+    setTimeout(tryScroll, 150);
+  }, [initialScroll]);
 
   const marqueeItems = [
     ['Red 40', true], ['Banned in EU', false], ['BHA / BHT', true], ["In Your Kids' Cereal", false],

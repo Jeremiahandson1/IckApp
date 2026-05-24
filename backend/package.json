@@ -15,6 +15,7 @@
     "db:seed-portfolios": "node src/db/seed-brand-portfolios.js",
     "db:seed-flagships": "node src/db/seed-flagship-products.js",
     "db:seed-flagships:dry": "node src/db/seed-flagship-products.js --dry",
+    "db:add-multilingual-aliases": "node src/db/add-multilingual-aliases.js",
     "db:clean-ingredients": "node src/db/clean-bad-ingredients.js",
     "db:clean-ingredients:dry": "node src/db/clean-bad-ingredients.js --dry-run",
     "admin:grant": "node src/db/set-admin.js grant",

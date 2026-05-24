@@ -171,7 +171,10 @@ export default function App() {
 
       {/* Public marketing pages — visible without login, standalone layout */}
       <Route path="/features" element={<Features />} />
-      <Route path="/compare" element={<Navigate to="/#compare" replace />} />
+      {/* /compare renders Landing directly with a scroll target. Tried
+          Navigate to="/#compare" before but the hash didn't reliably survive
+          the router's path matching. Direct render is bulletproof. */}
+      <Route path="/compare" element={<Landing initialScroll="compare" />} />
 
       {/* Auth pages */}
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

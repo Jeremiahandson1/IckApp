@@ -243,6 +243,18 @@ export default function ReceiptScan() {
       {/* ── STEP 1: Capture ── */}
       {step === 'capture' && (
         <div className="space-y-4">
+          {/* Privacy notice — point-of-use disclosure for OpenAI processing.
+              Placed above the action buttons so users see it before they tap. */}
+          <div className="bg-[#161616] border-l-2 border-[#c8f135] rounded-sm p-4">
+            <p className="text-xs font-bold text-[#c8f135] mb-2" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              Before you scan — privacy notice
+            </p>
+            <p className="text-xs text-[#bbb] leading-relaxed">
+              Your receipt image is sent to <strong className="text-[#f4f4f0]">OpenAI's GPT-4o</strong> to read the line items. Don't scan receipts containing personal info you don't want shared with OpenAI — for example, full credit card numbers or ID details.{' '}
+              <button onClick={() => navigate('/privacy-policy')} className="text-[#c8f135] underline">Full privacy details →</button>
+            </p>
+          </div>
+
           <div className="bg-[#0d0d0d] rounded-sm p-8 text-center space-y-4">
             {imagePreview ? (
               <img src={imagePreview} alt="Receipt" className="max-h-48 mx-auto rounded-sm" />
@@ -287,17 +299,6 @@ export default function ReceiptScan() {
                 className="hidden"
               />
             </div>
-          </div>
-
-          {/* Privacy notice — point-of-use disclosure for OpenAI processing */}
-          <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm p-4">
-            <p className="text-xs font-medium text-[#c8f135] mb-2" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              Heads up — how this works
-            </p>
-            <p className="text-xs text-[#888] leading-relaxed">
-              Your receipt image is sent to <strong className="text-[#ddd]">OpenAI's GPT-4o</strong> to read the line items. Don't scan receipts containing personal info you don't want shared with OpenAI (e.g. full credit card numbers, ID details).{' '}
-              <button onClick={() => navigate('/privacy-policy')} className="text-[#c8f135] underline">Privacy details →</button>
-            </p>
           </div>
 
           {/* Tips */}
