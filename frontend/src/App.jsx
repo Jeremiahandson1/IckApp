@@ -10,6 +10,7 @@ import ImpersonationBanner from './components/common/ImpersonationBanner';
 
 // Pages
 import Landing from './pages/Landing';
+import Features from './pages/Features';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
@@ -35,6 +36,7 @@ import Budget from './pages/Budget';
 import Admin from './pages/Admin';
 import Family from './pages/Family';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Support from './pages/Support';
 import AboutScoring from './pages/AboutScoring';
 import JoinFamily from './pages/JoinFamily';
 
@@ -166,6 +168,9 @@ export default function App() {
       {/* First visit → onboarding. Already onboarded → /scan */}
       <Route path="/" element={<FirstVisitGate />} />
 
+      {/* Public marketing pages — visible without login, standalone layout */}
+      <Route path="/features" element={<Features />} />
+
       {/* Auth pages */}
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
@@ -198,6 +203,7 @@ export default function App() {
         <Route path="/admin" element={<AuthGate><Admin /></AuthGate>} />
         <Route path="/family" element={<AuthGate><Family /></AuthGate>} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/support" element={<Support />} />
         <Route path="/about-scoring" element={<AboutScoring />} />
       </Route>
 
