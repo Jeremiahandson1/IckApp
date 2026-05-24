@@ -181,34 +181,59 @@ const api = new ApiClient();
 export default api;
 
 // Convenience functions for common endpoints
+// Stale-while-revalidate: serve cached instantly if present, then ALWAYS
+// fire a background fetch so the cache + the consumer's onFreshData
+// callback get the latest verdict. Without this, a product cached at any
+// score stays at that score for FRESH_TTL — so when a backend scoring fix
+// shipped, users kept seeing the pre-fix verdict for up to a day.
+//
+// Consumers that want the freshest verdict should pass options.onFreshData
+// and re-render when it fires.
 export const products = {
-  scan: async (upc) => {
-    // Check IndexedDB cache first — return instantly if fresh
+  scan: async (upc, options = {}) => {
     const cached = await getProduct(upc);
-    if (cached && cached.fresh) return cached.data;
-    
-    try {
-      const result = await api.get(`/products/scan/${upc}`);
-      putProduct(upc, result); // async, don't await — don't block return
-      return result;
-    } catch (err) {
-      // Offline fallback: return stale cache if available
-      if (cached && !cached.stale) return cached.data;
-      throw err;
+
+    const fetchFresh = async () => {
+      try {
+        const result = await api.get(`/products/scan/${upc}`);
+        putProduct(upc, result);
+        return result;
+      } catch (err) {
+        if (cached && !cached.stale) return null; // keep cached on net error
+        throw err;
+      }
+    };
+
+    if (cached && cached.fresh) {
+      // Serve cached instantly, revalidate in background
+      fetchFresh().then(fresh => {
+        if (fresh && options.onFreshData) options.onFreshData(fresh);
+      }).catch(() => {});
+      return cached.data;
     }
+    return await fetchFresh();
   },
-  view: async (upc) => {
+  view: async (upc, options = {}) => {
     const cached = await getProduct(upc);
-    if (cached && cached.fresh) return cached.data;
-    
-    try {
-      const result = await api.get(`/products/view/${upc}`);
-      putProduct(upc, result);
-      return result;
-    } catch (err) {
-      if (cached && !cached.stale) return cached.data;
-      throw err;
+
+    const fetchFresh = async () => {
+      try {
+        const result = await api.get(`/products/view/${upc}`);
+        putProduct(upc, result);
+        return result;
+      } catch (err) {
+        if (cached && !cached.stale) return null;
+        throw err;
+      }
+    };
+
+    if (cached && cached.fresh) {
+      fetchFresh().then(fresh => {
+        if (fresh && options.onFreshData) options.onFreshData(fresh);
+      }).catch(() => {});
+      return cached.data;
     }
+    return await fetchFresh();
   },
   search: async (query) => {
     try {

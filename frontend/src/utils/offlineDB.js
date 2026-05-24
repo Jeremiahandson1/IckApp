@@ -16,14 +16,21 @@
  */
 
 const DB_NAME = 'ick_offline';
-const DB_VERSION = 1;
+// v2: drop products store on upgrade to flush the ~10k stale records
+// that were cached before the scoring engine improvements (Spanish-alias
+// fix, garbage-ingredients guard, Doritos rescore). Without this bump,
+// users see pre-fix scores for any product cached in v1 until the FRESH_TTL
+// window expires individually per record.
+const DB_VERSION = 2;
 const PRODUCTS_STORE = 'products';
 const META_STORE = 'meta';
 const SEARCH_STORE = 'search_index';
 
 // TTL for cached products
-const FRESH_TTL = 24 * 60 * 60 * 1000;  // 24h = "fresh" (no refetch needed)
-const STALE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days = "stale but usable"
+// 1h fresh window keeps the cache useful for fast back/forth between pages
+// without serving day-old verdicts after a scoring fix lands.
+const FRESH_TTL = 60 * 60 * 1000;  // 1h = "fresh" (no refetch needed)
+const STALE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days = "stale but usable" (offline fallback only)
 const MAX_PRODUCTS = 10000;
 
 let dbInstance = null;
@@ -39,6 +46,15 @@ function openDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      const oldVersion = event.oldVersion;
+
+      // v1 -> v2 migration: nuke the products store. Records cached under
+      // the old scoring engine had stale verdicts (e.g. Doritos with Spanish
+      // ingredient text falsely scoring 79 'DECENT'). Clearing forces fresh
+      // fetches from the corrected backend.
+      if (oldVersion < 2 && db.objectStoreNames.contains(PRODUCTS_STORE)) {
+        db.deleteObjectStore(PRODUCTS_STORE);
+      }
 
       // Products store — keyed by UPC
       if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {

@@ -120,14 +120,21 @@ export default function ProductResult() {
       return;
     }
 
+    // onFreshData fires when a background revalidation completes after we
+    // served cached data — silently swaps the displayed score for the
+    // freshest one so users don't see stale verdicts after a backend fix.
+    const onFreshData = (fresh) => {
+      if (fresh && fresh.upc === upc) setProduct(fresh);
+    };
+
     try {
-      const result = await products.view(upc);
+      const result = await products.view(upc, { onFreshData });
       setProduct(result);
       fetchSwapsAndRecipes();
     } catch (error) {
       if (error.status === 404) {
         try {
-          const scanResult = await products.scan(upc);
+          const scanResult = await products.scan(upc, { onFreshData });
           setProduct(scanResult);
           fetchSwapsAndRecipes();
         } catch (scanError) {
