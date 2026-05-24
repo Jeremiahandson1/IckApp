@@ -711,11 +711,49 @@ router.get('/search', async (req, res) => {
     params.push(limit);
 
     const result = await pool.query(query, params);
-    
-    let products = result.rows.map(p => ({
-      ...p,
-      ...getScoreRating(p.total_score)
+
+    // Re-score each result on the fly so search list matches product page.
+    // Product page already does this on view (see d2d3688) — without this
+    // search row was showing stale stored total_score while product detail
+    // showed the freshly-computed one, eroding trust in either number.
+    let products = await Promise.all(result.rows.map(async (p) => {
+      try {
+        const fresh = await calculateProductScore({
+          ingredients: p.ingredients || '',
+          brand: p.brand || '',
+          nutriscore_grade: p.nutriscore_grade || null,
+          nova_group: p.nova_group || null,
+          nutriments: p.nutrition_facts || null,
+          labels: p.labels || [],
+          allergens_tags: p.allergens_tags || [],
+          is_organic: !!p.is_organic,
+          image_url: p.image_url || null,
+        });
+        const total = Math.round(
+          fresh.harmful_ingredients_score * 0.40 +
+          fresh.banned_elsewhere_score    * 0.20 +
+          fresh.transparency_score        * 0.15 +
+          fresh.processing_score          * 0.15 +
+          fresh.company_behavior_score    * 0.10
+        );
+        return {
+          ...p,
+          harmful_ingredients_score: fresh.harmful_ingredients_score,
+          banned_elsewhere_score:    fresh.banned_elsewhere_score,
+          transparency_score:        fresh.transparency_score,
+          processing_score:          fresh.processing_score,
+          company_behavior_score:    fresh.company_behavior_score,
+          total_score: total,
+          ...getScoreRating(total),
+        };
+      } catch {
+        // If re-scoring fails for any reason, fall back to stored value.
+        return { ...p, ...getScoreRating(p.total_score) };
+      }
     }));
+
+    // Re-sort by fresh score since the SQL ORDER BY used stored values
+    products.sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
 
     // If local DB has few results and we have a text query, search external sources IN PARALLEL
     if (q && products.length < 5) {

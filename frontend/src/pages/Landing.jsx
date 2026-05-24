@@ -179,6 +179,20 @@ export default function Landing() {
     return () => document.head.removeChild(style);
   }, []);
 
+  // Scroll to hash on mount (handles deep-links like /#compare and the
+  // /compare route that redirects here, plus /#features etc.)
+  useEffect(() => {
+    if (window.location.hash) {
+      const id = window.location.hash.replace('#', '');
+      const tryScroll = () => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      // Defer past first paint so the target section exists in the DOM
+      setTimeout(tryScroll, 100);
+    }
+  }, []);
+
   const marqueeItems = [
     ['Red 40', true], ['Banned in EU', false], ['BHA / BHT', true], ["In Your Kids' Cereal", false],
     ['Titanium Dioxide', true], ['Banned in France 2020', false], ['TBHQ', true], ['Banned in Japan', false],
@@ -430,6 +444,27 @@ export default function Landing() {
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#555', marginTop: '20px', lineHeight: 1.6, maxWidth: '720px' }}>
             Paid certification claims based on publicly documented programs: <strong>EWG Verified</strong> (application + annual fees per product) and <strong>WISEcode Non-UPF Shield™</strong> ($200/SKU/year). <strong>Fooducate</strong> serves in-app advertising via Amazon's ad network. <strong>Yuka</strong> and <strong>Open Food Facts</strong> are subscription/donation-funded and accept no brand money — we share that stance.
           </p>
+        </div>
+      </section>
+
+      {/* CLINICAL CREDIBILITY BAR */}
+      <section style={{ padding: '40px 24px', borderTop: '1px solid #1a1a1a', borderBottom: '1px solid #1a1a1a', background: '#0a0a0a' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: '#888', marginBottom: '14px' }}>Grounded in Published Clinical Guidelines</p>
+          <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
+            {['AHA','ADA','KDOQI','ATA','FDA'].map(org => (
+              <span key={org} style={{ fontFamily: 'var(--font-display)', fontSize: '24px', letterSpacing: '2px', color: '#c8f135' }}>{org}</span>
+            ))}
+          </div>
+          <p style={{ fontSize: '13px', color: 'rgba(244,244,240,0.55)', maxWidth: '600px', margin: '0 auto', lineHeight: 1.6 }}>
+            Every condition-specific score cites the guideline it's based on — American Heart Association, American Diabetes Association, KDOQI (kidney), American Thyroid Association, and FDA. No black boxes.
+          </p>
+          <button
+            onClick={() => navigate('/about-scoring')}
+            style={{ marginTop: '20px', background: 'transparent', border: '1px solid rgba(200,241,53,0.3)', color: '#c8f135', fontFamily: 'var(--font-mono)', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', padding: '12px 24px', cursor: 'pointer' }}
+          >
+            Read the full methodology →
+          </button>
         </div>
       </section>
 

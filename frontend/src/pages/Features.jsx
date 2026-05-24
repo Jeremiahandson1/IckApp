@@ -166,6 +166,20 @@ export default function Features() {
                 </div>
               ))}
             </div>
+            {idx === 0 && (
+              <div style={{ marginTop: '24px', padding: '20px 24px', background: '#161616', border: '1px solid #2a2a2a', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start' }}>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', color: '#c8f135', margin: 0 }}>Want the receipts?</p>
+                <p style={{ fontSize: '14px', color: 'rgba(244,244,240,0.7)', margin: 0, lineHeight: 1.6 }}>
+                  Every dimension and every condition-specific rule is published with its citation. AHA, ADA, KDOQI, ATA, FDA — see the evidence tier and the source for each rule.
+                </p>
+                <button
+                  onClick={() => navigate('/about-scoring')}
+                  style={{ background: 'transparent', border: '1px solid rgba(200,241,53,0.3)', color: '#c8f135', fontFamily: 'var(--font-mono)', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', padding: '10px 20px', cursor: 'pointer' }}
+                >
+                  Read the methodology →
+                </button>
+              </div>
+            )}
           </section>
         </div>
       ))}

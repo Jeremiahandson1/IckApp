@@ -171,6 +171,7 @@ export default function App() {
 
       {/* Public marketing pages — visible without login, standalone layout */}
       <Route path="/features" element={<Features />} />
+      <Route path="/compare" element={<Navigate to="/#compare" replace />} />
 
       {/* Auth pages */}
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

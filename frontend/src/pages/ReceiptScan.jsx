@@ -289,6 +289,17 @@ export default function ReceiptScan() {
             </div>
           </div>
 
+          {/* Privacy notice — point-of-use disclosure for OpenAI processing */}
+          <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-sm p-4">
+            <p className="text-xs font-medium text-[#c8f135] mb-2" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              Heads up — how this works
+            </p>
+            <p className="text-xs text-[#888] leading-relaxed">
+              Your receipt image is sent to <strong className="text-[#ddd]">OpenAI's GPT-4o</strong> to read the line items. Don't scan receipts containing personal info you don't want shared with OpenAI (e.g. full credit card numbers, ID details).{' '}
+              <button onClick={() => navigate('/privacy-policy')} className="text-[#c8f135] underline">Privacy details →</button>
+            </p>
+          </div>
+
           {/* Tips */}
           <div className="bg-[#0d0d0d]/50 rounded-sm p-4">
             <p className="text-xs font-medium text-[#888] mb-2">Tips for best results</p>
