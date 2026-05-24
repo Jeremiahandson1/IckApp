@@ -98,31 +98,43 @@ function clamp(val) {
 // DIMENSION 1: HARMFUL INGREDIENTS (40%)
 // ============================================================
 
-// Detect "ingredient" text that's actually OCR noise / package marketing copy
-// (e.g. "75 Salty Portes GOLDEN SRIRACHA TANGY SWEET JUL2025 NET WT") rather
-// than a real ingredient list. Real lists are comma-separated and contain at
-// least one common food noun. Treat suspicious text as missing data so we
-// don't return a 100/100 "no harmful found" verdict on garbage.
-function looksLikeRealIngredients(text) {
+// Detect ingredient text that is obvious garbage — OCR noise from package
+// marketing, literal "undefined" placeholders, nutrition-facts OCR, date
+// codes, etc. Uses "innocent until proven garbage" so valid single-ingredient
+// products ("maple", "pineapple", "spices") and non-English lists
+// ("Aceite de Pescado, Gelatina, ...") are NOT flagged.
+function looksLikeGarbageIngredients(text) {
   if (!text) return false;
   const t = String(text).trim();
-  if (t.length < 3) return false;
+  if (t.length === 0) return false;
 
-  // Real lists almost always have commas (or semicolons). A run-on string
-  // with zero separators across >30 chars is almost certainly not a list.
-  const sepCount = (t.match(/[,;]/g) || []).length;
-  if (t.length > 30 && sepCount === 0) return false;
+  // Literal placeholder strings written by buggy parsers
+  if (/^(undefined|null|n\/a|none|tbd|\?|\.+)\s*\.{0,3}$/i.test(t)) return true;
 
-  // Must contain at least one common food-list word. Cheap dictionary check
-  // covers the vast majority of real lists; OCR garbage rarely hits these.
-  const FOOD_WORDS = /\b(water|salt|sugar|flour|wheat|corn|rice|oat|barley|rye|milk|cream|butter|cheese|egg|yeast|oil|olive|canola|soy|sunflower|palm|coconut|cocoa|chocolate|vanilla|honey|syrup|starch|protein|whey|gluten|tomato|onion|garlic|pepper|spice|herb|extract|acid|citric|sodium|potassium|calcium|natural|artificial|flavor|color|preservative|enriched|bleached|hydrogenated|lecithin|maltodextrin|dextrose|fructose|sucrose|lactose|beef|chicken|pork|fish|turkey|bean|pea|lentil|nut|almond|peanut|cashew|walnut|seed|fruit|berry|apple|orange|lemon|vegetable|carrot|potato|spinach|kale|mushroom|gum|gelatin|agar|carrageenan|pectin|stevia|aspartame|sucralose|caffeine|cinnamon|garlic|ginger|paprika|cumin|turmeric)\b/i;
-  if (!FOOD_WORDS.test(t)) return false;
+  // Mostly non-letters (digits, punctuation, whitespace) — SKU/weight codes,
+  // not ingredients. Allows Latin, Cyrillic, Arabic, CJK letter ranges.
+  const letterCount = (t.match(/[A-Za-zÀ-ɏЀ-ӿ؀-ۿ一-鿿]/g) || []).length;
+  if (t.length > 10 && letterCount / t.length < 0.4) return true;
 
-  return true;
+  // Package label OCR signatures (NET WT, date stamps, sell-by codes)
+  if (/\bNET\s*WT\b|\bSELL\s*BY\b|\bUSE\s*BY\b|\bEXP\.?\s*\d|\bBEST\s*BY\b/i.test(t)) return true;
+  if (/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{4}\b/i.test(t)) return true;
+  if (/\$\s?\d/.test(t)) return true;
+
+  // Nutrition-facts OCR mistaken for ingredients
+  if (/\b(serving\s*size|calories|carbohydrates?|saturated\s*fat|cholesterol|daily\s*values?|added\s*sugars?)\b/i.test(t)) {
+    const commas = (t.match(/,/g) || []).length;
+    if (commas < 3) return true;
+  }
+
+  // Fragmented OCR with adjacent duplicate short words ("seal seal", "ality ality")
+  if (/\b(\w{3,8})\b\s+\b\1\b/i.test(t)) return true;
+
+  return false;
 }
 
 async function computeHarmfulIngredientsScore(ingredientsText) {
-  if (!looksLikeRealIngredients(ingredientsText)) {
+  if (!ingredientsText || String(ingredientsText).trim().length < 3 || looksLikeGarbageIngredients(ingredientsText)) {
     // No usable ingredient data = we can't verify safety. Penalize, don't reward.
     return { score: 30, found: [], missing_data: true };
   }

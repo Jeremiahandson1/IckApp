@@ -30,18 +30,30 @@ const limitArg = args.find(a => a.startsWith('--limit='));
 const LIMIT = limitArg ? parseInt(limitArg.split('=')[1], 10) : null;
 
 // Same heuristic as backend/src/utils/scoring.js — keep in sync.
-function looksLikeRealIngredients(text) {
+// "Innocent until proven garbage" — only flags obvious junk so we don't
+// nuke valid single-ingredient ("maple", "pineapple") or non-English lists.
+function looksLikeGarbageIngredients(text) {
   if (!text) return false;
   const t = String(text).trim();
-  if (t.length < 3) return false;
+  if (t.length === 0) return false;
 
-  const sepCount = (t.match(/[,;]/g) || []).length;
-  if (t.length > 30 && sepCount === 0) return false;
+  if (/^(undefined|null|n\/a|none|tbd|\?|\.+)\s*\.{0,3}$/i.test(t)) return true;
 
-  const FOOD_WORDS = /\b(water|salt|sugar|flour|wheat|corn|rice|oat|barley|rye|milk|cream|butter|cheese|egg|yeast|oil|olive|canola|soy|sunflower|palm|coconut|cocoa|chocolate|vanilla|honey|syrup|starch|protein|whey|gluten|tomato|onion|garlic|pepper|spice|herb|extract|acid|citric|sodium|potassium|calcium|natural|artificial|flavor|color|preservative|enriched|bleached|hydrogenated|lecithin|maltodextrin|dextrose|fructose|sucrose|lactose|beef|chicken|pork|fish|turkey|bean|pea|lentil|nut|almond|peanut|cashew|walnut|seed|fruit|berry|apple|orange|lemon|vegetable|carrot|potato|spinach|kale|mushroom|gum|gelatin|agar|carrageenan|pectin|stevia|aspartame|sucralose|caffeine|cinnamon|ginger|paprika|cumin|turmeric)\b/i;
-  if (!FOOD_WORDS.test(t)) return false;
+  const letterCount = (t.match(/[A-Za-zÀ-ɏЀ-ӿ؀-ۿ一-鿿]/g) || []).length;
+  if (t.length > 10 && letterCount / t.length < 0.4) return true;
 
-  return true;
+  if (/\bNET\s*WT\b|\bSELL\s*BY\b|\bUSE\s*BY\b|\bEXP\.?\s*\d|\bBEST\s*BY\b/i.test(t)) return true;
+  if (/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{4}\b/i.test(t)) return true;
+  if (/\$\s?\d/.test(t)) return true;
+
+  if (/\b(serving\s*size|calories|carbohydrates?|saturated\s*fat|cholesterol|daily\s*values?|added\s*sugars?)\b/i.test(t)) {
+    const commas = (t.match(/,/g) || []).length;
+    if (commas < 3) return true;
+  }
+
+  if (/\b(\w{3,8})\b\s+\b\1\b/i.test(t)) return true;
+
+  return false;
 }
 
 async function main() {
@@ -60,7 +72,7 @@ async function main() {
 
   const bad = [];
   for (const row of rows) {
-    if (!looksLikeRealIngredients(row.ingredients_preview)) {
+    if (looksLikeGarbageIngredients(row.ingredients_preview)) {
       bad.push(row);
     }
   }
