@@ -13,6 +13,11 @@ const router = express.Router();
 // Scanning is FREE and UNLIMITED — the core feature must never be gated.
 // Premium gates: pantry audit, shopping lists, detailed progress analytics.
 router.get('/scan/:upc', optionalAuth, async (req, res) => {
+  // Scoring engine improves constantly. Don't let upstream proxies, CDNs,
+  // or browser PWA service workers serve stale verdicts after a fix ships.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const { upc } = req.params;
 
@@ -669,6 +674,10 @@ router.get('/history', authenticateToken, async (req, res) => {
 });
 
 router.get('/search', async (req, res) => {
+  // Search re-scores each result on the fly — don't cache stale verdicts.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const { q, category, min_score, max_score } = req.query;
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
