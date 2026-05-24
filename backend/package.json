@@ -13,6 +13,8 @@
     "db:import:test": "node src/db/import-off.js --limit=100",
     "db:import:full": "node src/db/import-off.js --full",
     "db:seed-portfolios": "node src/db/seed-brand-portfolios.js",
+    "db:seed-flagships": "node src/db/seed-flagship-products.js",
+    "db:seed-flagships:dry": "node src/db/seed-flagship-products.js --dry",
     "db:clean-ingredients": "node src/db/clean-bad-ingredients.js",
     "db:clean-ingredients:dry": "node src/db/clean-bad-ingredients.js --dry-run",
     "admin:grant": "node src/db/set-admin.js grant",
