@@ -110,18 +110,37 @@ async function main() {
 
     if (DRY) continue;
 
+    // Resolve company_id via brand_aliases so the product page shows the
+    // parent company name + controversies instead of "Company not identified".
+    let companyId = null;
+    const brandNorm = (item.brand || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\b(inc|llc|ltd|corp|corporation|co|company|usa|us|na|brands|foods|group|holdings|gmbh|sa|ag|plc|llp|limited)\b/gi, ' ')
+      .replace(/[^a-z0-9]/g, '');
+    if (brandNorm) {
+      const r = await pool.query(
+        `SELECT company_id FROM brand_aliases WHERE alias = $1 LIMIT 1`,
+        [brandNorm]
+      );
+      if (r.rows.length > 0) companyId = r.rows[0].company_id;
+    }
+    if (companyId) console.log(`    company_id=${companyId} (matched alias '${brandNorm}')`);
+    else console.log(`    company_id=NULL (no alias match for '${brandNorm}')`);
+
     for (const upc of item.upcs) {
       await pool.query(
         `INSERT INTO products (
-           upc, name, brand, image_url, ingredients,
+           upc, name, brand, company_id, image_url, ingredients,
            harmful_ingredients_score, banned_elsewhere_score, transparency_score,
            processing_score, company_behavior_score,
            harmful_ingredients_found, allergens_tags,
            nutriscore_grade, nova_group, updated_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, NOW())
          ON CONFLICT (upc) DO UPDATE SET
            name = EXCLUDED.name,
            brand = EXCLUDED.brand,
+           company_id = COALESCE(EXCLUDED.company_id, products.company_id),
            ingredients = EXCLUDED.ingredients,
            harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
            banned_elsewhere_score    = EXCLUDED.banned_elsewhere_score,
@@ -134,7 +153,7 @@ async function main() {
            nova_group                = EXCLUDED.nova_group,
            updated_at                = NOW()`,
         [
-          upc, item.name, item.brand, item.image_url, item.ingredients,
+          upc, item.name, item.brand, companyId, item.image_url, item.ingredients,
           scored.harmful_ingredients_score,
           scored.banned_elsewhere_score,
           scored.transparency_score,

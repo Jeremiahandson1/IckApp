@@ -46,13 +46,22 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
+            // Never cache scan/score/search responses — these change as the
+            // scoring engine improves. Stale cached scores were causing
+            // audits to see old data after fixes had shipped.
+            urlPattern: ({ url }) => url.pathname.match(/^\/api\/(products\/scan|products\/search|swaps|pantry|progress|receipts)/),
+            handler: 'NetworkOnly',
+          },
+          {
+            // Other /api/ routes (companies list, recipes, static lookups)
+            // can be NetworkFirst with a short TTL.
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-cache-v2',
+              cacheName: 'api-cache-v3',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                maxAgeSeconds: 60 * 60 // 1 hour (was 24h)
               },
               cacheableResponse: {
                 statuses: [0, 200]

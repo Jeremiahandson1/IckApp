@@ -84,7 +84,7 @@ const S = {
 
 const banned = [
   { name: 'Red Dye 40', foundIn: 'Doritos · Froot Loops · M&Ms · Jell-O', bans: ['Banned: EU*', 'Banned: UK*'], ok: ['Allowed: USA'], note: '*Requires "may affect activity in children" warning label' },
-  { name: 'Brominated Veg. Oil', foundIn: 'Mountain Dew · Citrus Sports Drinks', bans: ['Banned: EU', 'Banned: Japan', 'Banned: India'], ok: ['Allowed: USA'], note: 'Bromine accumulates in tissue. FDA banned it in 2024 — still in supply chains.' },
+  { name: 'Brominated Veg. Oil', foundIn: 'Sun Drop · Some Citrus Sports Drinks (PepsiCo removed it from Mountain Dew in 2020)', bans: ['Banned: EU', 'Banned: Japan', 'Banned: India'], ok: ['Allowed: USA'], note: 'Bromine accumulates in tissue. FDA banned it in 2024 — products on shelves before the ban may still contain it.' },
   { name: 'Titanium Dioxide', foundIn: 'Skittles · Chewing Gum · Frosting · Ranch', bans: ['Banned: France 2020', 'Banned: EU 2022'], ok: ['Allowed: USA'], note: 'Used purely for whitening. EFSA: can no longer be considered safe.' },
   { name: 'Potassium Bromate', foundIn: 'Bread · Rolls · Bagels · Pizza Dough', bans: ['Banned: EU', 'Banned: UK', 'Banned: Canada'], ok: ['Allowed: USA'], note: 'IARC classifies it as a possible human carcinogen. Banned in 20+ countries.' },
   { name: 'BHA / BHT', foundIn: 'Cereal · Potato Chips · Chewing Gum · Butter', bans: ['Banned: Japan', 'Restricted: EU'], ok: ['Allowed: USA'], note: 'BHA listed as "reasonably anticipated to be a human carcinogen" by US Dept of Health.' },
