@@ -526,7 +526,11 @@ export default function Landing({ initialScroll } = {}) {
           <p style={{ fontSize: '16px', color: 'rgba(244,244,240,0.7)', maxWidth: '700px', margin: '0 auto 32px', lineHeight: 1.7, fontWeight: 300 }}>
             The day a brand pays us is the day every score on this app becomes suspect. That's why it will never happen. The business is built so that taking brand money would <em>kill it</em> — not just compromise it.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2px', marginTop: '40px', maxWidth: '800px', marginLeft: 'auto', marginRight: 'auto' }}>
+          {/* Stat grid: minmax(170px) ensures all 4 tiles fit at 800px max-width
+              container (4 × 170 + 3 × 2px gap = 686px, well under 800px) so we
+              never orphan the 100% USER-FUNDED tile on its own row. At mobile
+              widths (<360px) auto-fit naturally reflows to 2×2. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '2px', marginTop: '40px', maxWidth: '800px', marginLeft: 'auto', marginRight: 'auto' }}>
             {[
               ['$0', 'From brands. Ever.'],
               ['0', 'Sponsored placements.'],
