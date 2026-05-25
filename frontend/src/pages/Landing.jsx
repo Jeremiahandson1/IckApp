@@ -309,6 +309,20 @@ export default function Landing({ initialScroll } = {}) {
         </div>
       </section>
 
+      {/* NARRATIVE PIVOT — single scan to whole-house problem */}
+      <section style={{ padding: '64px 24px', background: '#0a0a0a', borderTop: '1px solid #1a1a1a', borderBottom: '1px solid #1a1a1a' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ ...S.label, marginBottom: '20px' }}>Here's the thing —</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px, 7vw, 64px)', lineHeight: '0.95', textTransform: 'uppercase', marginBottom: '24px' }}>
+            You Just Scanned <span style={{ color: '#c8f135' }}>One Product.</span><br/>
+            <span style={{ color: 'transparent', WebkitTextStroke: '2px #f4f4f0' }}>Your Kitchen</span> Has <span style={{ color: '#ff3b30' }}>40 More.</span>
+          </h2>
+          <p style={{ fontSize: '17px', color: 'rgba(244,244,240,0.7)', maxWidth: '640px', margin: '0 auto', lineHeight: 1.6, fontWeight: 300 }}>
+            Yuka users have scanned hundreds of products one at a time and still don't know what's in their own pantry. Ick scans your receipt, audits every product you bought, gives each family member their own profile, and tracks your household score climbing as you make swaps. <strong style={{ color: '#f4f4f0' }}>That's the system no one else built.</strong>
+          </p>
+        </div>
+      </section>
+
       {/* TIERED FEATURES — Free / Account / Premium */}
       <section id="features" style={{ ...S.section, background: '#0d0d0d', maxWidth: '100%', padding: '80px 24px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
@@ -339,20 +353,24 @@ export default function Landing({ initialScroll } = {}) {
         </div>
       </section>
 
-      {/* ONE SCAN — WHOLE HOUSE */}
+      {/* ONE SCAN — WHOLE HOUSE (reframed around family + conditions = the real moat) */}
       <section style={S.section}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '60px', alignItems: 'center' }}>
           <div>
-            <p style={S.label}>The Real Differentiator</p>
-            <h2 style={S.sectionH2}>One Scan.<br/>Your <span style={{ color: '#c8f135' }}>Whole House.</span></h2>
+            <p style={S.label}>One Scan. Five Different Verdicts.</p>
+            <h2 style={S.sectionH2}>Your Family Isn't<br/><span style={{ color: '#c8f135' }}>One Person.</span></h2>
             <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none' }}>
-              Scan a product in the store. Scan your receipt at home to add 40 items at once. Your pantry gets a full health audit. Your family each has their own allergen and condition profile. Your household score goes up every time you make a swap.
+              Mom with hypothyroid. Dad managing pre-diabetes. Kid with a peanut allergy. Grandma on a low-sodium kidney diet. Every person in your house has different rules — and every product has a different verdict for each of them.
             </p>
-            <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none', color: '#f4f4f0' }}>
-              That's not a scanner. That's a system.
+            <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none' }}>
+              Ick is the only food app that scores every product against each family member's actual health profile. Scan once. Get four answers. Backed by AHA, ADA, KDOQI, ATA, and FDA guidelines.
+            </p>
+            <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none', color: '#f4f4f0', fontWeight: 500 }}>
+              Yuka can't do this. EWG won't do this. We built it because nobody else will.
             </p>
             <div style={{ ...S.actions, marginTop: '36px' }}>
               <button style={S.btnPrimary} onClick={() => navigate('/register')}>Start Free →</button>
+              <button style={S.btnSecondary} onClick={() => navigate('/about-scoring')}>See the methodology →</button>
             </div>
           </div>
 
@@ -465,6 +483,35 @@ export default function Landing({ initialScroll } = {}) {
           >
             Read the full methodology →
           </button>
+        </div>
+      </section>
+
+      {/* STRUCTURAL INDEPENDENCE — identity, not a feature */}
+      <section style={{ padding: '80px 24px', background: '#0d0d0d', borderTop: '1px solid #1a1a1a' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ ...S.label, marginBottom: '16px' }}>Why You Can Trust the Scores</p>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(36px, 7vw, 64px)', lineHeight: '0.95', textTransform: 'uppercase', marginBottom: '28px' }}>
+            Structurally <span style={{ color: '#c8f135' }}>Independent.</span><br/>Permanently.
+          </h2>
+          <p style={{ fontSize: '16px', color: 'rgba(244,244,240,0.7)', maxWidth: '700px', margin: '0 auto 32px', lineHeight: 1.7, fontWeight: 300 }}>
+            Our entire revenue comes from <strong style={{ color: '#f4f4f0' }}>users paying for Premium</strong>. No brand payments. No paid certifications. No "sponsored swap" recommendations. No ads. No affiliate kickbacks. No VC pressure to grow at any cost.
+          </p>
+          <p style={{ fontSize: '16px', color: 'rgba(244,244,240,0.7)', maxWidth: '700px', margin: '0 auto 32px', lineHeight: 1.7, fontWeight: 300 }}>
+            The day a brand pays us is the day every score on this app becomes suspect. That's why it will never happen. The business is built so that taking brand money would <em>kill it</em> — not just compromise it.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2px', marginTop: '40px', maxWidth: '800px', marginLeft: 'auto', marginRight: 'auto' }}>
+            {[
+              ['$0', 'From brands. Ever.'],
+              ['0', 'Sponsored placements.'],
+              ['0', 'In-app ads.'],
+              ['100%', 'User-funded.'],
+            ].map(([n, l]) => (
+              <div key={l} style={{ padding: '24px 16px', background: '#161616', border: '1px solid #2a2a2a', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '36px', color: '#c8f135', lineHeight: 1 }}>{n}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', color: '#888', marginTop: '8px' }}>{l}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
