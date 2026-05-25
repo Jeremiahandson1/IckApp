@@ -309,7 +309,13 @@ export default function Landing({ initialScroll } = {}) {
         </div>
       </section>
 
-      {/* NARRATIVE PIVOT — single scan to whole-house problem */}
+      {/* NARRATIVE PIVOT — single scan to whole-house problem
+          COMPETITOR WATCHPOINT: the "Yuka users have scanned hundreds of
+          products and still don't know what's in their own pantry" line
+          is true today because Yuka has no pantry/receipt/household
+          features. If Yuka ships any of those, this line goes from sharp
+          differentiation to false claim overnight. Re-evaluate on launch
+          of any competitor household feature. */}
       <section style={{ padding: '64px 24px', background: '#0a0a0a', borderTop: '1px solid #1a1a1a', borderBottom: '1px solid #1a1a1a' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
           <p style={{ ...S.label, marginBottom: '20px' }}>Here's the thing —</p>
@@ -353,17 +359,38 @@ export default function Landing({ initialScroll } = {}) {
         </div>
       </section>
 
-      {/* ONE SCAN — WHOLE HOUSE (reframed around family + conditions = the real moat) */}
+      {/* ONE SCAN — WHOLE HOUSE (reframed around family + conditions = the real moat)
+          ─────────────────────────────────────────────────────────────────────
+          COMPETITOR WATCHPOINT: the "Yuka can't do this. EWG won't do this."
+          line below is contingent on (a) Yuka not shipping a condition layer
+          and (b) EWG choosing not to. If a major scanner ships condition-
+          specific scoring with evidence tiers, this section becomes a
+          liability. Re-evaluate immediately on competitor launch.
+
+          Condition names below MUST map to real sub-types implemented in
+          backend/src/utils/conditionScorer.v2.js. Current coverage:
+            - celiac
+            - thyroid: hypo, hyper, hashimotos
+            - diabetes
+            - heart
+            - kidney: general, ckd-3-4, dialysis, stones
+          If a condition is added to the marketing copy without scorer
+          coverage, the page over-promises and the trust collapses on first
+          scan. Add the rule first, then the copy. */}
       <section style={S.section}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '60px', alignItems: 'center' }}>
           <div>
-            <p style={S.label}>One Scan. Five Different Verdicts.</p>
+            <p style={S.label}>One Scan. Different Verdicts Per Person.</p>
             <h2 style={S.sectionH2}>Your Family Isn't<br/><span style={{ color: '#c8f135' }}>One Person.</span></h2>
             <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none' }}>
-              Mom with hypothyroid. Dad managing pre-diabetes. Kid with a peanut allergy. Grandma on a low-sodium kidney diet. Every person in your house has different rules — and every product has a different verdict for each of them.
+              Mom with <strong style={{ color: '#f4f4f0' }}>Hashimoto's</strong>. Dad with <strong style={{ color: '#f4f4f0' }}>type 2 diabetes</strong>. Kid with <strong style={{ color: '#f4f4f0' }}>celiac</strong>. Grandma on <strong style={{ color: '#f4f4f0' }}>dialysis</strong>. Every person in your house follows different rules — and every product has a different verdict for each of them.
             </p>
             <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none' }}>
-              Ick is the only food app that scores every product against each family member's actual health profile. Scan once. Get four answers. Backed by AHA, ADA, KDOQI, ATA, and FDA guidelines.
+              Ick is the only food app that scores every product against each family member's actual health profile. But here's the part most apps won't tell you: <strong style={{ color: '#f4f4f0' }}>every rule we apply is tagged with its evidence tier.</strong> We show you when a guideline <em>strongly</em> supports a restriction (gluten in celiac, phosphate additives in CKD, iodine in hyperthyroidism) and when the evidence is <em>mixed</em> (gluten in Hashimoto's, anti-inflammatory diets in autoimmune thyroid). Most apps blur that line. We don't.
+            </p>
+            <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none', fontSize: '13px', color: 'rgba(244,244,240,0.55)' }}>
+              <strong style={{ color: '#888', fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Conditions covered:</strong><br/>
+              Celiac · Hypothyroidism · Hyperthyroidism · Hashimoto's · Diabetes (Type 1 & 2) · Heart Disease · CKD (Stages 3–4) · Dialysis · Kidney Stones. Rules anchored to AHA, ADA, KDOQI, ATA, and FDA — each tagged "strong" or "mixed" evidence.
             </p>
             <p style={{ ...S.sectionBody, marginTop: '20px', maxWidth: 'none', color: '#f4f4f0', fontWeight: 500 }}>
               Yuka can't do this. EWG won't do this. We built it because nobody else will.
