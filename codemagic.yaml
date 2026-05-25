@@ -130,7 +130,12 @@ workflows:
             --scheme "$XCODE_SCHEME"
 
     artifacts:
-      - frontend/ios/App/build/ios/ipa/*.ipa
+      # xcode-project build-ipa writes to build/ios/ipa relative to the
+      # repo root (where xcodebuild is invoked from), NOT next to the
+      # .xcodeproj. Prior glob was frontend/ios/App/build/ios/ipa/*.ipa
+      # and matched nothing, so Codemagic logged "no IPAs or PKGs found"
+      # and skipped the TestFlight upload while still reporting success.
+      - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
 
