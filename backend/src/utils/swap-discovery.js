@@ -148,11 +148,14 @@ const PRODUCT_TYPES = [
     label: 'Crackers' },
   
   { id: 'cookies',
-    test: /cookie|biscuit|chips\s*ahoy|oreo|nutter/i,
-    off_categories: ['en:biscuits-and-cakes', 'en:cookies'],
+    // Anchored signals only — bare "biscuit"/"wafer" substrings wrongly
+    // caught Pillsbury biscuits, biscuit dough/mix, cakes, and OFF's
+    // catch-all "biscuits-and-cakes" category, mislabeling them as cookies.
+    test: /\bcookies?\b|chips\s*ahoy|\boreos?\b|nutter\s*butter|shortbread|(?:nilla|vanilla)\s*wafers?|fig\s*newton|\bbiscotti\b/i,
+    off_categories: ['en:cookies', 'en:biscuits-and-cakes'],
     search_terms: 'organic cookies',
-    must_contain: ['cookie', 'biscuit'],
-    exclude: ['cream', 'ice', 'dough'],
+    must_contain: ['cookie', 'biscuit', 'shortbread', 'wafer'],
+    exclude: ['cream', 'ice', 'dough', 'mix'],
     label: 'Cookies' },
   
   { id: 'soda',
@@ -432,30 +435,10 @@ function scoreRelevance(candidateName, candidateBrand, productWords, productBran
 // MAIN: Find dynamic swaps for a product
 // ============================================================
 export async function findDynamicSwaps(product, upc, limit = 5) {
-  const nameOnly = (product.name || '').toLowerCase();
-  const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
-
-  // 1. Identify product type — match name first to avoid OFF miscategorization
-  let matchedType = null;
-  for (const type of PRODUCT_TYPES) {
-    if (type.test.test(nameOnly)) {
-      matchedType = type;
-      break;
-    }
-  }
-  if (!matchedType) {
-    for (const type of PRODUCT_TYPES) {
-      if (type.test.test(fullName)) {
-        matchedType = type;
-        break;
-      }
-    }
-  }
-
-  if (!matchedType) {
-    matchedType = inferTypeFromCategory(product.category);
-    if (!matchedType) return [];
-  }
+  // Single shared type-detection path (name → name+subcategory →
+  // precise category). Keeps discovery consistent with getProductType.
+  const matchedType = getProductType(product);
+  if (!matchedType) return [];
 
   const productWords = extractProductWords(product.name, product.brand);
 
@@ -757,9 +740,14 @@ export function getProductType(product) {
   for (const type of PRODUCT_TYPES) {
     if (type.test.test(nameOnly)) return type;
   }
-  const fullName = `${nameOnly} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
+  // Fall back to name + subcategory only. The raw OFF `category` string is
+  // NOT regex-tested here — OFF frequently miscategorizes (e.g. a snack
+  // tagged "biscuits-and-cakes"), which bled unrelated items into the wrong
+  // type. Category is still used, but only via the precise off_categories
+  // match in inferTypeFromCategory below.
+  const nameAndSub = `${nameOnly} ${product.subcategory || ''}`.toLowerCase();
   for (const type of PRODUCT_TYPES) {
-    if (type.test.test(fullName)) return type;
+    if (type.test.test(nameAndSub)) return type;
   }
   return inferTypeFromCategory(product.category);
 }

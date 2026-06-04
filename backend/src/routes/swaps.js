@@ -2,7 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { getScoreRating } from '../utils/helpers.js';
-import { findDynamicSwaps, getProductType } from '../utils/swap-discovery.js';
+import { findDynamicSwaps, getProductType, PRODUCT_TYPES } from '../utils/swap-discovery.js';
 
 const router = express.Router();
 
@@ -176,8 +176,6 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     // Only show alternatives that are actually BETTER than what was scanned
     const swapScoreFloor = Math.max(50, (product.total_score || 0) + 1);
     if (swaps.length === 0) {
-      const fullName = `${product.name || ''} ${product.subcategory || ''} ${product.category || ''}`.toLowerCase();
-
       // Get the comprehensive product type for cross-type rejection
       const discoveryType = getProductType(product);
       const discoveryTypeId = discoveryType?.id || '_NONE_';
@@ -250,122 +248,15 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
         return score;
       };
 
-      // Identify what TYPE of product this is and build targeted search
-      // Match product name FIRST (without category) to avoid OFF miscategorization
-      const nameOnly = (product.name || '').toLowerCase();
+      // Product type is identified by the shared getProductType() (computed
+      // above as discoveryType). The local copy of this list was deleted —
+      // having two divergent lists meant the detect step and the filter
+      // step disagreed, letting unrelated items (e.g. cookies) through.
 
-      const productTypeMap = [
-        { test: /fruit\s*snack|fruit\s*roll|fruit\s*leather|fruit\s*gumm/i,
-          search: "fruit snack organic", must_contain: ['fruit snack', 'fruit roll', 'fruit leather', 'fruit bite'],
-          exclude: ['nut', 'seed', 'chip'] },
-        { test: /granola\s*bar|chewy\s*bar|oat\s*bar|snack\s*bar/i,
-          search: "organic granola bar clean", must_contain: ['bar', 'granola'],
-          exclude: ['cereal', 'cookie'] },
-        { test: /protein\s*bar|energy\s*bar/i,
-          search: "organic protein bar", must_contain: ['bar', 'protein'],
-          exclude: ['cereal', 'cookie'] },
-        { test: /cookie|biscuit|shortbread|wafer/i,
-          search: "organic cookies clean", must_contain: ['cookie', 'biscuit', 'shortbread', 'wafer'],
-          exclude: ['chip', 'cracker'] },
-        { test: /cracker|goldfish|cheez-?it/i,
-          search: "organic crackers clean", must_contain: ['cracker'],
-          exclude: ['cookie', 'chip'] },
-        { test: /ginger\s*chew|ginger\s*candy|crystalli[sz]ed\s*ginger/i,
-          search: "organic ginger chews candy", must_contain: ['ginger'],
-          exclude: ['cereal', 'cookie', 'cracker', 'chip', 'beer', 'ale', 'soda'] },
-        { test: /\bchew[sy]?\b(?!.*gum)|taffy|toffee|caramel\s*candy|hi-?chew|mamba|airhead|laffy/i,
-          search: "organic chewy candy", must_contain: ['chew', 'candy', 'taffy', 'toffee', 'caramel', 'sweet'],
-          exclude: ['chocolate', 'bar', 'cereal', 'granola', 'gum'] },
-        { test: /candy|skittle|gumm|sour|jelly/i,
-          search: "organic candy clean low sugar", must_contain: ['candy', 'gumm', 'sour', 'sweet'],
-          exclude: ['chocolate', 'bar', 'chip'] },
-        { test: /tortilla\s*chip|corn\s*chip|nacho|dorito|tostito/i,
-          search: "organic tortilla chips", must_contain: ['tortilla', 'corn chip', 'nacho'],
-          exclude: ['cookie', 'cracker', 'chocolate'] },
-        { test: /potato\s*chip|chip|crisp|lay'?s|pringle|cheeto|frito/i,
-          search: "organic potato chips", must_contain: ['potato', 'chip', 'crisp', 'kettle'],
-          exclude: ['cookie', 'chocolate', 'tortilla'] },
-        { test: /cereal|loops|flakes|puffs|crunch|charms/i,
-          search: "organic cereal clean", must_contain: ['cereal', 'flake', 'puff', 'crunch', 'loop', 'o\'s', 'grain'],
-          exclude: ['bar', 'cookie'] },
-        { test: /chocolate\s*(bar|candy)|cocoa/i,
-          search: "organic dark chocolate bar", must_contain: ['chocolate', 'cocoa'],
-          exclude: ['cookie', 'cereal', 'milk', 'chip'] },
-        { test: /mac.*cheese|macaroni/i,
-          search: "organic mac cheese", must_contain: ['mac', 'cheese', 'macaroni'],
-          exclude: ['pizza', 'sauce'] },
-        { test: /yogurt|yoghurt/i,
-          search: "organic yogurt", must_contain: ['yogurt', 'yoghurt'],
-          exclude: ['bar', 'drink'] },
-        { test: /ice\s*cream|frozen\s*dessert/i,
-          search: "organic ice cream", must_contain: ['ice cream', 'frozen'],
-          exclude: ['sandwich', 'bar'] },
-        { test: /juice|lemonade|fruit\s*drink/i,
-          search: "organic juice 100", must_contain: ['juice', 'lemonade'],
-          exclude: ['snack', 'bar', 'candy'] },
-        { test: /soda|cola|sprite|pop/i,
-          search: "sparkling water prebiotic soda", must_contain: ['sparkling', 'soda', 'cola', 'water'],
-          exclude: ['candy', 'gummy'] },
-        { test: /bread|bun|roll/i,
-          search: "organic whole grain bread", must_contain: ['bread', 'grain', 'wheat'],
-          exclude: ['crumb', 'stick'] },
-        { test: /pasta\s*sauce|marinara|tomato\s*sauce/i,
-          search: "organic pasta sauce marinara", must_contain: ['sauce', 'marinara'],
-          exclude: ['pizza', 'salsa'] },
-        { test: /ketchup/i,
-          search: "organic ketchup unsweetened", must_contain: ['ketchup'],
-          exclude: [] },
-        { test: /dressing|vinaigrette|ranch/i,
-          search: "organic dressing clean", must_contain: ['dressing', 'ranch', 'vinaigrette'],
-          exclude: [] },
-        { test: /peanut\s*butter|nut\s*butter|almond\s*butter/i,
-          search: "organic peanut butter", must_contain: ['peanut', 'almond', 'butter'],
-          exclude: ['cup', 'candy', 'bar'] },
-        { test: /ramen|instant\s*noodle/i,
-          search: "organic ramen noodles", must_contain: ['ramen', 'noodle'],
-          exclude: [] },
-        // Soup and broth/stock are SEPARATE types — chicken noodle soup ≠ beef broth
-        { test: /soup(?!.*(?:broth|stock|base))/i,
-          search: "organic soup low sodium", must_contain: ['soup', 'stew', 'chowder', 'bisque'],
-          exclude: ['cracker', 'broth', 'stock', 'base', 'bouillon'] },
-        { test: /broth|stock|bouillon|bone\s*broth/i,
-          search: "organic broth low sodium", must_contain: ['broth', 'stock', 'bouillon'],
-          exclude: ['cracker', 'soup'] },
-        { test: /hot\s*dog|frank|wiener/i,
-          search: "uncured hot dogs organic", must_contain: ['hot dog', 'frank', 'wiener', 'uncured'],
-          exclude: [] },
-        { test: /frozen\s*pizza|pizza/i,
-          search: "organic frozen pizza", must_contain: ['pizza'],
-          exclude: ['roll', 'bite', 'sauce', 'cutter'] },
-        { test: /popcorn/i,
-          search: "organic popcorn", must_contain: ['popcorn'],
-          exclude: ['seasoning', 'topping', 'oil'] },
-        { test: /pretzel/i,
-          search: "organic pretzels", must_contain: ['pretzel'],
-          exclude: ['dip', 'mustard', 'cheese'] },
-        { test: /oatmeal|oats/i,
-          search: "organic oats oatmeal", must_contain: ['oat'],
-          exclude: ['bar', 'cookie', 'milk'] },
-      ];
-
-      // Try matching on product name first — avoids OFF miscategorization
-      // (e.g., "Ginger Chews" with OFF category "breakfast-cereals" would wrongly match cereal)
-      let matchedType = null;
-      for (const type of productTypeMap) {
-        if (type.test.test(nameOnly)) {
-          matchedType = type;
-          break;
-        }
-      }
-      // Only fall back to full name+category if name alone didn't match
-      if (!matchedType) {
-        for (const type of productTypeMap) {
-          if (type.test.test(fullName)) {
-            matchedType = type;
-            break;
-          }
-        }
-      }
+      // Use the SINGLE shared type list (getProductType, already computed
+      // above as discoveryType). Detection here now agrees with the
+      // candidate filtering / cross-type rejection — no divergent second list.
+      const matchedType = discoveryType;
 
       if (matchedType) {
         // Single combined query: subcategory + category + FTS + cached discoveries in one pass
@@ -396,7 +287,10 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
               product.category || '_NONE_',
               `%${(product.category || '_NONE_').split(':').pop().replace(/-/g, '%')}%`,
               discoveryTypeId,
-              ...(searchKeywords ? [matchedType.search] : [])
+              // FTS on the product's OWN distinctive words (e.g. "chicken
+              // noodle"), not the generic type phrase — keeps the candidate
+              // pool on-topic instead of pulling anything vaguely "organic".
+              ...(searchKeywords ? [searchKeywords] : [])
             ]
           );
 
