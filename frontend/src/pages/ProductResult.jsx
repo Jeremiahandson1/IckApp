@@ -1,24 +1,32 @@
+// Product result page — orchestrates data fetching (product, swaps, recipes,
+// condition scores, favorites) and composes the display components in
+// components/product/. Keep rendering logic in those components; this file
+// owns state and API calls.
+
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, ArrowRightLeft, ChefHat, AlertTriangle,
-  Beaker, Info, ChevronDown, ChevronUp, Leaf,
-  ShieldAlert, Check, ExternalLink, Apple, Heart, Share2,
-  ShoppingCart, Send, Search
+  Info, Leaf, Check, Apple, Heart, Share2,
 } from 'lucide-react';
-import { products, pantry, swaps as swapsApi, recipes as recipesApi, conditions as conditionsApi } from '../utils/api';
+import { products, pantry, swaps as swapsApi, conditions as conditionsApi } from '../utils/api';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { shareProduct } from '../utils/nativeShare';
 import { isValidUPC } from '../utils/helpers';
-import FamilyProfileSwitcher from '../components/common/FamilyProfileSwitcher';
 import ScoreRing from '../components/common/ScoreRing';
-import ScoreBadge, { ScoreBar } from '../components/common/ScoreBadge';
-import {
-  getScoreLabel, getScoreLightBgClass, getScoreTextClass,
-  getSeverityColor, capitalize, getScoreExplanation
-} from '../utils/helpers';
+import { NutriScoreBadge, NovaBadge } from '../components/product/badges';
+import ScoreBreakdown from '../components/product/ScoreBreakdown';
+import CollapsibleSection from '../components/product/CollapsibleSection';
+import NutritionFactsSection from '../components/product/NutritionFactsSection';
+import IngredientCard from '../components/product/IngredientCard';
+import SwapCard from '../components/product/SwapCard';
+import RecipeCard from '../components/product/RecipeCard';
+import ConditionView from '../components/product/ConditionView';
+import AllergenAlerts from '../components/product/AllergenAlerts';
+import ProductNotFound from '../components/product/ProductNotFound';
+import InlineSwapPreview from '../components/product/InlineSwapPreview';
 
 export default function ProductResult() {
   const { upc } = useParams();
@@ -33,12 +41,10 @@ export default function ProductResult() {
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(!passedProduct);
   const [addedToPantry, setAddedToPantry] = useState(false);
+  const [addingToPantry, setAddingToPantry] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [contributeName, setContributeName] = useState('');
-  const [contributeBrand, setContributeBrand] = useState('');
-  const [contributing, setContributing] = useState(false);
   const [activeAllergens, setActiveAllergens] = useState(
     user?.allergen_alerts || (() => {
       try { return JSON.parse(localStorage.getItem('ick_allergens') || '[]'); } catch { return []; }
@@ -55,6 +61,7 @@ export default function ProductResult() {
   const [conditionScores, setConditionScores] = useState([]);
   const [userConditions, setUserConditions] = useState([]);
   const [conditionLoading, setConditionLoading] = useState(false);
+  const [conditionError, setConditionError] = useState(false);
 
   // Reset state and fetch full product data whenever UPC changes (e.g. tapping an alternative)
   useEffect(() => {
@@ -173,10 +180,11 @@ export default function ProductResult() {
     }
     let cancelled = false;
     setConditionLoading(true);
+    setConditionError(false);
     const param = userConditions.map(uc => uc.sub_type ? `${uc.slug}:${uc.sub_type}` : uc.slug).join(',');
     conditionsApi.scoreProduct(product.id, param)
       .then(data => { if (!cancelled) setConditionScores(data.conditionScores || []); })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setConditionError(true); })
       .finally(() => { if (!cancelled) setConditionLoading(false); });
     return () => { cancelled = true; };
   }, [conditionViewOn, product?.id, userConditions]);
@@ -187,7 +195,6 @@ export default function ProductResult() {
     localStorage.setItem('ick_condition_view', next ? 'on' : 'off');
   };
 
-  const [addingToPantry, setAddingToPantry] = useState(false);
   const handleAddToPantry = async () => {
     if (addingToPantry || addedToPantry) return;
     setAddingToPantry(true);
@@ -211,6 +218,26 @@ export default function ProductResult() {
     }
   };
 
+  const handleShare = async () => {
+    const score = Math.round(product.total_score);
+    const verdict = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Mediocre' : score >= 20 ? 'Poor' : 'Bad';
+    api.post('/analytics/event', { event_type: 'share', event_data: { upc, score } }).catch(() => {});
+
+    const shareText = `${product.name} scored ${score}/100 (${verdict}) on Ick`;
+    const shareUrl = `${window.location.origin}/product/${upc}`;
+    const success = await shareProduct({
+      title: `${product.name} — Ick`,
+      text: shareText,
+      url: shareUrl
+    });
+    if (success) {
+      toast.success('Link copied to clipboard!');
+    } else {
+      // All copy methods failed — show the link directly so user can copy manually
+      toast.info(`Share this link: ${shareUrl}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
@@ -221,75 +248,7 @@ export default function ProductResult() {
   }
 
   if (notFound || (!product && !loading)) {
-    return (
-      <div className="min-h-screen pb-24" style={{ background: '#0a0a0a' }}>
-        <div style={{ background: '#0d0d0d', borderBottom: '1px solid var(--border)' }}>
-          <div className="px-4 py-4 flex items-center pt-safe">
-            <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full active:scale-90 transition-transform">
-              <ArrowLeft className="w-6 h-6 text-[#888]" />
-            </button>
-          </div>
-        </div>
-        <div className="px-6 pt-12 max-w-md mx-auto text-center">
-          <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
-            <Search className="w-10 h-10 text-amber-400" />
-          </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '32px', letterSpacing: '1px', color: '#f4f4f0' }}>
-            PRODUCT NOT FOUND
-          </h1>
-          <p className="text-[#888] mt-2 mb-6">
-            UPC <span className="font-mono text-xs bg-[#1e1e1e] px-2 py-1 rounded text-[#bbb]">{upc}</span> isn't in our database yet.
-          </p>
-
-          {/* Contribute form */}
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-sm p-5 text-left">
-            <div className="flex items-center gap-2 mb-3">
-              <Send className="w-5 h-5 text-amber-400" />
-              <h3 className="font-semibold text-[#f4f4f0]">Help us add it</h3>
-            </div>
-            <div className="space-y-2">
-              <input
-                type="text" value={contributeName}
-                onChange={(e) => setContributeName(e.target.value)}
-                placeholder="Product name (e.g. Cheerios)"
-                className="w-full px-3 py-2.5 rounded-sm border border-[#333] bg-[#0d0d0d] text-sm text-[#f4f4f0] placeholder-[#555]"
-              />
-              <input
-                type="text" value={contributeBrand}
-                onChange={(e) => setContributeBrand(e.target.value)}
-                placeholder="Brand (e.g. General Mills)"
-                className="w-full px-3 py-2.5 rounded-sm border border-[#333] bg-[#0d0d0d] text-sm text-[#f4f4f0] placeholder-[#555]"
-              />
-              <button
-                onClick={async () => {
-                  setContributing(true);
-                  try {
-                    await api.post('/products/contribute', { upc, name: contributeName, brand: contributeBrand });
-                    toast.success('Thanks! We\'ll add this product soon.');
-                    setContributeName('');
-                    setContributeBrand('');
-                  } catch (e) {
-                    toast.error('Failed to submit');
-                  }
-                  setContributing(false);
-                }}
-                disabled={contributing || !contributeName.trim()}
-                className="w-full py-2.5 bg-amber-500 text-white rounded-sm text-sm font-medium disabled:opacity-50"
-              >
-                {contributing ? 'Submitting...' : 'Submit Product'}
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={() => navigate('/scan')}
-            className="mt-6 px-6 py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium text-sm"
-          >
-            Back to Scanner
-          </button>
-        </div>
-      </div>
-    );
+    return <ProductNotFound upc={upc} />;
   }
 
   if (!product) return null;
@@ -326,32 +285,16 @@ export default function ProductResult() {
           </button>
           <div className="flex items-center gap-1">
             <button
-              onClick={async () => {
-                const score = Math.round(product.total_score);
-                const verdict = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Mediocre' : score >= 20 ? 'Poor' : 'Bad';
-                api.post('/analytics/event', { event_type: 'share', event_data: { upc, score } }).catch(() => {});
-                
-                const shareText = `${product.name} scored ${score}/100 (${verdict}) on Ick`;
-                const shareUrl = `${window.location.origin}/product/${upc}`;
-                const success = await shareProduct({
-                  title: `${product.name} — Ick`,
-                  text: shareText,
-                  url: shareUrl
-                });
-                if (success) {
-                  toast.success('Link copied to clipboard!');
-                } else {
-                  // All copy methods failed — show the link directly so user can copy manually
-                  toast.info(`Share this link: ${shareUrl}`);
-                }
-              }}
+              onClick={handleShare}
               className="p-2 rounded-full active:scale-90 transition-transform"
+              aria-label="Share this product"
             >
               <Share2 className="w-5 h-5" style={{ color: 'var(--muted)' }} />
             </button>
             <button
               onClick={toggleFavorite}
               className="p-2 rounded-full active:scale-90 transition-transform"
+              aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
             >
               <Heart className={`w-6 h-6 ${isFavorited ? 'text-red-500' : 'text-[#888]'}`} fill={isFavorited ? 'currentColor' : 'none'} />
             </button>
@@ -361,8 +304,8 @@ export default function ProductResult() {
         {/* Product Image + Name */}
         <div className="px-4 pb-4 flex items-start gap-4">
           {product.image_url ? (
-            <img 
-              src={product.image_url} 
+            <img
+              src={product.image_url}
               alt={product.name}
               className="w-20 h-20 object-cover flex-shrink-0"
               style={{ background: '#1e1e1e', border: '1px solid var(--border)' }}
@@ -403,133 +346,24 @@ export default function ProductResult() {
 
       {/* Condition View Toggle + Scores */}
       {user && (
-        <div className="px-4 mt-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-[#888]" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '2px', textTransform: 'uppercase' }}>
-              Condition View
-            </span>
-            <button
-              onClick={toggleConditionView}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                conditionViewOn ? 'bg-[#c8f135]' : 'bg-[#333]'
-              }`}
-            >
-              <div className={`absolute top-1 w-4 h-4 rounded-full transition-transform ${
-                conditionViewOn ? 'translate-x-7 bg-[#0d0d0d]' : 'translate-x-1 bg-[#888]'
-              }`} />
-            </button>
-          </div>
-
-          {conditionViewOn && userConditions.length === 0 && (
-            <div className="bg-[#1e1e1e] rounded-sm p-3 text-center">
-              <p className="text-sm text-[#888]">No health conditions set.</p>
-              <button
-                onClick={() => navigate('/profile')}
-                className="text-xs text-[#c8f135] font-medium mt-1"
-              >
-                Set conditions in your profile →
-              </button>
-            </div>
-          )}
-
-          {conditionViewOn && userConditions.length > 0 && (
-            <div className="space-y-2">
-              {/* Score pills */}
-              <div className="flex flex-wrap gap-2">
-                <div className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${
-                  product.total_score >= 75 ? 'bg-green-500/10 text-green-400' :
-                  product.total_score >= 50 ? 'bg-amber-500/10 text-amber-400' :
-                  product.total_score >= 25 ? 'bg-orange-500/10 text-orange-400' :
-                  'bg-red-500/10 text-red-400'
-                }`}>
-                  Normal: {Math.round(product.total_score ?? 0)}
-                </div>
-                {conditionLoading ? (
-                  <div className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm text-[#888]">
-                    Scoring...
-                  </div>
-                ) : conditionScores.map(cs => {
-                  const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
-                  const noScore = cs.score == null;
-                  const scoreColor = noScore ? 'bg-[#1e1e1e] text-[#888]' :
-                    cs.score >= 75 ? 'bg-green-500/10 text-green-400' :
-                    cs.score >= 50 ? 'bg-amber-500/10 text-amber-400' :
-                    cs.score >= 25 ? 'bg-orange-500/10 text-orange-400' :
-                    'bg-red-500/10 text-red-400';
-                  const capTitle = cs.cappedByNormal
-                    ? `Condition-specific score was ${cs.rawConditionScore} but capped to the general score (${cs.score}). See "Score Capping" in About Scoring.`
-                    : undefined;
-                  return (
-                    <div
-                      key={cs.slug}
-                      className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${scoreColor}`}
-                      title={capTitle}
-                    >
-                      {CONDITION_ICONS[cs.slug] || ''} {cs.label}: {noScore ? '\u2014' : cs.score}
-                      {cs.cappedByNormal && <span className="ml-1 text-[10px] opacity-70">\u25B2</span>}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Expandable flags per condition */}
-              {!conditionLoading && conditionScores.map(cs => (
-                cs.flags.length > 0 && (
-                  <ConditionFlagsSection key={cs.slug} conditionScore={cs} />
-                )
-              ))}
-            </div>
-          )}
-        </div>
+        <ConditionView
+          totalScore={product.total_score}
+          conditionViewOn={conditionViewOn}
+          onToggle={toggleConditionView}
+          userConditions={userConditions}
+          conditionScores={conditionScores}
+          conditionLoading={conditionLoading}
+          conditionError={conditionError}
+        />
       )}
 
       {/* Inline Swap Preview — show immediately, don't bury */}
       {!isClean && swapOptions.length > 0 && (
-        <div className="px-4 mt-3">
-          <div className="bg-[#0d0d0d] rounded-sm p-4 shadow-sm border border-orange-100">
-            <div className="flex items-center gap-2 mb-3">
-              <ArrowRightLeft className="w-4 h-4 text-[#c8f135]" />
-              <span className="text-sm font-semibold text-[#ccc]">Better Alternative</span>
-            </div>
-            {(() => {
-              const best = swapOptions[0];
-              const improvement = Math.round((best.total_score || 0) - (product.total_score || 0));
-              return (
-                <button
-                  onClick={() => handleSwapClick(best)}
-                  className="w-full flex items-center gap-3 text-left active:bg-[#0a0a0a] rounded-sm transition-colors"
-                >
-                  {best.image_url ? (
-                    <img src={best.image_url} alt="" className="w-12 h-12 rounded-sm object-cover bg-[#1e1e1e]"
-                      onError={(e) => { e.target.style.display = 'none'; }} />
-                  ) : (
-                    <div className="w-12 h-12 rounded-sm bg-[rgba(200,241,53,0.06)] flex items-center justify-center">
-                      <ArrowRightLeft className="w-5 h-5 text-[#c8f135]" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[#f4f4f0] truncate">{best.name}</p>
-                    <p className="text-xs text-[#666]">{best.brand}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-[#c8f135]">
-                      +{improvement}
-                    </div>
-                    <div className="text-[10px] text-[#c8f135] font-medium">points</div>
-                  </div>
-                </button>
-              );
-            })()}
-            {swapOptions.length > 1 && (
-              <button
-                onClick={() => document.getElementById('swaps-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="mt-3 w-full text-center text-xs text-[#c8f135] font-medium"
-              >
-                +{swapOptions.length - 1} more alternatives ↓
-              </button>
-            )}
-          </div>
-        </div>
+        <InlineSwapPreview
+          swapOptions={swapOptions}
+          currentScore={product.total_score}
+          onSwapClick={handleSwapClick}
+        />
       )}
 
       {/* Quick Actions */}
@@ -563,216 +397,30 @@ export default function ProductResult() {
       </div>
 
       {/* Allergen Warnings */}
-      {allergens.length > 0 && (() => {
-        // Family profile switcher — lets user switch who they're scanning for
-        const userAllergens = activeAllergens;
-        const matchedAllergens = allergens.filter(a => 
-          userAllergens.some(ua => 
-            a.toLowerCase().includes(ua.toLowerCase()) || 
-            ua.toLowerCase().includes(a.toLowerCase())
-          )
-        );
-        const hasPersonalMatch = matchedAllergens.length > 0;
-
-        return (
-          <div className="mt-4 space-y-3">
-            {/* Family profile switcher */}
-            <FamilyProfileSwitcher onAllergenChange={setActiveAllergens} onFamilyScanInfo={setFamilyScanMembers} />
-
-            <div className="px-4 space-y-3">
-            {/* Personal allergen alert — red, prominent */}
-            {hasPersonalMatch && (
-              <div className="bg-red-500/10 border-2 border-red-500/30 rounded-sm p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
-                  <span className="font-bold text-red-300">⚠️ Contains YOUR Allergens</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {matchedAllergens.map((a, i) => (
-                    <span key={i} className="px-3 py-1.5 bg-red-500/30 text-red-200 text-sm font-bold rounded-full">
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* General allergen list */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-sm p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldAlert className="w-5 h-5 text-amber-400" />
-                <span className="font-semibold text-amber-300">Contains Allergens</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {allergens.map((a, i) => (
-                  <span key={i} className={`px-2.5 py-1 text-sm font-medium rounded-full ${
-                    matchedAllergens.includes(a) 
-                      ? 'bg-red-500/20 text-red-300 ring-2 ring-red-300' 
-                      : 'bg-amber-500/20 text-amber-300'
-                  }`}>
-                    {a}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {/* Family group member alerts — show who is affected */}
-            {familyScanMembers && familyScanMembers.length > 0 && (() => {
-              const affected = familyScanMembers.filter(m => {
-                const memberAllergens = m.allergies || [];
-                return memberAllergens.some(ma =>
-                  allergens.some(a => a.toLowerCase().includes(ma.toLowerCase()) || ma.toLowerCase().includes(a.toLowerCase()))
-                );
-              });
-              if (affected.length === 0) return null;
-              return (
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-sm p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="w-4 h-4 text-purple-400" />
-                    <span className="font-semibold text-purple-300 text-sm">Family Members Affected</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {affected.map(m => {
-                      const matched = (m.allergies || []).filter(ma =>
-                        allergens.some(a => a.toLowerCase().includes(ma.toLowerCase()) || ma.toLowerCase().includes(a.toLowerCase()))
-                      );
-                      return (
-                        <div key={m.id} className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-purple-200">{m.name}:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {matched.map((a, i) => (
-                              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">{a}</span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-            </div>
-          </div>
-        );
-      })()}
+      {allergens.length > 0 && (
+        <AllergenAlerts
+          allergens={allergens}
+          activeAllergens={activeAllergens}
+          familyScanMembers={familyScanMembers}
+          onAllergenChange={setActiveAllergens}
+          onFamilyScanInfo={setFamilyScanMembers}
+        />
+      )}
 
       {/* Score Breakdown — collapsible "Why this score?" */}
-      {(() => {
-        const explanation = getScoreExplanation(product);
-        const isBreakdownOpen = expandedSection === 'breakdown';
-        return (
-          <div className="px-4 mt-6">
-            <div className="card overflow-hidden">
-              <button
-                onClick={() => setExpandedSection(isBreakdownOpen ? null : 'breakdown')}
-                className="w-full flex items-center justify-between p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <Info className="w-5 h-5 text-[#c8f135]" />
-                  <div className="text-left">
-                    <span className="font-semibold text-[#f4f4f0]">Why this score?</span>
-                    {explanation.summary && (
-                      <p className="text-xs text-[#888] mt-0.5 line-clamp-1">{explanation.summary}</p>
-                    )}
-                  </div>
-                </div>
-                {isBreakdownOpen ? <ChevronUp className="w-5 h-5 text-[#888]" /> : <ChevronDown className="w-5 h-5 text-[#888]" />}
-              </button>
-
-              {isBreakdownOpen && (
-                <div className="px-4 pb-4 border-t border-[#2a2a2a] pt-4">
-                  <div className="space-y-1">
-                    <ScoreItem
-                      icon={ShieldAlert}
-                      label="Harmful Ingredients"
-                      score={product.harmful_ingredients_score ?? 50}
-                      weight="40%"
-                      detail={explanation.harmful_detail}
-                      items={explanation.harmful_items}
-                      type="harmful"
-                    />
-                    <ScoreItem
-                      icon={AlertTriangle}
-                      label="Banned Elsewhere"
-                      score={product.banned_elsewhere_score ?? 50}
-                      weight="20%"
-                      detail={explanation.banned_detail}
-                      items={explanation.banned_items}
-                      type="banned"
-                    />
-                    <ScoreItem
-                      icon={Info}
-                      label="Transparency"
-                      score={product.transparency_score ?? 50}
-                      weight="15%"
-                      detail={explanation.transparency_detail}
-                      items={explanation.transparency_items}
-                      type="transparency"
-                    />
-                    <ScoreItem
-                      icon={Beaker}
-                      label="Processing Level"
-                      score={product.processing_score ?? 50}
-                      weight="15%"
-                      detail={explanation.processing_detail}
-                      items={explanation.processing_items}
-                      type="processing"
-                    />
-                    <ScoreItem
-                      icon={ShoppingCart}
-                      label="Company Behavior"
-                      score={product.company_behavior_score ?? 50}
-                      weight="10%"
-                      detail={explanation.company_detail}
-                      items={explanation.company_items}
-                      type="company"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      <ScoreBreakdown
+        product={product}
+        expanded={expandedSection === 'breakdown'}
+        onToggle={() => setExpandedSection(expandedSection === 'breakdown' ? null : 'breakdown')}
+      />
 
       {/* Nutrition Facts */}
       {hasNutrition && (
-        <div className="px-4 mt-4">
-          <CollapsibleSection
-            title="Nutrition Facts"
-            subtitle="per 100g"
-            icon={Apple}
-            iconColor="text-blue-500"
-            expanded={expandedSection === 'nutrition'}
-            onToggle={() => setExpandedSection(expandedSection === 'nutrition' ? null : 'nutrition')}
-          >
-            <div className="grid grid-cols-2 gap-3">
-              {nutritionFacts.calories != null && (
-                <NutrientRow label="Calories" value={nutritionFacts.calories} unit="kcal" highlight />
-              )}
-              {nutritionFacts.fat != null && (
-                <NutrientRow label="Fat" value={nutritionFacts.fat} unit="g" />
-              )}
-              {nutritionFacts.saturated_fat != null && (
-                <NutrientRow label="Sat. Fat" value={nutritionFacts.saturated_fat} unit="g" warn={nutritionFacts.saturated_fat > 5} />
-              )}
-              {nutritionFacts.carbs != null && (
-                <NutrientRow label="Carbs" value={nutritionFacts.carbs} unit="g" />
-              )}
-              {nutritionFacts.sugars != null && (
-                <NutrientRow label="Sugars" value={nutritionFacts.sugars} unit="g" warn={nutritionFacts.sugars > 12} />
-              )}
-              {nutritionFacts.fiber != null && (
-                <NutrientRow label="Fiber" value={nutritionFacts.fiber} unit="g" good={nutritionFacts.fiber > 3} />
-              )}
-              {nutritionFacts.protein != null && (
-                <NutrientRow label="Protein" value={nutritionFacts.protein} unit="g" good={nutritionFacts.protein > 5} />
-              )}
-              {nutritionFacts.sodium != null && (
-                <NutrientRow label="Sodium" value={nutritionFacts.sodium} unit="mg" warn={nutritionFacts.sodium > 600} />
-              )}
-            </div>
-          </CollapsibleSection>
-        </div>
+        <NutritionFactsSection
+          nutritionFacts={nutritionFacts}
+          expanded={expandedSection === 'nutrition'}
+          onToggle={() => setExpandedSection(expandedSection === 'nutrition' ? null : 'nutrition')}
+        />
       )}
 
       {/* Harmful Ingredients */}
@@ -806,9 +454,9 @@ export default function ProductResult() {
           >
             <div className="space-y-3">
               {swapOptions.map((swap, idx) => (
-                <SwapCard 
-                  key={idx} 
-                  swap={swap} 
+                <SwapCard
+                  key={idx}
+                  swap={swap}
                   currentScore={product.total_score}
                   onClick={() => handleSwapClick(swap)}
                 />
@@ -830,8 +478,8 @@ export default function ProductResult() {
           >
             <div className="space-y-3">
               {recipes.map((recipe, idx) => (
-                <RecipeCard 
-                  key={idx} 
+                <RecipeCard
+                  key={idx}
                   recipe={recipe}
                   onClick={() => navigate(`/recipes/${recipe.id}`)}
                 />
@@ -858,397 +506,5 @@ export default function ProductResult() {
         </div>
       )}
     </div>
-  );
-}
-
-// ============================================================
-// SUB-COMPONENTS
-// ============================================================
-
-// Official Nutri-Score colors per Santé Publique France spec.
-const NUTRISCORE_BG = {
-  a: '#038141', b: '#85BB2F', c: '#FECB02', d: '#EE8100', e: '#E63E11',
-};
-const NUTRISCORE_FG = { a: '#fff', b: '#fff', c: '#1a1a1a', d: '#fff', e: '#fff' };
-
-function NutriScoreBadge({ grade }) {
-  // OFF returns "not-applicable" / "unknown" when the food category is
-  // ineligible (e.g. spices, sweeteners). Filter to real grades only.
-  const g = String(grade || '').toLowerCase();
-  if (!['a', 'b', 'c', 'd', 'e'].includes(g)) return null;
-
-  return (
-    <div className="flex items-center gap-1">
-      <span className="text-xs text-[#666] font-medium">Nutri-Score</span>
-      <span
-        className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold"
-        style={{ background: NUTRISCORE_BG[g], color: NUTRISCORE_FG[g] }}
-      >
-        {g.toUpperCase()}
-      </span>
-    </div>
-  );
-}
-
-const NOVA_LABELS = { 1: 'Unprocessed', 2: 'Processed ingredients', 3: 'Processed', 4: 'Ultra-processed' };
-const NOVA_STYLE = {
-  1: { color: '#16a34a', bg: 'rgba(34,197,94,0.15)' },
-  2: { color: '#84cc16', bg: 'rgba(132,204,22,0.15)' },
-  3: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-  4: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-};
-
-function NovaBadge({ group }) {
-  // OFF can return null / "not-applicable" / numeric strings. Coerce + validate.
-  const g = parseInt(group, 10);
-  if (!NOVA_LABELS[g]) return null;
-  const style = NOVA_STYLE[g];
-  return (
-    <span
-      className="text-xs font-medium px-2.5 py-1 rounded-full"
-      style={{ color: style.color, background: style.bg }}
-      title={NOVA_LABELS[g]}
-    >
-      NOVA {g}
-    </span>
-  );
-}
-
-function NutrientRow({ label, value, unit, warn, good, highlight }) {
-  const valueColor = warn ? 'text-red-400' : good ? 'text-[#c8f135]' : 'text-[#f4f4f0]';
-  return (
-    <div className={`flex justify-between items-center py-2 px-3 rounded-sm ${highlight ? 'bg-[#1e1e1e]' : ''}`}>
-      <span className="text-sm text-[#888]">{label}</span>
-      <span className={`text-sm font-semibold ${valueColor}`}>
-        {value}{unit}
-        {warn && <span className="ml-1 text-red-400">●</span>}
-        {good && <span className="ml-1 text-[#c8f135]">●</span>}
-      </span>
-    </div>
-  );
-}
-
-function ScoreItem({ icon: Icon, label, score, weight, detail, items = [], type }) {
-  const [open, setOpen] = useState(false);
-  const hasDetail = (items && items.length > 0) || detail;
-  const detailColor = score >= 70 ? '#5a9a4a' : score >= 40 ? '#b08a5e' : '#c45a4a';
-
-  return (
-    <div className="py-3 border-b border-[#1e1e1e] last:border-0">
-      <button
-        onClick={() => hasDetail && setOpen(!open)}
-        className="w-full flex items-start gap-3 text-left"
-      >
-        <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: detailColor }} />
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-baseline mb-1">
-            <span className="text-sm text-[#ccc]">{label}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium" style={{ color: detailColor }}>{Math.round(score)}/100</span>
-              <span className="text-[10px] text-[#555]">{weight}</span>
-            </div>
-          </div>
-          <ScoreBar score={score} />
-          {detail && (
-            <p className="text-xs mt-1.5" style={{ color: '#999', fontWeight: 300, lineHeight: 1.4 }}>
-              {detail}
-            </p>
-          )}
-        </div>
-        {hasDetail && items.length > 0 && (
-          <ChevronDown className={`w-4 h-4 text-[#555] flex-shrink-0 mt-0.5 transition-transform ${open ? 'rotate-180' : ''}`} />
-        )}
-      </button>
-
-      {open && items.length > 0 && (
-        <div className="mt-2 ml-7 space-y-1.5">
-          {type === 'harmful' && items.map((item, i) => (
-            <div key={i} className="p-2 rounded-sm" style={{ background: '#111', border: '1px solid #1e1e1e' }}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#ddd]">{item.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-sm" style={{
-                  background: item.severity >= 8 ? 'rgba(239,68,68,0.15)' : item.severity >= 5 ? 'rgba(245,158,11,0.15)' : 'rgba(107,114,128,0.15)',
-                  color: item.severity >= 8 ? '#f87171' : item.severity >= 5 ? '#fbbf24' : '#9ca3af',
-                  fontFamily: 'var(--font-mono)', letterSpacing: '1px'
-                }}>
-                  {item.severity}/10
-                </span>
-              </div>
-              {item.effect && <p className="text-[11px] text-[#888] mt-1" style={{ lineHeight: 1.4 }}>{item.effect}</p>}
-              {item.why && <p className="text-[11px] text-[#666] mt-0.5 italic">Used as: {item.why}</p>}
-            </div>
-          ))}
-
-          {type === 'banned' && items.map((item, i) => (
-            <div key={i} className="p-2 rounded-sm" style={{ background: '#111', border: '1px solid #1e1e1e' }}>
-              <span className="text-xs font-medium text-[#ddd]">{item.name}</span>
-              <p className="text-[11px] text-[#e88] mt-0.5">
-                Banned in: {item.countries.join(', ')}
-              </p>
-            </div>
-          ))}
-
-          {type === 'transparency' && items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 py-0.5">
-              {item.present ? (
-                <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-              ) : (
-                <span className="w-3.5 h-3.5 flex items-center justify-center text-[#555] flex-shrink-0">✕</span>
-              )}
-              <span className={`text-xs ${item.present ? 'text-[#aaa]' : 'text-[#666]'}`}>
-                {item.label}{item.partial ? ' (partial)' : ''}
-              </span>
-            </div>
-          ))}
-
-          {type === 'processing' && items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 py-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
-              <span className="text-xs text-[#aaa]">{item}</span>
-            </div>
-          ))}
-
-          {type === 'company' && items.map((item, i) => (
-            <div key={i} className="flex items-start gap-2 py-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0 mt-1.5" />
-              <span className="text-xs text-[#aaa]" style={{ lineHeight: 1.4 }}>{item}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CollapsibleSection({ title, subtitle, icon: Icon, iconColor, expanded, onToggle, children }) {
-  return (
-    <div className="card overflow-hidden">
-      <button onClick={onToggle} className="w-full flex items-center justify-between p-4">
-        <div className="flex items-center gap-3">
-          <Icon className={`w-5 h-5 ${iconColor}`} />
-          <div className="text-left">
-            <span className="font-semibold text-[#f4f4f0]">{title}</span>
-            {subtitle && <span className="text-xs text-[#888] ml-2">{subtitle}</span>}
-          </div>
-        </div>
-        {expanded ? <ChevronUp className="w-5 h-5 text-[#888]" /> : <ChevronDown className="w-5 h-5 text-[#888]" />}
-      </button>
-      {expanded && (
-        <div className="px-4 pb-4 border-t border-[#2a2a2a] pt-4">{children}</div>
-      )}
-    </div>
-  );
-}
-
-function IngredientCard({ ingredient }) {
-  return (
-    <div className="p-4" style={{ background: '#111', border: '1px solid rgba(255,59,48,0.15)' }}>
-      <div className="flex items-start justify-between mb-2">
-        <h4 className="font-semibold text-[#f4f4f0]" style={{ fontFamily: 'var(--font-display)', fontSize: '20px', letterSpacing: '1px', textTransform: 'uppercase' }}>{ingredient.name}</h4>
-        <span className="text-xs px-2 py-0.5" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', color: 'var(--red)' }}>
-          RISK {ingredient.severity}/10
-        </span>
-      </div>
-      {ingredient.health_effects && (
-        <p className="text-sm text-[#888] mb-2" style={{ fontWeight: 300 }}>{ingredient.health_effects}</p>
-      )}
-      {ingredient.banned_in && ingredient.banned_in.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {ingredient.banned_in.map((country, i) => (
-            <span key={i} className="text-xs px-2 py-0.5" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', background: 'rgba(255,59,48,0.08)', border: '1px solid rgba(255,59,48,0.2)', color: 'var(--red)' }}>
-              BANNED: {country.toUpperCase()}
-            </span>
-          ))}
-        </div>
-      )}
-      {ingredient.why_used && (
-        <p className="text-xs text-[#666] mb-1" style={{ fontStyle: 'italic' }}>
-          Why it's in there: {ingredient.why_used}
-        </p>
-      )}
-      {ingredient.source_url && (
-        <a
-          href={ingredient.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 hover:underline mt-1"
-          style={{ color: 'var(--ick-green)', fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '1px' }}
-        >
-          <ExternalLink className="w-3 h-3" /> SOURCE ↗
-        </a>
-      )}
-    </div>
-  );
-}
-
-function SwapCard({ swap, currentScore, onClick }) {
-  const improvement = swap.total_score - currentScore;
-  const stores = swap.nearby_stores || [];
-  const links = swap.online_links || [];
-  
-  return (
-    <div className="p-4 bg-[rgba(200,241,53,0.06)] rounded-sm">
-      <button onClick={onClick} className="w-full text-left card-pressed">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-[#f4f4f0] truncate">{swap.name}</h4>
-            <p className="text-sm text-[#888]">{swap.brand}</p>
-          </div>
-          <div className="text-right ml-3">
-            <span className="text-2xl font-bold text-[#c8f135]">{Math.round(swap.total_score)}</span>
-            <p className="text-xs text-[#c8f135] font-medium">+{improvement} pts</p>
-          </div>
-        </div>
-      </button>
-      
-      {/* Where to Buy — stores */}
-      {stores.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-[#333]/50">
-          <p className="text-xs font-medium text-[#888] mb-1.5">Available at</p>
-          <div className="flex flex-wrap gap-1.5">
-            {stores.map((s, i) => (
-              <span key={i} className="text-xs px-2 py-0.5 bg-[#2a2a2a]/60 text-[#ccc] rounded-full">
-                {s.store_name}{s.price ? ` · $${Number(s.price).toFixed(2)}` : ''}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Online purchase links */}
-      {links.length > 0 && (
-        <div className={`${stores.length > 0 ? 'mt-2' : 'mt-3 pt-3 border-t border-[#333]/50'}`}>
-          {stores.length === 0 && <p className="text-xs font-medium text-[#888] mb-1.5">Buy online</p>}
-          <div className="flex flex-wrap gap-1.5">
-            {links.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs px-2 py-0.5 bg-[rgba(200,241,53,0.1)] text-[#c8f135] rounded-full hover:bg-[rgba(200,241,53,0.15)] transition-colors"
-              >
-                {link.name} ↗
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConditionFlagsSection({ conditionScore }) {
-  const [expanded, setExpanded] = useState(false);
-  const cs = conditionScore;
-  const CONDITION_ICONS = { thyroid: '\uD83E\uDD8B', diabetes: '\uD83E\uDE78', heart: '\u2764\uFE0F', kidney: '\uD83E\uDED8', celiac: '\uD83C\uDF3E' };
-  const SEVERITY_ICONS = { good: '\u2705', warn: '\u26A0\uFE0F', avoid: '\uD83D\uDEAB', info: '\u2139\uFE0F' };
-
-  return (
-    <div className="bg-[#111] rounded-sm overflow-hidden border border-[#2a2a2a]">
-      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between p-3 text-left">
-        <div className="flex items-center gap-2">
-          <span>{CONDITION_ICONS[cs.slug] || ''}</span>
-          <span className="text-sm font-medium text-[#ccc]">
-            Why this {cs.label} score?
-          </span>
-        </div>
-        {expanded ? <ChevronUp className="w-4 h-4 text-[#888]" /> : <ChevronDown className="w-4 h-4 text-[#888]" />}
-      </button>
-      {expanded && (
-        <div className="px-3 pb-3 space-y-2 border-t border-[#2a2a2a] pt-2">
-          {cs.flags.map((flag, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="text-sm flex-shrink-0 mt-0.5">{SEVERITY_ICONS[flag.severity] || '\u2139\uFE0F'}</span>
-              <div className="min-w-0">
-                <p className={`text-sm font-medium ${
-                  flag.severity === 'avoid' ? 'text-red-400' :
-                  flag.severity === 'warn' ? 'text-amber-400' :
-                  flag.severity === 'good' ? 'text-green-400' :
-                  'text-[#888]'
-                }`}>
-                  {flag.ingredient || flag.nutrient || (flag.severity === 'info' ? 'Note' : '')}
-                  {flag.evidence === 'mixed' && (
-                    <span
-                      className="ml-2 inline-block px-1.5 py-0.5 text-[9px] font-mono bg-amber-500/10 text-amber-300 rounded align-middle"
-                      title="Mixed evidence \u2014 not formally endorsed by a major society, but supported by smaller clinical studies + mechanism"
-                    >
-                      MIXED EVIDENCE
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-[#888]">{flag.reason}</p>
-                {flag.source && (
-                  <p className="text-[10px] text-[#555] mt-0.5 italic">Source: {flag.source}</p>
-                )}
-              </div>
-            </div>
-          ))}
-          {cs.disclaimer && (
-            <p className="text-[10px] text-[#555] pt-2 border-t border-[#1a1a1a] italic">
-              {cs.disclaimer}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RecipeCard({ recipe, onClick }) {
-  const hasPantryData = recipe.pantry_total_count > 0;
-  const healthBenefits = Array.isArray(recipe.health_benefits) ? recipe.health_benefits : [];
-
-  return (
-    <button onClick={onClick} className="w-full p-4 bg-violet-50 rounded-sm text-left card-pressed">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-[#f4f4f0]">{recipe.name}</h4>
-          <p className="text-sm text-[#888]">
-            {recipe.total_time_minutes || recipe.prep_time_minutes || '?'} min
-            {recipe.difficulty ? ` • ${recipe.difficulty}` : ''}
-            {recipe.servings ? ` • ${recipe.servings} servings` : ''}
-          </p>
-        </div>
-        <ChefHat className="w-6 h-6 text-violet-500 flex-shrink-0" />
-      </div>
-
-      {/* Pantry ingredient match */}
-      {hasPantryData && recipe.pantry_have_count > 0 && (
-        <div className="flex items-center gap-1.5 mt-2">
-          <Check className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-xs text-emerald-400 font-medium">
-            You have {recipe.pantry_have_count} of {recipe.pantry_total_count} ingredients
-          </span>
-          {recipe.pantry_need_count > 0 && (
-            <span className="text-xs text-[#666]">
-              • need {recipe.pantry_need_count} more
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Health benefits preview */}
-      {healthBenefits.length > 0 && (
-        <div className="flex items-start gap-1.5 mt-2">
-          <Leaf className="w-3.5 h-3.5 text-green-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-green-400/80 line-clamp-2">
-            {healthBenefits[0]}
-          </p>
-        </div>
-      )}
-
-      {recipe.vs_store_bought && (
-        <p className="text-xs text-violet-600 mt-2 line-clamp-2">{recipe.vs_store_bought}</p>
-      )}
-
-      {/* Cost savings */}
-      {recipe.cost_per_serving && (
-        <p className="text-[10px] text-[#666] mt-1.5">
-          ~${recipe.cost_per_serving.toFixed ? recipe.cost_per_serving.toFixed(2) : recipe.cost_per_serving}/serving homemade
-        </p>
-      )}
-    </button>
   );
 }
