@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Lock, Crown } from 'lucide-react';
 import api from '../../utils/api';
+import { getStoredToken } from '../../utils/tokenStorage';
 
 export default function PremiumGate({ feature, children }) {
   const [loading, setLoading] = useState(true);
@@ -17,7 +18,7 @@ export default function PremiumGate({ feature, children }) {
 
   const checkPremiumStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getStoredToken('token');
       if (!token) {
         setLoading(false);
         return;

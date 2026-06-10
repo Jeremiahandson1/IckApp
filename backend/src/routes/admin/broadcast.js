@@ -59,41 +59,73 @@ router.post('/', async (req, res) => {
   if (!sql) return res.status(400).json({ error: 'Unknown segment' });
 
   try {
-    const recipients = (await pool.query(sql)).rows;
-    if (recipients.length === 0) {
-      return res.json({ ok: true, recipients: 0, email: null, push: null });
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0a;padding:32px;color:#e5e5e5;">
+      <div style="max-width:560px;margin:0 auto;background:#161616;border:1px solid #2a2a2a;border-radius:16px;padding:32px;">
+        <h2 style="color:#c8f135;margin:0 0 16px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${subject.replace(/</g, '&lt;')}</h2>
+        <div style="line-height:1.6;font-size:15px;white-space:pre-wrap;">${body.replace(/</g, '&lt;')}</div>
+      </div>
+    </div>`;
+
+    // Fetch recipients in keyset-paginated batches so a large user base never
+    // sits in the heap all at once (the server runs with a 450MB old-space cap).
+    const BATCH_SIZE = 1000;
+    const emailTotals = { sent: 0, failed: 0 };
+    const pushTotals = { sent: 0, failed: 0, expired: 0, no_sub: 0 };
+    let recipientCount = 0;
+    let lastId = null;
+
+    for (;;) {
+      const { rows } = await pool.query(
+        `SELECT * FROM (${sql}) seg
+         WHERE $1::uuid IS NULL OR seg.id > $1
+         ORDER BY seg.id
+         LIMIT $2`,
+        [lastId, BATCH_SIZE]
+      );
+      if (rows.length === 0) break;
+      recipientCount += rows.length;
+      lastId = rows[rows.length - 1].id;
+
+      if (channels.includes('email')) {
+        const r = await sendBroadcastEmail({
+          recipients: rows.map(r => r.email).filter(Boolean),
+          subject,
+          html,
+          text: body,
+        });
+        emailTotals.sent += r.sent;
+        emailTotals.failed += r.failed;
+      }
+
+      if (channels.includes('push')) {
+        const p = await broadcastPush(rows, {
+          title: subject || 'Ick',
+          body,
+          url: '/',
+          tag: 'admin-broadcast',
+        });
+        pushTotals.sent += p.sent;
+        pushTotals.failed += p.failed;
+        pushTotals.expired += p.expired;
+        pushTotals.no_sub += p.no_sub;
+      }
+
+      if (rows.length < BATCH_SIZE) break;
     }
 
-    const result = { ok: true, recipients: recipients.length, email: null, push: null };
+    const result = {
+      ok: true,
+      recipients: recipientCount,
+      email: recipientCount > 0 && channels.includes('email') ? emailTotals : null,
+      push: recipientCount > 0 && channels.includes('push') ? pushTotals : null,
+    };
 
-    if (channels.includes('email')) {
-      const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0a;padding:32px;color:#e5e5e5;">
-        <div style="max-width:560px;margin:0 auto;background:#161616;border:1px solid #2a2a2a;border-radius:16px;padding:32px;">
-          <h2 style="color:#c8f135;margin:0 0 16px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${subject.replace(/</g, '&lt;')}</h2>
-          <div style="line-height:1.6;font-size:15px;white-space:pre-wrap;">${body.replace(/</g, '&lt;')}</div>
-        </div>
-      </div>`;
-      result.email = await sendBroadcastEmail({
-        recipients: recipients.map(r => r.email).filter(Boolean),
-        subject,
-        html,
-        text: body,
+    if (recipientCount > 0) {
+      await logAdminAction(req, 'broadcast', 'segment', segment, {
+        subject, channels, recipients: recipientCount,
+        email: result.email, push: result.push,
       });
     }
-
-    if (channels.includes('push')) {
-      result.push = await broadcastPush(recipients, {
-        title: subject || 'Ick',
-        body,
-        url: '/',
-        tag: 'admin-broadcast',
-      });
-    }
-
-    await logAdminAction(req, 'broadcast', 'segment', segment, {
-      subject, channels, recipients: recipients.length,
-      email: result.email, push: result.push,
-    });
 
     res.json(result);
   } catch (err) {

@@ -24,7 +24,7 @@ export function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
     if (err) {
       // Give the client a clear signal to use their refresh token
       const expired = err.name === 'TokenExpiredError';
@@ -43,7 +43,7 @@ export function optionalAuth(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, user) => {
+    jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
       if (!err) req.user = user;
       next(); // always called inside callback to avoid race condition
     });
@@ -53,11 +53,17 @@ export function optionalAuth(req, res, next) {
 }
 
 // ── Token generation ─────────────────────────────────────────────────────────
+// iss/aud are stamped on new tokens so they can't be replayed against another
+// service sharing the secret. Verification doesn't enforce them yet — turning
+// that on before all pre-claim tokens have expired would log everyone out.
+export const TOKEN_ISSUER = 'ick-api';
+export const TOKEN_AUDIENCE = 'ick-app';
+
 export function generateToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email },
     JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: '15m', issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE }
   );
 }
 
@@ -65,7 +71,7 @@ export function generateRefreshToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, type: 'refresh' },
     REFRESH_SECRET,
-    { expiresIn: '30d' }
+    { expiresIn: '30d', issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE }
   );
 }
 
@@ -80,10 +86,8 @@ export async function storeRefreshToken(userId, token) {
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30d
   await pool.query(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     SELECT $1, $2::varchar(64), $3
-     WHERE NOT EXISTS (
-       SELECT 1 FROM refresh_tokens WHERE token_hash = $2::varchar(64)
-     )`,
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token_hash) DO NOTHING`,
     [userId, hash, expiresAt]
   );
 }

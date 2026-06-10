@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 // This thin wrapper provides sync-looking API for the scan flow.
 // ============================================================
 import { getProduct, putProduct, getProductCount, searchProducts as offlineSearch } from './offlineDB';
+import { getStoredToken, setStoredToken, removeStoredToken } from './tokenStorage';
 
 // Global event bus for subscription-related errors
 const subscriptionEvents = {
@@ -18,7 +19,9 @@ export { subscriptionEvents };
 
 class ApiClient {
   constructor() {
-    this.token = localStorage.getItem('token');
+    // On native this is null until hydrateTokens() runs in main.jsx, which
+    // re-seeds the client via api.setToken() before the app renders.
+    this.token = getStoredToken('token');
     this._refreshPromise = null; // deduplicate concurrent refresh attempts
   }
 
@@ -106,7 +109,7 @@ class ApiClient {
 
     this._refreshPromise = (async () => {
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
+        const refreshToken = getStoredToken('refreshToken');
         if (!refreshToken) return false;
 
         const res = await fetch(`${API_URL}/auth/refresh`, {
@@ -119,10 +122,10 @@ class ApiClient {
 
         const data = await res.json();
         if (!data.token) return false;
-        localStorage.setItem('token', data.token);
+        setStoredToken('token', data.token);
         this.token = data.token;
         if (data.refreshToken) {
-          localStorage.setItem('refreshToken', data.refreshToken);
+          setStoredToken('refreshToken', data.refreshToken);
         }
         return true;
       } catch {
@@ -136,8 +139,8 @@ class ApiClient {
   }
 
   _handleAuthFailure() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
+    removeStoredToken('token');
+    removeStoredToken('refreshToken');
     this.token = null;
     this._refreshPromise = null;
     // Dispatch a custom event so AuthContext can react without circular imports
@@ -396,7 +399,7 @@ export const admin = {
   // Fetches CSV with auth header, triggers a browser download.
   // Plain <a href> wouldn't work since the export endpoint requires Bearer auth.
   exportCsv: async (resource) => {
-    const token = localStorage.getItem('token');
+    const token = getStoredToken('token');
     const r = await fetch(`${API_URL}/admin/export/${resource}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

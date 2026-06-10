@@ -83,6 +83,15 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Stable vendor chunk — changes rarely, so it stays cached across
+          // app deploys.
+          'react-vendor': ['react', 'react-dom', 'react-router-dom']
+        }
+      }
+    }
   }
 });

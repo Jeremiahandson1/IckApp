@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import { getStoredToken, setStoredToken, removeStoredToken } from '../utils/tokenStorage';
 
 const AuthContext = createContext(null);
 
@@ -8,8 +9,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const clearAuth = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
+    removeStoredToken('token');
+    removeStoredToken('refreshToken');
     api.setToken(null);
     setUser(null);
   }, []);
@@ -22,7 +23,7 @@ export function AuthProvider({ children }) {
   }, [clearAuth]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getStoredToken('token');
     if (token) {
       fetchProfile(token);
     } else {
@@ -45,8 +46,8 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const data = await api.post('/auth/login', { email, password });
-    localStorage.setItem('token', data.token);
-    if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+    setStoredToken('token', data.token);
+    if (data.refreshToken) setStoredToken('refreshToken', data.refreshToken);
     api.setToken(data.token);
     setUser(data.user);
     return data;
@@ -54,15 +55,15 @@ export function AuthProvider({ children }) {
 
   const register = async (userData) => {
     const data = await api.post('/auth/register', userData);
-    localStorage.setItem('token', data.token);
-    if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+    setStoredToken('token', data.token);
+    if (data.refreshToken) setStoredToken('refreshToken', data.refreshToken);
     api.setToken(data.token);
     setUser(data.user);
     return data;
   };
 
   const logout = async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = getStoredToken('refreshToken');
     if (refreshToken) {
       // Tell the server to revoke this refresh token (fire and forget)
       api.post('/auth/logout', { refreshToken }).catch(() => {});
@@ -77,7 +78,7 @@ export function AuthProvider({ children }) {
   };
 
   const refreshProfile = async () => {
-    const token = localStorage.getItem('token');
+    const token = getStoredToken('token');
     if (token) await fetchProfile(token);
   };
 

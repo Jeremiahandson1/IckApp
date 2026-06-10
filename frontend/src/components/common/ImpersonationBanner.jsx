@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getStoredToken, setStoredToken, removeStoredToken } from '../../utils/tokenStorage';
 
 // Decode JWT payload without verifying — banner is UI-only, the server still
 // trusts only its own signature.
@@ -17,7 +18,7 @@ export default function ImpersonationBanner() {
 
   useEffect(() => {
     const sync = () => {
-      const token = localStorage.getItem('token');
+      const token = getStoredToken('token');
       const payload = token ? decodeJwt(token) : null;
       setImp(payload?.imp ? payload : null);
     };
@@ -29,12 +30,16 @@ export default function ImpersonationBanner() {
   if (!imp) return null;
 
   const exit = () => {
-    const ret = localStorage.getItem('admin_return_token');
+    // The parked admin token lives in sessionStorage so it dies with the
+    // session instead of persisting on disk. Fall back to localStorage for
+    // sessions started on an older build, then scrub it.
+    const ret = sessionStorage.getItem('admin_return_token') || localStorage.getItem('admin_return_token');
+    sessionStorage.removeItem('admin_return_token');
+    localStorage.removeItem('admin_return_token');
     if (ret) {
-      localStorage.setItem('token', ret);
-      localStorage.removeItem('admin_return_token');
+      setStoredToken('token', ret);
     } else {
-      localStorage.removeItem('token');
+      removeStoredToken('token');
     }
     window.location.href = '/admin';
   };

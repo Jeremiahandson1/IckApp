@@ -1,45 +1,58 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { isNative } from './utils/platform';
+import api from './utils/api';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ImpersonationBanner from './components/common/ImpersonationBanner';
+import PremiumGate from './components/common/PremiumGate';
 
-// Pages
+// Core-path pages stay eager: first paint (Landing), auth, and the scan flow.
 import Landing from './pages/Landing';
-import Features from './pages/Features';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Onboarding from './pages/Onboarding';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import VerifyEmail from './pages/VerifyEmail';
 import Scan from './pages/Scan';
 import ProductResult from './pages/ProductResult';
-import Pantry from './pages/Pantry';
-import PantryAudit from './pages/PantryAudit';
-import Swaps from './pages/Swaps';
-import Recipes from './pages/Recipes';
-import RecipeDetail from './pages/RecipeDetail';
-import Shopping from './pages/Shopping';
-import ShoppingList from './pages/ShoppingList';
-import ShoppingMode from './pages/ShoppingMode';
-import Progress from './pages/Progress';
-import Profile from './pages/Profile';
-import Subscription from './pages/Subscription';
-import PremiumGate from './components/common/PremiumGate';
-import ReceiptScan from './pages/ReceiptScan';
-import Budget from './pages/Budget';
-import Admin from './pages/Admin';
-import Family from './pages/Family';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import Terms from './pages/Terms';
-import Support from './pages/Support';
-import AboutScoring from './pages/AboutScoring';
-import JoinFamily from './pages/JoinFamily';
+
+// Everything else is route-split so heavy dependencies (recharts in
+// Progress/Budget, @zxing in PantryAudit, the 2k-line Admin console) load
+// only when their route is visited.
+const Features = lazy(() => import('./pages/Features'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const Pantry = lazy(() => import('./pages/Pantry'));
+const PantryAudit = lazy(() => import('./pages/PantryAudit'));
+const Swaps = lazy(() => import('./pages/Swaps'));
+const Recipes = lazy(() => import('./pages/Recipes'));
+const RecipeDetail = lazy(() => import('./pages/RecipeDetail'));
+const Shopping = lazy(() => import('./pages/Shopping'));
+const ShoppingList = lazy(() => import('./pages/ShoppingList'));
+const ShoppingMode = lazy(() => import('./pages/ShoppingMode'));
+const Progress = lazy(() => import('./pages/Progress'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const ReceiptScan = lazy(() => import('./pages/ReceiptScan'));
+const Budget = lazy(() => import('./pages/Budget'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Family = lazy(() => import('./pages/Family'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Support = lazy(() => import('./pages/Support'));
+const AboutScoring = lazy(() => import('./pages/AboutScoring'));
+const JoinFamily = lazy(() => import('./pages/JoinFamily'));
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
+      <div className="animate-spin w-8 h-8 border-4 border-[#c8f135] border-t-transparent rounded-full" />
+    </div>
+  );
+}
 
 // Auth gate — only for features that truly need login
 function AuthGate({ children }) {
@@ -135,7 +148,6 @@ function NativeLifecycle() {
       // Initialize push notifications
       try {
         const { initPushNotifications } = await import('./utils/nativePush');
-        const api = (await import('./utils/api')).default;
         await initPushNotifications({
           onToken: (token) => {
             // Send to backend for push delivery
@@ -165,6 +177,7 @@ export default function App() {
     <>
       <NativeLifecycle />
       <ImpersonationBanner />
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
       {/* First visit → onboarding. Already onboarded → /scan */}
       <Route path="/" element={<FirstVisitGate />} />
@@ -216,6 +229,7 @@ export default function App() {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
     </>
   );
 }

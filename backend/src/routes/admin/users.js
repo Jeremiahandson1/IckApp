@@ -3,12 +3,23 @@
 
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import pool from '../../db/init.js';
+import { JWT_SECRET, TOKEN_ISSUER, TOKEN_AUDIENCE } from '../../middleware/auth.js';
 import { logAdminAction } from '../../utils/adminAudit.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-CHANGE-ME';
-
 const router = express.Router();
+
+// Impersonation mints real user tokens — cap how fast a single admin account
+// can do it so a compromised admin can't harvest sessions at scale.
+const impersonateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => `impersonate:${req.user.id}`,
+  message: { error: 'Impersonation rate limit reached (10/hour). Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // GET /admin/users — paginated, searchable list
 router.get('/', async (req, res) => {
@@ -121,7 +132,10 @@ router.put('/:id/admin', async (req, res) => {
 // POST /admin/users/:id/grant-trial — start or extend trial
 router.post('/:id/grant-trial', async (req, res) => {
   try {
-    const days = Math.max(1, Math.min(parseInt(req.body.days, 10) || 30, 365));
+    const days = req.body.days === undefined ? 30 : parseInt(req.body.days, 10);
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      return res.status(400).json({ error: 'days must be an integer between 1 and 365' });
+    }
     await pool.query(
       `INSERT INTO subscriptions (user_id, plan, status, trial_started_at, trial_ends_at)
        VALUES ($1, 'trial', 'active', NOW(), NOW() + ($2 || ' days')::interval)
@@ -173,7 +187,7 @@ router.post('/:id/cancel-subscription', async (req, res) => {
 // POST /admin/users/:id/impersonate — mint a 1-hour JWT for the target user.
 // Token has an "imp" marker recording the original admin id so the app can
 // show a banner and we have an audit trail when the imp uses any feature.
-router.post('/:id/impersonate', async (req, res) => {
+router.post('/:id/impersonate', impersonateLimiter, async (req, res) => {
   try {
     const u = await pool.query(
       `SELECT id, email FROM users WHERE id = $1`,
@@ -185,7 +199,7 @@ router.post('/:id/impersonate', async (req, res) => {
     const token = jwt.sign(
       { id: target.id, email: target.email, imp: true, imp_by: req.user.id },
       JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '1h', issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE }
     );
 
     await logAdminAction(req, 'impersonate', 'user', req.params.id, {

@@ -12,7 +12,8 @@ const config: CapacitorConfig = {
     // cleartext: true,
     androidScheme: 'https',
     iosScheme: 'capacitor',
-    allowNavigation: ['*.ick.com', '*.openfoodfacts.org', '*.stripe.com']
+    // localhost entries are for dev builds pointing at a local API/Vite server
+    allowNavigation: ['*.ick.com', '*.openfoodfacts.org', '*.stripe.com', 'localhost', '127.0.0.1']
   },
 
   plugins: {
@@ -33,10 +34,12 @@ const config: CapacitorConfig = {
     },
     Haptics: {},
     Camera: {
-      // Used for product photo contributions
+      // Used for product photo contributions.
+      // uri instead of base64: file handles instead of megabyte strings in
+      // the WebView heap.
       quality: 70,
       allowEditing: false,
-      resultType: 'base64'
+      resultType: 'uri'
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']

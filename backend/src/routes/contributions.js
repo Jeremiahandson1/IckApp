@@ -48,11 +48,16 @@ router.put('/:id/approve', async (req, res) => {
 
     const c = contrib.rows[0];
 
-    // Score the contributed product before inserting
+    // Score the contributed product before inserting. A scoring failure falls
+    // back to neutral 50s below — log it loudly so a silently mis-scored
+    // product can be traced back here.
     const scores = await scoreProduct({
       ingredients: c.ingredients_text || '',
       brand: c.brand || '',
-    }).catch(() => null);
+    }).catch(err => {
+      console.error(`Approve contribution ${id} (upc ${c.upc}): scoring failed, inserting neutral 50s:`, err);
+      return null;
+    });
 
     await pool.query(
       `INSERT INTO products (upc, name, brand, ingredients,

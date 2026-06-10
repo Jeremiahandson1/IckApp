@@ -7,6 +7,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { isNative } from './utils/platform';
 import { initOfflineDB } from './utils/offlineDB';
 import api from './utils/api';
+import { hydrateTokens, getStoredToken } from './utils/tokenStorage';
 import './index.css';
 
 // Mark native platform for CSS
@@ -29,14 +30,23 @@ if ('serviceWorker' in navigator) {
   }).catch(() => {});
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  </React.StrictMode>
-);
+async function start() {
+  // On native, tokens live in Capacitor Preferences (async) — load them into
+  // the sync mirror and seed the API client before anything renders.
+  await hydrateTokens().catch(() => {});
+  api.setToken(getStoredToken('token'));
+
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+}
+
+start();
