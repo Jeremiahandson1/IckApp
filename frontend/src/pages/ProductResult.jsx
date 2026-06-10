@@ -39,6 +39,7 @@ export default function ProductResult() {
   const [product, setProduct] = useState(passedProduct);
   const [swapOptions, setSwapOptions] = useState([]);
   const [recipes, setRecipes] = useState([]);
+  const [swapsLoading, setSwapsLoading] = useState(false);
   const [loading, setLoading] = useState(!passedProduct);
   const [addedToPantry, setAddedToPantry] = useState(false);
   const [addingToPantry, setAddingToPantry] = useState(false);
@@ -118,9 +119,20 @@ export default function ProductResult() {
   const fetchProduct = async () => {
     setNotFound(false);
 
+    // A product passed via navigation state (e.g. tapping a swap card) is a
+    // full product row — use it as the fallback if the API can't serve this
+    // UPC, instead of dumping the user on "Product Not Found".
+    const stateProduct = location.state?.product || null;
+    const fallbackProduct = stateProduct && stateProduct.upc === upc ? stateProduct : null;
+
     // Reject invalid barcodes before hitting any API
     if (!isValidUPC(upc)) {
-      setNotFound(true);
+      if (fallbackProduct) {
+        setProduct(fallbackProduct);
+        fetchSwapsAndRecipes();
+      } else {
+        setNotFound(true);
+      }
       setLoading(false);
       return;
     }
@@ -143,8 +155,11 @@ export default function ProductResult() {
           setProduct(scanResult);
           fetchSwapsAndRecipes();
         } catch (scanError) {
-          setNotFound(true);
+          if (fallbackProduct) setProduct(fallbackProduct);
+          else setNotFound(true);
         }
+      } else if (fallbackProduct) {
+        setProduct(fallbackProduct);
       } else {
         toast.error('Failed to load product');
         navigate('/scan');
@@ -155,6 +170,7 @@ export default function ProductResult() {
   };
 
   const fetchSwapsAndRecipes = async () => {
+    setSwapsLoading(true);
     try {
       const [swapsData] = await Promise.all([
         swapsApi.forProduct(upc)
@@ -163,6 +179,8 @@ export default function ProductResult() {
       setRecipes(swapsData?.homemade_alternatives || swapsData?.recipes || []);
     } catch {
       // Swap loading is non-critical — product still displays
+    } finally {
+      setSwapsLoading(false);
     }
   };
 
@@ -210,12 +228,14 @@ export default function ProductResult() {
   };
 
   const handleSwapClick = async (swapProduct) => {
+    // Track the click (best-effort), then navigate WITH the swap's product
+    // data so the next page can render even if its UPC can't be re-fetched.
     try {
       await swapsApi.click(product.id, swapProduct.id);
-      navigate(`/product/${swapProduct.upc}`, { state: { product: swapProduct } });
     } catch (error) {
-      navigate(`/product/${swapProduct.upc}`);
+      // Click tracking requires auth / can fail — never block navigation
     }
+    navigate(`/product/${swapProduct.upc}`, { state: { product: swapProduct } });
   };
 
   const handleShare = async () => {
@@ -355,6 +375,20 @@ export default function ProductResult() {
           conditionLoading={conditionLoading}
           conditionError={conditionError}
         />
+      )}
+
+      {/* Swap/recipe discovery loader — the first lookup for a product can
+          take several seconds when it searches Open Food Facts live */}
+      {swapsLoading && (
+        <div className="px-4 mt-3">
+          <div className="card p-4 flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-[#c8f135] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-[#ccc]">Looking for healthier alternatives &amp; recipes…</p>
+              <p className="text-xs text-[#666]">First search for a product can take a few seconds</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Inline Swap Preview — show immediately, don't bury */}

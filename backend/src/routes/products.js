@@ -557,20 +557,10 @@ router.get('/view/:upc', optionalAuth, async (req, res) => {
   try {
     const { upc } = req.params;
 
-    // Validate barcode format and GS1 check digit
-    const cleanUpc = upc.replace(/\D/g, '');
-    if (![8, 12, 13, 14].includes(cleanUpc.length) || /^(\d)\1+$/.test(cleanUpc)) {
-      return res.status(404).json({ error: 'Invalid barcode format', upc });
-    }
-    const digits = cleanUpc.split('').map(Number);
-    let checkSum = 0;
-    for (let i = 0; i < digits.length - 1; i++) {
-      checkSum += digits[i] * ((digits.length - 1 - i) % 2 === 0 ? 1 : 3);
-    }
-    if ((10 - (checkSum % 10)) % 10 !== digits[digits.length - 1]) {
-      return res.status(404).json({ error: 'Invalid barcode check digit', upc });
-    }
-
+    // DB lookup FIRST. Some legitimately stored products (e.g. swap
+    // discoveries from Open Food Facts) carry codes that fail strict GS1
+    // validation — if we have the product, serve it. Validation below only
+    // gates codes we DON'T have, so garbage scans still get rejected.
     const result = await pool.query(
       `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies
        FROM products p
@@ -580,6 +570,19 @@ router.get('/view/:upc', optionalAuth, async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      // Validate barcode format and GS1 check digit
+      const cleanUpc = upc.replace(/\D/g, '');
+      if (![8, 12, 13, 14].includes(cleanUpc.length) || /^(\d)\1+$/.test(cleanUpc)) {
+        return res.status(404).json({ error: 'Invalid barcode format', upc });
+      }
+      const digits = cleanUpc.split('').map(Number);
+      let checkSum = 0;
+      for (let i = 0; i < digits.length - 1; i++) {
+        checkSum += digits[i] * ((digits.length - 1 - i) % 2 === 0 ? 1 : 3);
+      }
+      if ((10 - (checkSum % 10)) % 10 !== digits[digits.length - 1]) {
+        return res.status(404).json({ error: 'Invalid barcode check digit', upc });
+      }
       return res.status(404).json({ error: 'Product not found', upc });
     }
 

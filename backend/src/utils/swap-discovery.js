@@ -395,6 +395,24 @@ const PRODUCT_TYPES = [
 const NUTRISCORE_RANK = { a: 5, b: 4, c: 3, d: 2, e: 1 };
 
 // ============================================================
+// Barcode sanity check for OFF discoveries. saveDiscoveries pads codes to
+// 13 digits; leading zeros preserve the GS1 check digit (weights are
+// right-aligned), so we validate the padded form a code will be stored as.
+// ============================================================
+function isUsableBarcode(rawCode) {
+  const cleaned = String(rawCode).replace(/\D/g, '');
+  if (cleaned.length < 6 || cleaned.length > 14) return false;
+  if (/^(\d)\1+$/.test(cleaned)) return false;
+  const padded = cleaned.length >= 14 ? cleaned : cleaned.padStart(13, '0');
+  const digits = padded.split('').map(Number);
+  let sum = 0;
+  for (let i = 0; i < digits.length - 1; i++) {
+    sum += digits[i] * ((digits.length - 1 - i) % 2 === 0 ? 1 : 3);
+  }
+  return (10 - (sum % 10)) % 10 === digits[digits.length - 1];
+}
+
+// ============================================================
 // Extract meaningful keywords from a product name for relevance scoring.
 // Filters out generic filler words to keep only flavor/subtype descriptors.
 // ============================================================
@@ -505,6 +523,10 @@ async function searchOFF(type, product, excludeUpc) {
     const code = String(p.code);
     if (seenCodes.has(code)) return;
     seenCodes.add(code);
+    // Reject OFF codes that won't form a valid GS1 barcode once padded —
+    // saving them creates products whose detail page is unreachable
+    // (frontend + scan endpoints reject invalid check digits).
+    if (!isUsableBarcode(code)) return;
     allCandidates.push(p);
   };
 
