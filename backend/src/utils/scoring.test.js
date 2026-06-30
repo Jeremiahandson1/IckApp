@@ -197,6 +197,17 @@ describe('scoreProduct (5-dimension model)', () => {
       expect(result.processing_score).toBe(75);
     });
 
+    it('softens NOVA 4 to 50 when no additive markers and a short ingredient list', async () => {
+      const result = await scoreProduct({ nova_group: 4, ingredients: 'almonds, sea salt' });
+      expect(result.processing_score).toBe(50);
+    });
+
+    it('keeps NOVA 4 at 15 when an additive marker is present', async () => {
+      // sunflower lecithin (emulsifier) is a recognized marker → no softening
+      const result = await scoreProduct({ nova_group: 4, ingredients: 'peanuts, cane sugar, sunflower lecithin' });
+      expect(result.processing_score).toBe(15);
+    });
+
     it('returns 35 when neither NOVA nor ingredients are available', async () => {
       const result = await scoreProduct({});
       expect(result.processing_score).toBe(35);

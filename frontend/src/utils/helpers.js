@@ -227,29 +227,24 @@ export function getScoreExplanation(product) {
       : 'Limited data available — score may be less accurate.';
 
   // ── Processing ──
+  // The rating leans heavily on Open Food Facts' NOVA group, which is opaque:
+  // NOVA 4 ("ultra-processed") is often triggered by added sugars, refined
+  // oils, or emulsifiers — NOT just chemical additives. So we (a) surface the
+  // specific processing indicators we can actually find in the ingredient
+  // list, and (b) tell the truth when the rating is NOVA-only with nothing
+  // concrete to point at (which is why "ultra-processed" with a clean-looking
+  // ingredient list felt unexplained before).
   let processing_detail;
   const processing_items = [];
-  if (product.nova_group === 1) {
-    processing_detail = 'Minimally processed — whole or naturally altered foods.';
-    positives.push('minimally processed');
-  } else if (product.nova_group === 2) {
-    processing_detail = 'Processed culinary ingredient (oils, butter, sugar, salt).';
-  } else if (product.nova_group === 3) {
-    processing_detail = 'Processed food — manufactured with added salt, sugar, or oil.';
-    reasons.push('processed');
-  } else if (product.nova_group === 4) {
-    processing_detail = 'Ultra-processed — industrial formulations with additives.';
-    reasons.push('ultra-processed');
-  } else {
-    processing_detail = product.processing_score >= 70
-      ? 'Low processing indicators based on ingredient analysis.'
-      : 'Processing level estimated from ingredients — some markers found.';
-  }
-  // Detect ultra-processing markers in ingredient text
+
+  // Scan ingredients for recognizable processing indicators — broadened from
+  // the old 13-marker list to include the milder "cosmetic" additives
+  // (emulsifiers, refined sweeteners/oils) that commonly push a product to
+  // NOVA 4. Each entry: [substring, human label, optional guard].
   if (product.ingredients) {
     const il = product.ingredients.toLowerCase();
     const markers = [
-      ['high fructose corn syrup', 'High fructose corn syrup'],
+      ['high fructose corn syrup', 'High-fructose corn syrup'],
       ['hydrogenated', 'Hydrogenated oils'],
       ['artificial flavor', 'Artificial flavors'],
       ['artificial color', 'Artificial colors'],
@@ -257,15 +252,72 @@ export function getScoreExplanation(product) {
       ['potassium sorbate', 'Potassium sorbate (preservative)'],
       ['carrageenan', 'Carrageenan (thickener)'],
       ['sodium nitrite', 'Sodium nitrite (preservative)'],
+      ['sodium nitrate', 'Sodium nitrate (preservative)'],
       ['tbhq', 'TBHQ (antioxidant preservative)'],
       ['bht', 'BHT (synthetic antioxidant)'],
       ['bha', 'BHA (synthetic antioxidant)'],
       ['maltodextrin', 'Maltodextrin (filler)'],
       ['polysorbate', 'Polysorbate (emulsifier)'],
+      // Milder additives that commonly drive a NOVA 4 ("ultra-processed") tag
+      ['mono and diglycerides', 'Mono- & diglycerides (emulsifier)'],
+      ['monoglycerides', 'Mono- & diglycerides (emulsifier)'],
+      ['lecithin', 'Lecithin (emulsifier)'],
+      ['modified starch', 'Modified starch'],
+      ['modified food starch', 'Modified starch'],
+      ['dextrose', 'Dextrose (refined sugar)'],
+      ['glucose syrup', 'Glucose syrup (refined sugar)'],
+      // plain "corn syrup" — but not when it's part of "high fructose corn syrup"
+      ['corn syrup', 'Corn syrup (refined sugar)', il => !il.includes('high fructose corn syrup')],
+      ['xanthan', 'Xanthan gum (thickener)'],
+      ['cellulose', 'Cellulose (anti-caking/thickener)'],
+      ['propylene glycol', 'Propylene glycol'],
+      ['natural flavor', 'Natural flavors (undisclosed blend)'],
+      ['palm oil', 'Palm oil (refined oil)'],
     ];
-    for (const [key, label] of markers) {
-      if (il.includes(key)) processing_items.push(label);
+    const seen = new Set();
+    for (const [key, label, guard] of markers) {
+      if (il.includes(key) && (!guard || guard(il)) && !seen.has(label)) {
+        seen.add(label);
+        processing_items.push(label);
+      }
     }
+  }
+
+  const hasMarkers = processing_items.length > 0;
+  if (product.nova_group === 1) {
+    processing_detail = 'Minimally processed — whole or naturally altered foods.';
+    positives.push('minimally processed');
+  } else if (product.nova_group === 2) {
+    processing_detail = 'Processed culinary ingredient (oils, butter, sugar, salt).';
+  } else if (product.nova_group === 3) {
+    processing_detail = hasMarkers
+      ? 'Processed food (NOVA 3) — added salt, sugar, or oil. Indicators found are listed below.'
+      : 'Processed food (NOVA 3) — made with added salt, sugar, or oil. No additive markers found in the listed ingredients.';
+    reasons.push('processed');
+  } else if (product.nova_group === 4) {
+    processing_detail = hasMarkers
+      ? 'Ultra-processed (NOVA 4) — contains the industrial additives listed below.'
+      : 'Rated ultra-processed (NOVA 4) by Open Food Facts, but no specific additive markers were found in the listed ingredients. NOVA 4 can be driven by added sugars, refined oils, or emulsifiers rather than chemical additives.';
+    reasons.push('ultra-processed');
+  } else {
+    processing_detail = product.processing_score >= 70
+      ? 'Low processing indicators based on ingredient analysis.'
+      : hasMarkers
+        ? 'Processing level estimated from ingredients — markers found (listed below).'
+        : 'Processing level estimated from ingredients.';
+  }
+
+  // Always lead the expandable list with the NOVA basis (when known) so the
+  // user can see WHERE the rating came from, even when no ingredient markers
+  // were detected.
+  const novaNote = {
+    1: 'Basis: NOVA 1 — unprocessed / minimally processed',
+    2: 'Basis: NOVA 2 — processed culinary ingredient',
+    3: 'Basis: NOVA 3 — processed food',
+    4: 'Basis: NOVA 4 — ultra-processed (Open Food Facts classification)',
+  };
+  if (product.nova_group >= 1 && product.nova_group <= 4) {
+    processing_items.unshift(novaNote[product.nova_group]);
   }
 
   // ── Company Behavior ──

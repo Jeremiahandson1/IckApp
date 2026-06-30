@@ -261,6 +261,34 @@ function computeTransparencyScore(opts) {
 // DIMENSION 4: PROCESSING (15%)
 // ============================================================
 
+// Ingredient substrings that signal industrial / ultra-processing. Defined
+// once and shared by the NOVA-anchored path and the NOVA-less fallback so
+// "what counts as processed" has a single source of truth. Kept in sync with
+// the frontend indicator list in helpers.js (getScoreExplanation) so the score
+// and the user-facing "why" agree.
+const ULTRA_PROCESSING_MARKERS = [
+  'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
+  'modified starch', 'modified food starch', 'maltodextrin', 'dextrose',
+  'glucose syrup', 'corn syrup', 'artificial flavor', 'artificial colour',
+  'artificial color', 'natural flavor', 'sodium benzoate', 'potassium sorbate',
+  'polysorbate', 'carrageenan', 'sodium nitrite', 'sodium nitrate', 'tbhq',
+  'bht', 'bha', 'mono and diglycerides', 'monoglycerides', 'lecithin',
+  'xanthan', 'cellulose', 'propylene glycol', 'palm oil',
+];
+
+// Count distinct ultra-processing markers in an ingredient string (lowercased).
+// "corn syrup" is skipped when it's part of "high fructose corn syrup" so HFCS
+// isn't counted twice.
+function countProcessingMarkers(ingredientsLower) {
+  const hfcs = ingredientsLower.includes('high fructose corn syrup');
+  let count = 0;
+  for (const m of ULTRA_PROCESSING_MARKERS) {
+    if (m === 'corn syrup' && hfcs) continue;
+    if (ingredientsLower.includes(m)) count++;
+  }
+  return count;
+}
+
 function computeProcessingScore(opts) {
   const { nova_group, ingredients } = opts;
   const nova = Number(nova_group);
@@ -272,26 +300,29 @@ function computeProcessingScore(opts) {
 
     if (ingredients) {
       const il = ingredients.toLowerCase();
-      const ultraMarkers = [
-        'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
-        'modified starch', 'maltodextrin', 'dextrose', 'artificial flavor',
-        'artificial colour', 'artificial color', 'sodium benzoate',
-        'potassium sorbate', 'polysorbate', 'carrageenan',
-        'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
-      ];
-      const markerCount = ultraMarkers.filter(m => il.includes(m)).length;
+      const markerCount = countProcessingMarkers(il);
+      const commaCount = (ingredients.match(/,/g) || []).length;
 
       // Fine-tune within NOVA 4 based on ingredients
       if (nova === 4) {
         if (markerCount >= 4) score = 5;
         else if (markerCount >= 2) score = 10;
+        else if (markerCount === 0) {
+          // OFF tagged it ultra-processed but we can't find a single
+          // recognized additive. NOVA 4 is often over-broad or stale, so a
+          // clean-looking short ingredient list shouldn't stay pinned at 15.
+          // Soften toward neutral (mirrors the NOVA-3 override below, but more
+          // conservative since NOVA 4 is a stronger signal). A long list with
+          // no recognized markers is left at 15 — likely genuinely complex.
+          if (commaCount <= 4) score = 50;
+          else if (commaCount <= 10) score = 35;
+        }
       }
 
       // Override NOVA 3 ("processed") when ingredients are actually simple.
       // OFF classifies things like "chickpeas, sea salt" as NOVA 3 just because
       // salt was added, but these are minimally processed whole foods.
       if (nova === 3 && markerCount === 0) {
-        const commaCount = (ingredients.match(/,/g) || []).length;
         if (commaCount <= 5) score = 75;       // few simple ingredients → treat as NOVA 2
         else if (commaCount <= 10) score = 60;  // moderate but still no ultra markers
       }
@@ -304,17 +335,7 @@ function computeProcessingScore(opts) {
   if (!ingredients || ingredients.length < 3) return 35;
 
   const il = ingredients.toLowerCase();
-  const ultraMarkers = [
-    'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
-    'modified starch', 'maltodextrin', 'dextrose', 'artificial flavor',
-    'artificial colour', 'artificial color', 'sodium benzoate',
-    'potassium sorbate', 'polysorbate', 'carrageenan',
-    'sodium nitrite', 'sodium nitrate', 'tbhq', 'bht', 'bha',
-    'mono and diglycerides', 'soy lecithin', 'xanthan gum',
-    'cellulose', 'propylene glycol',
-  ];
-
-  const markerCount = ultraMarkers.filter(m => il.includes(m)).length;
+  const markerCount = countProcessingMarkers(il);
 
   if (markerCount >= 5) return 10;
   if (markerCount >= 3) return 25;
