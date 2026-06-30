@@ -17,6 +17,8 @@
     "db:seed-flagships:dry": "node src/db/seed-flagship-products.js --dry",
     "db:add-multilingual-aliases": "node src/db/add-multilingual-aliases.js",
     "db:rescore-multilingual": "node src/db/rescore-multilingual.js",
+    "db:backfill-discovered-swaps": "node src/db/backfill-discovered-swaps.js",
+    "db:backfill-discovered-swaps:dry": "node src/db/backfill-discovered-swaps.js --dry",
     "db:seed-direct": "node src/db/seed-direct-products.js",
     "db:clean-ingredients": "node src/db/clean-bad-ingredients.js",
     "db:clean-ingredients:dry": "node src/db/clean-bad-ingredients.js --dry-run",

@@ -6,10 +6,17 @@
 // ============================================================
 
 import pool from '../db/init.js';
+import { scoreProduct } from './scoring.js';
 
 const OFF_BASE = 'https://world.openfoodfacts.org';
 const USER_AGENT = 'Ick/2.0 (swap-discovery)';
 const CACHE_HOURS = 72; // re-search after 3 days
+
+// A swap must beat the scanned product by at least this many points to be
+// shown. +1 (the old floor) meant "better" could be pure rounding noise;
+// now that discoveries are scored on the real 5-dimension engine, require a
+// margin that actually means something.
+export const SWAP_MIN_IMPROVEMENT = 5;
 
 // AbortSignal.timeout polyfill for Node < 17.3
 function fetchTimeout(ms) {
@@ -163,7 +170,8 @@ const PRODUCT_TYPES = [
     off_categories: ['en:sodas', 'en:carbonated-drinks'],
     search_terms: 'prebiotic soda sparkling',
     must_contain: ['soda', 'sparkling', 'cola', 'carbonated', 'prebiotic', 'fizz'],
-    exclude: ['candy', 'gummy'],
+    // 'baking' so "baking soda" (matches the soda name regex) is rejected
+    exclude: ['candy', 'gummy', 'baking'],
     label: 'Soda' },
   
   { id: 'juice',
@@ -473,7 +481,7 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
        AND p.swap_discovered_at > NOW() - INTERVAL '1 hour' * $4
        ORDER BY p.total_score DESC
        LIMIT $5`,
-      [matchedType.id, Math.max(50, (product.total_score || 0) + 1), upc, CACHE_HOURS, limit * 3]
+      [matchedType.id, Math.max(50, (product.total_score || 0) + SWAP_MIN_IMPROVEMENT), upc, CACHE_HOURS, limit * 3]
     );
 
     if (cached.rows.length >= limit) {
@@ -500,7 +508,7 @@ export async function findDynamicSwaps(product, upc, limit = 5) {
   if (candidates.length === 0) return [];
 
   // 4. Save discoveries to DB and return, ranked by relevance
-  const scoreFloor = Math.max(50, (product.total_score || 0) + 1);
+  const scoreFloor = Math.max(50, (product.total_score || 0) + SWAP_MIN_IMPROVEMENT);
   const saved = await saveDiscoveries(candidates, matchedType);
   return saved
     .filter(r => (r.total_score || 0) > scoreFloor)
@@ -573,21 +581,10 @@ async function searchOFF(type, product, excludeUpc) {
   // 5. Filter + rank candidates
   const scoredCandidates = allCandidates
     .filter(p => {
-      const name = (p.product_name || '').toLowerCase();
-      // Must not match exclude keywords
-      if (type.exclude.some(kw => name.includes(kw))) return false;
-      // Cross-type rejection: if OFF product clearly belongs to a different type, reject
-      const candidateType = getProductType({
-        name: p.product_name || '',
-        category: p.categories_tags?.[0] || ''
-      });
-      if (candidateType && candidateType.id !== type.id) return false;
-      // Must match product type keywords
-      if (!type.must_contain.some(kw => name.includes(kw))) {
-        // Also check categories
-        const cats = (p.categories_tags || []).join(' ').toLowerCase();
-        if (!type.must_contain.some(kw => cats.includes(kw))) return false;
-      }
+      // Shared allowlist gate (tag-aware) — rejects unrelated products that
+      // merely share a loose keyword. Passes the full categories_tags so OFF's
+      // taxonomy can positively confirm the type.
+      if (!candidateMatchesType(p, type)) return false;
       // Must have a nutriscore (quality signal)
       if (!p.nutriscore_grade) return false;
       return true;
@@ -624,13 +621,40 @@ async function searchOFF(type, product, excludeUpc) {
 // Save discovered products to our DB
 // ============================================================
 async function saveDiscoveries(candidates, type) {
+  // Run every candidate through the REAL 5-dimension scoring engine — the
+  // same one the scan path (products.js) uses — BEFORE inserting. The old
+  // version only estimated processing + transparency and left the three
+  // remaining dimensions at the DB default of 50, including the 40%-weight
+  // harmful-ingredients dimension. That meant discovered "better" swaps were
+  // never actually evaluated on harmful ingredients, so their total_score was
+  // mostly fixed noise. scoreProduct's company/harmful-ingredient lookups are
+  // cached (5-min TTL), so scoring the whole batch costs ~one DB read.
+  const scored = await Promise.all(candidates.map(async (p) => {
+    try {
+      const s = await scoreProduct({
+        ingredients: p.ingredients_text || '',
+        brand: p.brands || 'Unknown',
+        nutriscore_grade: p.nutriscore_grade || null,
+        nova_group: p.nova_group || null,
+        nutriments: p.nutriments || null,
+        labels: p.labels_tags || [],
+        allergens_tags: p.allergens_tags || [],
+        image_url: p.image_url || null,
+      });
+      return { p, s };
+    } catch (e) {
+      console.error('Swap discovery scoring error:', e.message);
+      return { p, s: null };
+    }
+  }));
+
   const saved = [];
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    for (const p of candidates) {
+    for (const { p, s } of scored) {
       try {
         const upc = String(p.code).padStart(13, '0');
         const ingredients = p.ingredients_text || '';
@@ -638,57 +662,47 @@ async function saveDiscoveries(candidates, type) {
         const name = p.product_name || 'Unknown';
         const imageUrl = p.image_url || null;
         const category = p.categories_tags?.[0]?.replace('en:', '') || type.label;
-        const nutriscoreGrade = p.nutriscore_grade || null;
-        const novaGroup = p.nova_group || null;
-        const isOrganic = (p.labels_tags || []).some(l => l.includes('organic'));
-        const allergensTags = p.allergens_tags || [];
-
-        const nm = p.nutriments || {};
-        const nutritionFacts = {
-          energy_kcal_100g: nm['energy-kcal_100g'] || null,
-          fat_100g: nm.fat_100g || null,
-          saturated_fat_100g: nm['saturated-fat_100g'] || null,
-          carbohydrates_100g: nm.carbohydrates_100g || null,
-          sugars_100g: nm.sugars_100g || null,
-          fiber_100g: nm.fiber_100g || null,
-          proteins_100g: nm.proteins_100g || null,
-          sodium_100g: nm.sodium_100g || null,
-        };
-
-        // Estimate 5-dimension scores for swap discovery
-        const novaProcessingMap = { 1: 95, 2: 75, 3: 45, 4: 15 };
-        const estProcessing = novaProcessingMap[novaGroup] || 50;
-        // Quick transparency estimate
-        const estTransparency = (ingredients.length > 10 ? 35 : 0) + (nutriscoreGrade ? 10 : 0) + (imageUrl ? 10 : 0) + 15;
+        const isOrganic = s?.is_organic ?? (p.labels_tags || []).some(l => l.includes('organic'));
 
         const result = await client.query(
           `INSERT INTO products (upc, name, brand, category, image_url, ingredients,
-           nutriscore_grade, nova_group, is_organic, allergens_tags, nutrition_facts,
-           processing_score, transparency_score,
+           harmful_ingredients_score, banned_elsewhere_score, transparency_score,
+           processing_score, company_behavior_score,
+           harmful_ingredients_found, nutrition_facts, allergens_tags,
+           nutriscore_grade, nova_group, is_organic,
            swap_discovery_type, swap_discovered_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
            ON CONFLICT (upc) DO UPDATE SET
              name = COALESCE(NULLIF(EXCLUDED.name, 'Unknown'), products.name),
              image_url = COALESCE(EXCLUDED.image_url, products.image_url),
+             harmful_ingredients_score = EXCLUDED.harmful_ingredients_score,
+             banned_elsewhere_score = EXCLUDED.banned_elsewhere_score,
+             transparency_score = EXCLUDED.transparency_score,
+             processing_score = EXCLUDED.processing_score,
+             company_behavior_score = EXCLUDED.company_behavior_score,
+             harmful_ingredients_found = EXCLUDED.harmful_ingredients_found,
+             nutrition_facts = EXCLUDED.nutrition_facts,
+             allergens_tags = EXCLUDED.allergens_tags,
              nutriscore_grade = COALESCE(EXCLUDED.nutriscore_grade, products.nutriscore_grade),
              nova_group = COALESCE(EXCLUDED.nova_group, products.nova_group),
              is_organic = EXCLUDED.is_organic OR products.is_organic,
              swap_discovery_type = EXCLUDED.swap_discovery_type,
              swap_discovered_at = NOW(),
-             processing_score = CASE
-               WHEN products.processing_score != 50 THEN products.processing_score
-               ELSE EXCLUDED.processing_score
-             END,
-             transparency_score = CASE
-               WHEN products.transparency_score != 50 THEN products.transparency_score
-               ELSE EXCLUDED.transparency_score
-             END
+             updated_at = NOW()
            RETURNING *`,
           [
             upc, name, brand, category, imageUrl, ingredients,
-            nutriscoreGrade, novaGroup, isOrganic,
-            JSON.stringify(allergensTags), JSON.stringify(nutritionFacts),
-            estProcessing, estTransparency, type.id
+            s?.harmful_ingredients_score ?? 50,
+            s?.banned_elsewhere_score ?? 50,
+            s?.transparency_score ?? 50,
+            s?.processing_score ?? 50,
+            s?.company_behavior_score ?? 50,
+            s?.harmful_ingredients_found ? JSON.stringify(s.harmful_ingredients_found) : null,
+            s?.nutrition_facts ? JSON.stringify(s.nutrition_facts) : '{}',
+            JSON.stringify(s?.allergens_tags ?? p.allergens_tags ?? []),
+            s?.nutriscore_grade ?? p.nutriscore_grade ?? null,
+            s?.nova_group ?? p.nova_group ?? null,
+            isOrganic, type.id
           ]
         );
 
@@ -716,19 +730,7 @@ async function saveDiscoveries(candidates, type) {
 // Apply type filter to cached results
 // ============================================================
 function applyTypeFilter(rows, type) {
-  return rows.filter(r => {
-    const name = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-    if (type.exclude.some(kw => name.includes(kw))) return false;
-    // Cross-type rejection: if candidate is clearly a different product type, reject
-    const candidateType = getProductType({
-      name: r.name || '', subcategory: r.subcategory || '', category: r.category || ''
-    });
-    if (candidateType && candidateType.id !== type.id) return false;
-    if (type.must_contain.some(kw => name.includes(kw))) return true;
-    // Also check category
-    const cat = (r.category || '').toLowerCase();
-    return type.must_contain.some(kw => cat.includes(kw));
-  });
+  return rows.filter(r => candidateMatchesType(r, type));
 }
 
 // ============================================================
@@ -754,6 +756,26 @@ function inferTypeFromCategory(category) {
 }
 
 // ============================================================
+// Match a product's full OFF categories_tags array against the precise
+// off_categories of each type. This is OFF's own crowd-sourced taxonomy and
+// is far more reliable than parsing product names. Barcodes themselves carry
+// NO category data (a GS1 code is just manufacturer prefix + item reference +
+// check digit), so categories_tags is the closest thing to a real
+// "what is this product" signal. Exact membership only — so a precise tag
+// like "en:sodas" matches, but a vague one can't bleed across types.
+// ============================================================
+function matchTypeByTags(tags) {
+  if (!Array.isArray(tags) || tags.length === 0) return null;
+  const tagSet = new Set(tags.map(t => String(t).toLowerCase()));
+  for (const type of PRODUCT_TYPES) {
+    for (const offCat of type.off_categories) {
+      if (tagSet.has(offCat.toLowerCase())) return type;
+    }
+  }
+  return null;
+}
+
+// ============================================================
 // Get the product type for a given product (exported for recipe matching)
 // ============================================================
 export function getProductType(product) {
@@ -762,6 +784,11 @@ export function getProductType(product) {
   for (const type of PRODUCT_TYPES) {
     if (type.test.test(nameOnly)) return type;
   }
+  // OFF crowd-sourced taxonomy — the most reliable signal after an explicit
+  // name match. Uses the full categories_tags array (when available) against
+  // each type's precise off_categories.
+  const tagMatch = matchTypeByTags(product.categories_tags);
+  if (tagMatch) return tagMatch;
   // Fall back to name + subcategory only. The raw OFF `category` string is
   // NOT regex-tested here — OFF frequently miscategorizes (e.g. a snack
   // tagged "biscuits-and-cakes"), which bled unrelated items into the wrong
@@ -772,6 +799,61 @@ export function getProductType(product) {
     if (type.test.test(nameAndSub)) return type;
   }
   return inferTypeFromCategory(product.category);
+}
+
+// ============================================================
+// Shared candidate→type gate used by EVERY swap path (OFF search, cached-DB
+// re-filter, and the local-DB matcher in swaps.js). Previously each path had
+// its own copy of an ASYMMETRIC guard that only rejected a candidate when it
+// was positively identified as a DIFFERENT type — so anything untyped (most
+// of the catalog) sailed through on a single loose keyword match. That's how
+// "cookies for a soda" happened.
+//
+// This version is an ALLOWLIST:
+//   1. Hard exclude keywords always reject.
+//   2. If the row was tagged with a swap_discovery_type at discovery time,
+//      trust it (authoritative).
+//   3. If we can positively identify the candidate's type, it must equal the
+//      target type. (Tag-aware getProductType means brand-named items like
+//      "Olipop", which OFF tags en:sodas, now type correctly instead of being
+//      dropped or mis-shown.)
+//   4. Only when the candidate is completely untypeable do we fall back to a
+//      conservative must_contain keyword gate.
+// ============================================================
+export function candidateMatchesType(candidate, type) {
+  const rName = `${candidate.name || candidate.product_name || ''} ${candidate.subcategory || ''}`.toLowerCase();
+
+  // 1. Hard excludes always win
+  if ((type.exclude || []).some(kw => rName.includes(kw))) return false;
+
+  // 2. Trust the type computed when this product was discovered
+  if (candidate.swap_discovery_type) {
+    return candidate.swap_discovery_type === type.id;
+  }
+
+  // 3. Positive type identification (name regex → OFF tags → category)
+  const candidateType = getProductType({
+    name: candidate.name || candidate.product_name || '',
+    subcategory: candidate.subcategory || '',
+    category: candidate.category || '',
+    categories_tags: candidate.categories_tags || null,
+  });
+  if (candidateType) return candidateType.id === type.id;
+
+  // Candidate is untypeable. If it nonetheless carried OFF taxonomy tags and
+  // none of them matched this type, trust that — OFF had a categorization and
+  // it isn't ours. Skipping the keyword fallback here is what stops e.g. plain
+  // "Kerrygold Butter" (tagged en:butters) from matching peanut-butter on the
+  // bare word "butter".
+  if (Array.isArray(candidate.categories_tags) && candidate.categories_tags.length > 0) {
+    return false;
+  }
+
+  // 4. Truly no taxonomy (e.g. a sparse local-DB row): require a must_contain
+  // keyword in the name or stored category as a last resort.
+  if (type.must_contain.some(kw => rName.includes(kw))) return true;
+  const cat = (candidate.category || '').toLowerCase();
+  return type.must_contain.some(kw => cat.includes(kw));
 }
 
 export { PRODUCT_TYPES };

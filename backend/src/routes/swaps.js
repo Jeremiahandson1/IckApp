@@ -2,7 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { getScoreRating } from '../utils/helpers.js';
-import { findDynamicSwaps, getProductType, PRODUCT_TYPES } from '../utils/swap-discovery.js';
+import { findDynamicSwaps, getProductType, candidateMatchesType, SWAP_MIN_IMPROVEMENT } from '../utils/swap-discovery.js';
 
 const router = express.Router();
 
@@ -188,34 +188,16 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     //    then ranks by RELEVANCE (chicken noodle soup → other chicken noodle soups
     //    before tomato soup). Uses a single combined query for speed.
     // Only show alternatives that are actually BETTER than what was scanned
-    const swapScoreFloor = Math.max(50, (product.total_score || 0) + 1);
+    const swapScoreFloor = Math.max(50, (product.total_score || 0) + SWAP_MIN_IMPROVEMENT);
     if (swaps.length === 0) {
       // Get the comprehensive product type for cross-type rejection
       const discoveryType = getProductType(product);
       const discoveryTypeId = discoveryType?.id || '_NONE_';
 
-      // Helper: check if a candidate matches the product type.
-      // Uses cross-type rejection to prevent unrelated products
-      // (e.g., "Chips Ahoy" won't match potato-chips because it's detected as cookies)
-      const matchesType = (candidate, type) => {
-        const rName = `${candidate.name || ''} ${candidate.subcategory || ''}`.toLowerCase();
-
-        // 1. Exclude check (always applies)
-        if ((type.exclude || []).some(kw => rName.includes(kw))) return false;
-
-        // 2. Cross-type rejection: if candidate is detected as a different product family, reject
-        if (discoveryType) {
-          const candidateType = getProductType({
-            name: candidate.name || '',
-            subcategory: candidate.subcategory || '',
-            category: candidate.category || ''
-          });
-          if (candidateType && candidateType.id !== discoveryType.id) return false;
-        }
-
-        // 3. Must contain at least one required keyword
-        return type.must_contain.some(kw => rName.includes(kw));
-      };
+      // Candidate→type gate is the shared allowlist (candidateMatchesType in
+      // swap-discovery.js) — one implementation across every swap path so the
+      // detect step and the filter step can't disagree.
+      const matchesType = candidateMatchesType;
 
       // Extract meaningful keywords from product name for relevance scoring.
       // Filters out generic filler words to keep only words that describe
@@ -868,17 +850,9 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
         let candidates = categoryResultsMap[item.category];
         if (itemType) {
           // Always filter by type — never fall back to untyped candidates
-          // (0 results is better than recommending cookies for a chips scan)
-          candidates = candidates.filter(r => {
-            const rName = `${r.name || ''} ${r.subcategory || ''}`.toLowerCase();
-            // Cross-type rejection
-            const candidateType = getProductType({
-              name: r.name || '', subcategory: r.subcategory || '', category: r.category || ''
-            });
-            if (candidateType && candidateType.id !== itemType.id) return false;
-            if ((itemType.exclude || []).some(kw => rName.includes(kw))) return false;
-            return itemType.must_contain.some(kw => rName.includes(kw));
-          });
+          // (0 results is better than recommending cookies for a chips scan).
+          // Shared allowlist gate, same as the /for/:upc path.
+          candidates = candidates.filter(r => candidateMatchesType(r, itemType));
         }
         // Exclude this item's own UPC
         const match = candidates.find(c => c.upc !== item.upc);
