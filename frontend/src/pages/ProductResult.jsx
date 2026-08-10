@@ -14,8 +14,9 @@ import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { shareProduct } from '../utils/nativeShare';
-import { isValidUPC } from '../utils/helpers';
+import { isValidUPC, isUnscored } from '../utils/helpers';
 import ScoreRing from '../components/common/ScoreRing';
+import NoScoreCard from '../components/product/NoScoreCard';
 import { NutriScoreBadge, NovaBadge } from '../components/product/badges';
 import ScoreBreakdown from '../components/product/ScoreBreakdown';
 import CollapsibleSection from '../components/product/CollapsibleSection';
@@ -239,11 +240,16 @@ export default function ProductResult() {
   };
 
   const handleShare = async () => {
-    const score = Math.round(product.total_score);
-    const verdict = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Mediocre' : score >= 20 ? 'Poor' : 'Bad';
+    // No score means no verdict to share — don't invent one.
+    const hasScore = product.total_score != null;
+    const score = hasScore ? Math.round(product.total_score) : null;
+    const verdict = !hasScore ? null
+      : score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Mediocre' : score >= 20 ? 'Poor' : 'Bad';
     api.post('/analytics/event', { event_type: 'share', event_data: { upc, score } }).catch(() => {});
 
-    const shareText = `${product.name} scored ${score}/100 (${verdict}) on Ick`;
+    const shareText = hasScore
+      ? `${product.name} scored ${score}/100 (${verdict}) on Ick`
+      : `${product.name} isn't scored on Ick yet — no published ingredient list`;
     const shareUrl = `${window.location.origin}/product/${upc}`;
     const success = await shareProduct({
       title: `${product.name} — Ick`,
@@ -274,7 +280,8 @@ export default function ProductResult() {
   if (!product) return null;
 
   const harmfulIngredients = product.harmful_ingredients_found || [];
-  const isClean = product.total_score >= 71;
+  const unscored = isUnscored(product);
+  const isClean = !unscored && product.total_score >= 71;
   let nutritionFacts = {};
   try {
     nutritionFacts = typeof product.nutrition_facts === 'string'
@@ -359,9 +366,12 @@ export default function ProductResult() {
         </div>
       </div>
 
-      {/* Score Ring — the emotional punch */}
+      {/* Score Ring — the emotional punch. When we don't have enough data to
+          judge, say that instead of rendering a low number (see NoScoreCard). */}
       <div className="px-4 -mt-1">
-        <ScoreRing score={product.total_score} name={product.name} />
+        {unscored
+          ? <NoScoreCard product={product} />
+          : <ScoreRing score={product.total_score} name={product.name} />}
       </div>
 
       {/* Condition View Toggle + Scores */}
@@ -391,8 +401,10 @@ export default function ProductResult() {
         </div>
       )}
 
-      {/* Inline Swap Preview — show immediately, don't bury */}
-      {!isClean && swapOptions.length > 0 && (
+      {/* Inline Swap Preview — show immediately, don't bury. Skipped for
+          unscored products: "better alternative" is a comparison we can't make
+          without a score for the product in hand. */}
+      {!unscored && !isClean && swapOptions.length > 0 && (
         <InlineSwapPreview
           swapOptions={swapOptions}
           currentScore={product.total_score}

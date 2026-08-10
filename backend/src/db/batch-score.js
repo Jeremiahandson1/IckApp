@@ -41,8 +41,13 @@ async function loadCompanies() {
 function clamp(val) { return Math.max(0, Math.min(100, Math.round(val))); }
 
 // ── Dimension 1: Harmful Ingredients (40%) ──
+// UNKNOWN ≠ BAD, and unknown ≠ good either. No ingredient list means score
+// null, which makes total_score NULL via the trigger and presents the product
+// as UNSCORED. This used to return 75 ("probably fine"), which handed ~408k
+// products with no published ingredients a passing grade they hadn't earned.
+// Kept in sync with utils/scoring.js.
 function harmfulScore(ingredientsText) {
-  if (!ingredientsText || ingredientsText.length < 3) return { score: 75, found: [] };
+  if (!ingredientsText || ingredientsText.length < 3) return { score: null, found: [], missing: true };
   const lower = ingredientsText.toLowerCase();
   const found = [];
   for (const h of harmful) {
@@ -60,7 +65,9 @@ function harmfulScore(ingredientsText) {
 }
 
 // ── Dimension 2: Banned Elsewhere (20%) ──
-function bannedScore(foundHarmful) {
+function bannedScore(foundHarmful, missingIngredients) {
+  // No ingredient list = we can't check for bans. Unknown, not clean.
+  if (missingIngredients) return null;
   if (!foundHarmful || foundHarmful.length === 0) return 100;
   const banned = foundHarmful.filter(h => h.bannedIn && h.bannedIn.length > 0);
   if (banned.length === 0) return 100;
@@ -129,7 +136,8 @@ function processingScore(p) {
     }
     return clamp(score);
   }
-  if (!p.ingredients || p.ingredients.length < 3) return 50;
+  // No NOVA group and no ingredients — processing is unassessable.
+  if (!p.ingredients || p.ingredients.length < 3) return null;
   const il = p.ingredients.toLowerCase();
   const markers = [
     'high fructose corn syrup', 'hydrogenated', 'partially hydrogenated',
@@ -175,11 +183,11 @@ function companyScore(brand) {
 }
 
 function scoreProduct(p) {
-  const { score: hiScore, found } = harmfulScore(p.ingredients || '');
+  const { score: hiScore, found, missing } = harmfulScore(p.ingredients || '');
   return {
     upc: p.upc,
     harmful: hiScore,
-    banned: bannedScore(found),
+    banned: bannedScore(found, missing),
     transparency: transparencyScore(p),
     processing: processingScore(p),
     company: companyScore(p.brand),
@@ -277,14 +285,16 @@ async function main() {
       COUNT(*) FILTER (WHERE total_score >= 75) as excellent,
       COUNT(*) FILTER (WHERE total_score >= 51 AND total_score < 75) as good,
       COUNT(*) FILTER (WHERE total_score >= 26 AND total_score < 51) as poor,
-      COUNT(*) FILTER (WHERE total_score < 26) as avoid
-    FROM products WHERE total_score IS NOT NULL
+      COUNT(*) FILTER (WHERE total_score < 26) as avoid,
+      COUNT(*) FILTER (WHERE total_score IS NULL) as unscored
+    FROM products
   `);
   console.log('  Score distribution:');
   console.log(`  🟢 Excellent (75+): ${parseInt(d.excellent).toLocaleString()}`);
   console.log(`  🟡 Good (51-74):    ${parseInt(d.good).toLocaleString()}`);
   console.log(`  🟠 Poor (26-50):    ${parseInt(d.poor).toLocaleString()}`);
   console.log(`  🔴 Avoid (0-25):    ${parseInt(d.avoid).toLocaleString()}`);
+  console.log(`  ❓ Unscored:        ${parseInt(d.unscored).toLocaleString()} (not enough data to judge)`);
 
   await pool.end();
 }

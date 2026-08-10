@@ -150,7 +150,7 @@ export default function Swaps() {
                 className="w-full p-4 flex items-center gap-3 text-left"
               >
                 <div className={`w-12 h-12 rounded-sm flex items-center justify-center text-white font-bold ${getScoreBgClass(item.total_score)}`}>
-                  {Math.round(item.total_score)}
+                  {item.total_score == null ? '?' : Math.round(item.total_score)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-[#f4f4f0] truncate">{item.name}</h3>
@@ -188,15 +188,17 @@ export default function Swaps() {
                               <div key={swap.id || swap.upc} className="bg-[#0d0d0d] rounded-sm p-3">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${getScoreBgClass(swap.total_score)}`}>
-                                    {Math.round(swap.total_score)}
+                                    {swap.total_score == null ? '?' : Math.round(swap.total_score)}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <h5 className="font-medium text-[#f4f4f0] truncate text-sm">{swap.name}</h5>
                                     <p className="text-xs text-[#666]">{swap.brand}</p>
                                     <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xs text-[#c8f135] font-medium">
-                                        +{Math.round(swap.total_score - item.total_score)} points
-                                      </span>
+                                      {swap.total_score != null && item.total_score != null && (
+                                        <span className="text-xs text-[#c8f135] font-medium">
+                                          +{Math.round(swap.total_score - item.total_score)} points
+                                        </span>
+                                      )}
                                       {swap.typical_price && (
                                         <span className="text-xs text-[#888]">
                                           ~${Number(swap.typical_price).toFixed(2)}

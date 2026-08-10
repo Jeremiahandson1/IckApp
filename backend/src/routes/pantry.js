@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePremium } from '../middleware/subscription.js';
+import { upcVariants } from '../utils/upc.js';
 
 const router = express.Router();
 
@@ -144,9 +145,12 @@ router.post('/', async (req, res) => {
     let productUpc = upc;
 
     if (upc && !product_id) {
+      // Match any equivalent barcode form (12-digit UPC-A vs zero-padded
+      // EAN-13) — see backend/src/utils/upc.js.
       const productResult = await pool.query(
-        'SELECT id FROM products WHERE upc = $1',
-        [upc]
+        `SELECT id FROM products WHERE upc = ANY($1::text[])
+         ORDER BY array_position($1::text[], upc) LIMIT 1`,
+        [upcVariants(upc)]
       );
       if (productResult.rows.length > 0) {
         productId = productResult.rows[0].id;

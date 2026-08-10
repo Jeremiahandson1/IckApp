@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { upcVariants } from '../utils/upc.js';
 
 const router = express.Router();
 
@@ -110,10 +111,11 @@ router.get('/for/:upc', async (req, res) => {
   try {
     const { upc } = req.params;
 
-    // Get product category
+    // Get product category — match any equivalent barcode form (utils/upc.js).
     const productResult = await pool.query(
-      'SELECT category FROM products WHERE upc = $1',
-      [upc]
+      `SELECT category FROM products WHERE upc = ANY($1::text[])
+       ORDER BY array_position($1::text[], upc) LIMIT 1`,
+      [upcVariants(upc)]
     );
 
     if (productResult.rows.length === 0) {

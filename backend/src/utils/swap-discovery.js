@@ -692,11 +692,14 @@ async function saveDiscoveries(candidates, type) {
            RETURNING *`,
           [
             upc, name, brand, category, imageUrl, ingredients,
-            s?.harmful_ingredients_score ?? 50,
-            s?.banned_elsewhere_score ?? 50,
-            s?.transparency_score ?? 50,
-            s?.processing_score ?? 50,
-            s?.company_behavior_score ?? 50,
+            // null = unknown, which makes total_score NULL. A discovered
+            // product we can't actually assess must never be offered as a
+            // "better alternative", and the score filters treat NULL as 0.
+            s?.harmful_ingredients_score ?? null,
+            s?.banned_elsewhere_score ?? null,
+            s?.transparency_score ?? null,
+            s?.processing_score ?? null,
+            s?.company_behavior_score ?? null,
             s?.harmful_ingredients_found ? JSON.stringify(s.harmful_ingredients_found) : null,
             s?.nutrition_facts ? JSON.stringify(s.nutrition_facts) : '{}',
             JSON.stringify(s?.allergens_tags ?? p.allergens_tags ?? []),

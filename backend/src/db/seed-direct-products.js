@@ -14,7 +14,7 @@ if (!process.env.NODE_ENV && process.env.DATABASE_URL?.includes('render.com')) {
   process.env.NODE_ENV = 'production';
 }
 import pg from 'pg';
-const { scoreProduct } = await import('../utils/scoring.js');
+const { scoreProduct, weightedTotal } = await import('../utils/scoring.js');
 
 const DRY = process.argv.includes('--dry');
 const { Pool } = pg;
@@ -96,16 +96,10 @@ async function main() {
       image_url: item.image_url,
     });
 
-    const total = Math.round(
-      scored.harmful_ingredients_score * 0.40 +
-      scored.banned_elsewhere_score    * 0.20 +
-      scored.transparency_score        * 0.15 +
-      scored.processing_score          * 0.15 +
-      scored.company_behavior_score    * 0.10
-    );
+    const total = weightedTotal(scored);
 
     console.log(`• ${item.brand} — ${item.name}`);
-    console.log(`    score=${total} (H:${scored.harmful_ingredients_score} B:${scored.banned_elsewhere_score} T:${scored.transparency_score} P:${scored.processing_score} C:${scored.company_behavior_score}) flagged=[${scored.harmful_ingredients_found.map(f=>f.name).join(', ')}]`);
+    console.log(`    score=${total ?? 'UNSCORED'} (H:${scored.harmful_ingredients_score} B:${scored.banned_elsewhere_score} T:${scored.transparency_score} P:${scored.processing_score} C:${scored.company_behavior_score}) flagged=[${scored.harmful_ingredients_found.map(f=>f.name).join(', ')}]`);
     console.log(`    upcs: ${item.upcs.join(', ')}`);
 
     if (DRY) continue;

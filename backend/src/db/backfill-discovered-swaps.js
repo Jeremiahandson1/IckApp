@@ -23,7 +23,7 @@ if (!process.env.NODE_ENV && process.env.DATABASE_URL?.includes('render.com')) {
   process.env.NODE_ENV = 'production';
 }
 import pg from 'pg';
-const { scoreProduct } = await import('../utils/scoring.js');
+const { scoreProduct, weightedTotal } = await import('../utils/scoring.js');
 
 const DRY = process.argv.includes('--dry');
 const { Pool } = pg;
@@ -63,25 +63,21 @@ async function main() {
         image_url: p.image_url,
       });
 
-      const newTotal = Math.round(
-        fresh.harmful_ingredients_score * 0.40 +
-        fresh.banned_elsewhere_score    * 0.20 +
-        fresh.transparency_score        * 0.15 +
-        fresh.processing_score          * 0.15 +
-        fresh.company_behavior_score    * 0.10
-      );
+      // null when any dimension is unknown — the product ends up UNSCORED.
+      const newTotal = weightedTotal(fresh);
 
-      if (newTotal === (p.old_total ?? 0) &&
+      if (newTotal === p.old_total &&
           fresh.harmful_ingredients_score === p.old_harm &&
           fresh.processing_score === p.old_proc) {
         unchanged++;
         continue;
       }
 
-      // Show notable swings (either direction) so the run is auditable
-      if (Math.abs(newTotal - (p.old_total ?? 0)) >= 5) {
+      // Show notable swings (either direction) so the run is auditable.
+      // A become-unscored transition (newTotal null) always counts as notable.
+      if (newTotal == null || Math.abs(newTotal - (p.old_total ?? 0)) >= 5) {
         console.log(`  [${p.upc}] ${(p.brand || '?').slice(0, 20)} — ${(p.name || '?').slice(0, 40)}`);
-        console.log(`    total ${p.old_total}->${newTotal} | harm ${p.old_harm}->${fresh.harmful_ingredients_score} | proc ${p.old_proc}->${fresh.processing_score} | ${fresh.harmful_ingredients_found.length} flagged`);
+        console.log(`    total ${p.old_total}->${newTotal ?? 'UNSCORED'} | harm ${p.old_harm}->${fresh.harmful_ingredients_score ?? 'unknown'} | proc ${p.old_proc}->${fresh.processing_score ?? 'unknown'} | ${fresh.harmful_ingredients_found.length} flagged`);
       }
 
       if (!DRY) {

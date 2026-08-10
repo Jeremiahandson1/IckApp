@@ -5,7 +5,11 @@ import { ArrowRightLeft } from 'lucide-react';
 
 export default function InlineSwapPreview({ swapOptions, currentScore, onSwapClick }) {
   const best = swapOptions[0];
-  const improvement = Math.round((best.total_score || 0) - (currentScore || 0));
+  // Null on either side = no honest point delta (ProductResult also hides this
+  // block entirely for unscored products).
+  const improvement = (best.total_score != null && currentScore != null)
+    ? Math.round(best.total_score - currentScore)
+    : null;
 
   return (
     <div className="px-4 mt-3">
@@ -32,9 +36,11 @@ export default function InlineSwapPreview({ swapOptions, currentScore, onSwapCli
           </div>
           <div className="text-right">
             <div className="text-lg font-bold text-[#c8f135]">
-              +{improvement}
+              {improvement == null ? (best.total_score ?? '?') : `+${improvement}`}
             </div>
-            <div className="text-[10px] text-[#c8f135] font-medium">points</div>
+            <div className="text-[10px] text-[#c8f135] font-medium">
+              {improvement == null ? 'score' : 'points'}
+            </div>
           </div>
         </button>
         {swapOptions.length > 1 && (

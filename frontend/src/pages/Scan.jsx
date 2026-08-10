@@ -7,7 +7,7 @@ import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { isValidUPC, getScoreColor, getScoreBgClass, formatRelativeTime } from '../utils/helpers';
-import { scanNative, shouldUseNativeScanner, stopNativeScanner } from '../utils/nativeScanner';
+import { scanNative, shouldUseNativeScanner, stopNativeScanner, isScanSupported } from '../utils/nativeScanner';
 
 // Analytics helper — fire and forget
 const track = (type, data = {}) => {
@@ -23,8 +23,11 @@ export default function Scan() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const useNative = shouldUseNativeScanner();
-  
+  // Starts as the platform preference (ML Kit on native), but can flip to false
+  // at runtime if the native scanner is unsupported or errors — we degrade to
+  // the html5-qrcode web scanner rather than stranding the user in search.
+  const [useNative, setUseNative] = useState(shouldUseNativeScanner());
+
   const [mode, setMode] = useState('camera');
   const [scanning, setScanning] = useState(false);
   const [manualUPC, setManualUPC] = useState('');
@@ -67,12 +70,26 @@ export default function Scan() {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
       if (acTimeoutRef.current) clearTimeout(acTimeoutRef.current);
     };
-  }, [mode]);
+    // useNative is a dependency so a runtime fallback from ML Kit to the web
+    // scanner actually starts the web scanner.
+  }, [mode, useNative]);
 
   // ── Native scanner (ML Kit — iOS/Android) ──
+  // If ML Kit isn't usable on this device, drop to the web scanner instead of
+  // sending the user to search. Flipping useNative re-runs the scanner effect,
+  // which renders #qr-reader and starts html5-qrcode.
+  const onNativeUnavailable = () => {
+    setScanning(false);
+    setUseNative(false);
+  };
+
   const startNativeScanner = async () => {
     setScanning(true);
     try {
+      if (!(await isScanSupported())) {
+        onNativeUnavailable();
+        return;
+      }
       const result = await scanNative();
       if (result?.upc) {
         await lookupProduct(result.upc);
@@ -81,9 +98,8 @@ export default function Scan() {
         setScanning(false);
       }
     } catch (error) {
-      toast.error('Scanner error. Try search instead.');
-      setMode('search');
-      setScanning(false);
+      console.warn('Native scanner unavailable, falling back to web scanner:', error?.message);
+      onNativeUnavailable();
     }
   };
 

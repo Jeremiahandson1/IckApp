@@ -47,13 +47,16 @@ export default function ConditionView({
         <div className="space-y-2">
           {/* Score pills */}
           <div className="flex flex-wrap gap-2">
+            {/* null total = not enough data to score; show "—" in neutral
+                grey, never a red 0. */}
             <div className={`px-3 py-1.5 rounded-sm text-sm font-semibold ${
+              totalScore == null ? 'bg-[#1e1e1e] text-[#888]' :
               totalScore >= 75 ? 'bg-green-500/10 text-green-400' :
               totalScore >= 50 ? 'bg-amber-500/10 text-amber-400' :
               totalScore >= 25 ? 'bg-orange-500/10 text-orange-400' :
               'bg-red-500/10 text-red-400'
             }`}>
-              Normal: {Math.round(totalScore ?? 0)}
+              Normal: {totalScore == null ? '—' : Math.round(totalScore)}
             </div>
             {conditionLoading ? (
               <div className="px-3 py-1.5 bg-[#1e1e1e] rounded-sm text-sm text-[#888]">

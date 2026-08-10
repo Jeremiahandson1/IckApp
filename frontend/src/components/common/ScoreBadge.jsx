@@ -1,3 +1,6 @@
+// A null score means "not enough data to judge", never zero. Every badge here
+// renders "?" in that case — see the data-confidence note in utils/helpers.js.
+
 import { getScoreBgClass, getScoreLabel } from '../../utils/helpers';
 
 export default function ScoreBadge({ score, size = 'md', showLabel = false, animated = false }) {
@@ -20,7 +23,7 @@ export default function ScoreBadge({ score, size = 'md', showLabel = false, anim
           ${animated ? 'animate-pulse-score' : ''}
         `}
       >
-        {Math.round(score)}
+        {score == null ? '?' : Math.round(score)}
       </div>
       {showLabel && (
         <span className={`text-xs font-semibold uppercase tracking-wide ${bgClass.replace('bg-', 'text-')}`}>
@@ -34,10 +37,13 @@ export default function ScoreBadge({ score, size = 'md', showLabel = false, anim
 // Mini version for lists
 export function ScoreBadgeMini({ score }) {
   const bgClass = getScoreBgClass(score);
-  
+
   return (
-    <span className={`${bgClass} text-white text-xs font-bold px-2 py-0.5 rounded-full`}>
-      {Math.round(score)}
+    <span
+      className={`${bgClass} text-white text-xs font-bold px-2 py-0.5 rounded-full`}
+      title={score == null ? 'Not enough data to score this product' : undefined}
+    >
+      {score == null ? '?' : Math.round(score)}
     </span>
   );
 }
@@ -45,18 +51,26 @@ export function ScoreBadgeMini({ score }) {
 // Horizontal bar version
 export function ScoreBar({ score, showValue = true }) {
   const bgClass = getScoreBgClass(score);
-  
+  const unknown = score == null;
+
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
-        <div 
-          className={`h-full ${bgClass} transition-all duration-500`}
-          style={{ width: `${score}%` }}
-        />
+      {/* Unknown draws an empty dashed track, not a zero-width red bar —
+          an empty bar reads as "no data", a 0% bar reads as "scored 0". */}
+      <div
+        className="flex-1 h-2 bg-[#2a2a2a] rounded-full overflow-hidden"
+        style={unknown ? { border: '1px dashed #3a3a3a', background: 'transparent' } : undefined}
+      >
+        {!unknown && (
+          <div
+            className={`h-full ${bgClass} transition-all duration-500`}
+            style={{ width: `${score}%` }}
+          />
+        )}
       </div>
       {showValue && (
         <span className="text-sm font-medium text-[#888] w-8">
-          {Math.round(score)}
+          {unknown ? '—' : Math.round(score)}
         </span>
       )}
     </div>

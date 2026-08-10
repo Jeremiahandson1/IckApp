@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { scoreForCondition, RULES_VERSION, DISCLAIMER } from '../utils/conditionScorer.v2.js';
+import { upcVariants } from '../utils/upc.js';
 
 const router = express.Router();
 
@@ -134,13 +135,21 @@ router.get('/score/:productId', async (req, res) => {
       return { slug: slug.trim(), subType: subType?.trim() || null };
     });
 
-    // Get product (support both numeric ID and UPC string)
-    const isNumeric = /^\d+$/.test(productId);
+    // Get product (support both numeric ID and UPC string). Barcodes match on
+    // any equivalent form — see backend/src/utils/upc.js.
+    // A 12+ digit barcode is all digits but is NOT an id: comparing it against
+    // the int4 id column throws "integer out of range", so only treat short
+    // in-range numbers as ids and let everything else match as a barcode.
+    const isNumeric = /^\d+$/.test(productId) && Number(productId) <= 2147483647;
     const productResult = await pool.query(
       isNumeric
-        ? 'SELECT id, upc, name, ingredients, nutrition_facts, total_score FROM products WHERE id = $1 OR upc = $2'
-        : 'SELECT id, upc, name, ingredients, nutrition_facts, total_score FROM products WHERE upc = $1',
-      isNumeric ? [parseInt(productId), productId] : [productId]
+        ? `SELECT id, upc, name, ingredients, nutrition_facts, total_score FROM products
+           WHERE id = $1 OR upc = ANY($2::text[])
+           ORDER BY array_position($2::text[], upc) NULLS FIRST LIMIT 1`
+        : `SELECT id, upc, name, ingredients, nutrition_facts, total_score FROM products
+           WHERE upc = ANY($1::text[])
+           ORDER BY array_position($1::text[], upc) LIMIT 1`,
+      isNumeric ? [parseInt(productId), upcVariants(productId)] : [upcVariants(productId)]
     );
     if (productResult.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });

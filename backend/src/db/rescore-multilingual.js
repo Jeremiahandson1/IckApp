@@ -20,7 +20,7 @@ if (!process.env.NODE_ENV && process.env.DATABASE_URL?.includes('render.com')) {
   process.env.NODE_ENV = 'production';
 }
 import pg from 'pg';
-const { scoreProduct } = await import('../utils/scoring.js');
+const { scoreProduct, weightedTotal } = await import('../utils/scoring.js');
 
 const DRY = process.argv.includes('--dry');
 const { Pool } = pg;
@@ -91,24 +91,19 @@ async function main() {
         is_organic: !!p.is_organic,
         image_url: p.image_url,
       });
-      const newTotal = Math.round(
-        fresh.harmful_ingredients_score * 0.40 +
-        fresh.banned_elsewhere_score    * 0.20 +
-        fresh.transparency_score        * 0.15 +
-        fresh.processing_score          * 0.15 +
-        fresh.company_behavior_score    * 0.10
-      );
+      // null when any dimension is unknown — the product ends up UNSCORED.
+      const newTotal = weightedTotal(fresh);
 
-      const delta = newTotal - (p.old_total ?? 0);
+      const delta = newTotal == null ? null : newTotal - (p.old_total ?? 0);
       if (delta === 0 && fresh.harmful_ingredients_score === p.old_harm) {
         unchanged++;
         continue;
       }
 
-      if (delta < -5) {
+      if (delta == null || delta < -5) {
         // Big drop — print these so we can see the wins
         console.log(`  [${p.upc}] ${(p.brand || '?').slice(0, 20)} — ${(p.name || '?').slice(0, 40)}`);
-        console.log(`    ${p.old_total}/100 -> ${newTotal}/100 (harm ${p.old_harm}->${fresh.harmful_ingredients_score}, +${fresh.harmful_ingredients_found.length} flagged)`);
+        console.log(`    ${p.old_total}/100 -> ${newTotal == null ? 'UNSCORED' : `${newTotal}/100`} (harm ${p.old_harm}->${fresh.harmful_ingredients_score ?? 'unknown'}, +${fresh.harmful_ingredients_found.length} flagged)`);
       }
 
       if (!DRY) {

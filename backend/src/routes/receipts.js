@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { upcVariants } from '../utils/upc.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -223,7 +224,12 @@ router.put('/:id/items/:itemId', async (req, res) => {
     let resolvedUpc = upc || null;
 
     if (upc && !product_id) {
-      const prod = await pool.query('SELECT id FROM products WHERE upc = $1', [upc]);
+      // Match any equivalent barcode form — see backend/src/utils/upc.js.
+      const prod = await pool.query(
+        `SELECT id FROM products WHERE upc = ANY($1::text[])
+         ORDER BY array_position($1::text[], upc) LIMIT 1`,
+        [upcVariants(upc)]
+      );
       if (prod.rows.length > 0) resolvedProductId = prod.rows[0].id;
     }
 

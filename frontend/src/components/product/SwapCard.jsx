@@ -2,7 +2,10 @@
 // online purchase links.
 
 export default function SwapCard({ swap, currentScore, onClick }) {
-  const improvement = swap.total_score - currentScore;
+  // No score on the product being compared against → no honest delta to show.
+  const improvement = (swap.total_score != null && currentScore != null)
+    ? swap.total_score - currentScore
+    : null;
   const stores = swap.nearby_stores || [];
   const links = swap.online_links || [];
 
@@ -15,8 +18,12 @@ export default function SwapCard({ swap, currentScore, onClick }) {
             <p className="text-sm text-[#888]">{swap.brand}</p>
           </div>
           <div className="text-right ml-3">
-            <span className="text-2xl font-bold text-[#c8f135]">{Math.round(swap.total_score)}</span>
-            <p className="text-xs text-[#c8f135] font-medium">+{improvement} pts</p>
+            <span className="text-2xl font-bold text-[#c8f135]">
+              {swap.total_score == null ? '?' : Math.round(swap.total_score)}
+            </span>
+            {improvement != null && (
+              <p className="text-xs text-[#c8f135] font-medium">+{Math.round(improvement)} pts</p>
+            )}
           </div>
         </div>
       </button>

@@ -4,11 +4,16 @@ import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning
 export const isNative = Capacitor.isNativePlatform();
 
 export function shouldUseNativeScanner() {
-  // iOS: use ML Kit native scanner (much more reliable than html5-qrcode).
-  // Android: keep html5-qrcode for now — MLKit had issues here that need
-  // re-investigation on real hardware before re-enabling.
-  if (!Capacitor.isNativePlatform()) return false;
-  return Capacitor.getPlatform() === 'ios';
+  // Prefer ML Kit on both native platforms — it is substantially better at 1D
+  // product barcodes (UPC-A/EAN-13) than html5-qrcode, which is what made our
+  // scanner feel worse than Yuka's.
+  //
+  // Android was previously pinned to html5-qrcode because ML Kit had issues
+  // here. It is enabled now only because Scan.jsx falls back to the web scanner
+  // when the native path reports unsupported or throws (see onNativeUnavailable)
+  // — so the worst case is the old behaviour, not a broken scanner. Still wants
+  // a real-hardware check.
+  return Capacitor.isNativePlatform();
 }
 
 export async function isScanSupported() {

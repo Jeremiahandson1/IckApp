@@ -8,10 +8,11 @@ import {
   ShoppingCart, Check,
 } from 'lucide-react';
 import { ScoreBar } from '../common/ScoreBadge';
-import { getScoreExplanation } from '../../utils/helpers';
+import { getScoreExplanation, isUnscored } from '../../utils/helpers';
 
 export default function ScoreBreakdown({ product, expanded, onToggle }) {
   const explanation = getScoreExplanation(product);
+  const unscored = isUnscored(product);
   return (
     <div className="px-4 mt-6">
       <div className="card overflow-hidden">
@@ -22,7 +23,9 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
           <div className="flex items-center gap-3">
             <Info className="w-5 h-5 text-[#c8f135]" />
             <div className="text-left">
-              <span className="font-semibold text-[#f4f4f0]">Why this score?</span>
+              <span className="font-semibold text-[#f4f4f0]">
+                {unscored ? "Why isn't this scored?" : 'Why this score?'}
+              </span>
               {explanation.summary && (
                 <p className="text-xs text-[#888] mt-0.5 line-clamp-1">{explanation.summary}</p>
               )}
@@ -34,10 +37,14 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
         {expanded && (
           <div className="px-4 pb-4 border-t border-[#2a2a2a] pt-4">
             <div className="space-y-1">
+              {/* Pass the raw value — null means "we couldn't assess this",
+                  and ScoreItem renders it as UNKNOWN rather than a number.
+                  Substituting 50 here used to make an unknown dimension look
+                  like a real mediocre result. */}
               <ScoreItem
                 icon={ShieldAlert}
                 label="Harmful Ingredients"
-                score={product.harmful_ingredients_score ?? 50}
+                score={product.harmful_ingredients_score}
                 weight="40%"
                 detail={explanation.harmful_detail}
                 items={explanation.harmful_items}
@@ -46,7 +53,7 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
               <ScoreItem
                 icon={AlertTriangle}
                 label="Banned Elsewhere"
-                score={product.banned_elsewhere_score ?? 50}
+                score={product.banned_elsewhere_score}
                 weight="20%"
                 detail={explanation.banned_detail}
                 items={explanation.banned_items}
@@ -55,7 +62,7 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
               <ScoreItem
                 icon={Info}
                 label="Transparency"
-                score={product.transparency_score ?? 50}
+                score={product.transparency_score}
                 weight="15%"
                 detail={explanation.transparency_detail}
                 items={explanation.transparency_items}
@@ -64,7 +71,7 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
               <ScoreItem
                 icon={Beaker}
                 label="Processing Level"
-                score={product.processing_score ?? 50}
+                score={product.processing_score}
                 weight="15%"
                 detail={explanation.processing_detail}
                 items={explanation.processing_items}
@@ -73,7 +80,7 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
               <ScoreItem
                 icon={ShoppingCart}
                 label="Company Behavior"
-                score={product.company_behavior_score ?? 50}
+                score={product.company_behavior_score}
                 weight="10%"
                 detail={explanation.company_detail}
                 items={explanation.company_items}
@@ -90,7 +97,9 @@ export default function ScoreBreakdown({ product, expanded, onToggle }) {
 function ScoreItem({ icon: Icon, label, score, weight, detail, items = [], type }) {
   const [open, setOpen] = useState(false);
   const hasDetail = (items && items.length > 0) || detail;
-  const detailColor = score >= 70 ? '#5a9a4a' : score >= 40 ? '#b08a5e' : '#c45a4a';
+  // Unknown gets neutral grey — not the red end of the scale.
+  const unknown = score == null;
+  const detailColor = unknown ? '#7a7a7a' : score >= 70 ? '#5a9a4a' : score >= 40 ? '#b08a5e' : '#c45a4a';
 
   return (
     <div className="py-3 border-b border-[#1e1e1e] last:border-0">
@@ -103,7 +112,12 @@ function ScoreItem({ icon: Icon, label, score, weight, detail, items = [], type 
           <div className="flex justify-between items-baseline mb-1">
             <span className="text-sm text-[#ccc]">{label}</span>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium" style={{ color: detailColor }}>{Math.round(score)}/100</span>
+              <span
+                className="text-xs font-medium"
+                style={{ color: detailColor, fontStyle: unknown ? 'italic' : undefined }}
+              >
+                {unknown ? 'Not scored' : `${Math.round(score)}/100`}
+              </span>
               <span className="text-[10px] text-[#555]">{weight}</span>
             </div>
           </div>

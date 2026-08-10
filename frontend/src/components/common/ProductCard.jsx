@@ -69,7 +69,10 @@ export default function ProductCard({ product, onClick, showSwapArrow = false, c
 
 // Swap comparison card
 export function SwapComparisonCard({ fromProduct, toProduct, onSelect }) {
-  const improvement = toProduct.total_score - fromProduct.total_score;
+  // Null on either side means there's no comparison to make (see helpers.js).
+  const improvement = (toProduct.total_score != null && fromProduct.total_score != null)
+    ? toProduct.total_score - fromProduct.total_score
+    : null;
   
   return (
     <button
@@ -81,9 +84,11 @@ export function SwapComparisonCard({ fromProduct, toProduct, onSelect }) {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <ScoreBadgeMini score={toProduct.total_score} />
-            <span className="text-[#c8f135] text-sm font-semibold">
-              +{improvement} pts
-            </span>
+            {improvement != null && (
+              <span className="text-[#c8f135] text-sm font-semibold">
+                +{Math.round(improvement)} pts
+              </span>
+            )}
           </div>
           <h3 className="font-semibold text-[#f4f4f0] mt-2 line-clamp-1">{toProduct.name}</h3>
           <p className="text-sm text-[#666]">{toProduct.brand}</p>

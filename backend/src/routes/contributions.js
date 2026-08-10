@@ -55,7 +55,7 @@ router.put('/:id/approve', async (req, res) => {
       ingredients: c.ingredients_text || '',
       brand: c.brand || '',
     }).catch(err => {
-      console.error(`Approve contribution ${id} (upc ${c.upc}): scoring failed, inserting neutral 50s:`, err);
+      console.error(`Approve contribution ${id} (upc ${c.upc}): scoring failed, leaving it unscored:`, err);
       return null;
     });
 
@@ -77,11 +77,14 @@ router.put('/:id/approve', async (req, res) => {
          image_url = COALESCE($13, products.image_url)`,
       [
         c.upc, c.name, c.brand, c.ingredients_text,
-        scores?.harmful_ingredients_score ?? 50,
-        scores?.banned_elsewhere_score ?? 50,
-        scores?.transparency_score ?? 50,
-        scores?.processing_score ?? 50,
-        scores?.company_behavior_score ?? 50,
+        // null = unknown. NULL propagates to total_score (product reads as
+        // UNSCORED, not badly scored) and the COALESCE above keeps any score
+        // the row already had on conflict.
+        scores?.harmful_ingredients_score ?? null,
+        scores?.banned_elsewhere_score ?? null,
+        scores?.transparency_score ?? null,
+        scores?.processing_score ?? null,
+        scores?.company_behavior_score ?? null,
         scores?.harmful_ingredients_found ? JSON.stringify(scores.harmful_ingredients_found) : '[]',
         scores?.nutrition_facts ? JSON.stringify(scores.nutrition_facts) : '{}',
         scores?.allergens_tags ? JSON.stringify(scores.allergens_tags) : '[]',

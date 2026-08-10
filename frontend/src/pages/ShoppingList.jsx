@@ -294,14 +294,16 @@ export default function ShoppingList() {
                       onClick={() => addItem(product)}
                       className="w-full p-3 bg-[#111] rounded-sm flex items-center gap-3 text-left"
                     >
-                      {/* Score */}
+                      {/* Score — null means not enough data to judge, so it
+                          gets a neutral "?" rather than a red 0. */}
                       <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-white font-bold text-sm ${
+                        product.total_score == null ? 'bg-[#2a2a2a]' :
                         product.total_score >= 86 ? 'bg-[rgba(200,241,53,0.06)]' :
                         product.total_score >= 71 ? 'bg-green-400' :
                         product.total_score >= 51 ? 'bg-yellow-400' :
                         product.total_score >= 31 ? 'bg-[#c8f135]' : 'bg-red-500/100'
                       }`}>
-                        {Math.round(product.total_score)}
+                        {product.total_score == null ? '?' : Math.round(product.total_score)}
                       </div>
                       
                       <div className="flex-1 min-w-0">

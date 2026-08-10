@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { upcVariants } from '../utils/upc.js';
 
 const router = express.Router();
 
@@ -70,7 +71,12 @@ router.post('/', authenticateToken, validate(kidRatingSchema), async (req, res) 
   try {
     const { upc, kid_name, kid_age, rating, would_eat_again, notes } = req.body;
 
-    const productResult = await pool.query('SELECT id FROM products WHERE upc = $1', [upc]);
+    // Match any equivalent barcode form — see backend/src/utils/upc.js.
+    const productResult = await pool.query(
+      `SELECT id FROM products WHERE upc = ANY($1::text[])
+       ORDER BY array_position($1::text[], upc) LIMIT 1`,
+      [upcVariants(upc)]
+    );
     const productId = productResult.rows[0]?.id || null;
 
     const result = await pool.query(

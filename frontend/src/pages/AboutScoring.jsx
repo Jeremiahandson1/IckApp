@@ -116,6 +116,22 @@ export default function AboutScoring() {
         </p>
       </section>
 
+      {/* Unscored products */}
+      <section className="bg-[#0d0d0d] rounded-sm p-4 mb-5 border border-[#1e1e1e]">
+        <h2 className="text-base font-semibold text-[#f4f4f0] mb-2">When we don't score at all</h2>
+        <p className="text-sm text-[#bbb] leading-relaxed">
+          Some products have no published ingredient list anywhere — not in Open Food Facts, USDA, or FatSecret.
+          Ingredients drive 60% of the Normal Score, so without them there is nothing to judge. Rather than guess
+          a number, we show <span className="text-[#8a8a8a] font-medium">NOT ENOUGH INFO</span> and leave those
+          dimensions unscored.
+        </p>
+        <p className="text-sm text-[#bbb] leading-relaxed mt-2">
+          A missing score is not a bad score. It cuts both ways: we won't call a product bad because nobody
+          published its label, and we won't call it clean either. Unscored products are never suggested as
+          "better alternatives," and you can add a label yourself from the product page to get it scored.
+        </p>
+      </section>
+
       {/* Sources */}
       <section className="mb-6">
         <h2 className="text-base font-semibold text-[#f4f4f0] mb-3">Sources</h2>

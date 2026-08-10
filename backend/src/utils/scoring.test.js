@@ -57,7 +57,7 @@ pool.query.mockImplementation((sql) => {
   return Promise.resolve({ rows: [] });
 });
 
-const { scoreProduct } = await import('./scoring.js');
+const { scoreProduct, weightedTotal } = await import('./scoring.js');
 
 describe('scoreProduct (5-dimension model)', () => {
   describe('dimension 1: harmful ingredients (40%)', () => {
@@ -68,16 +68,21 @@ describe('scoreProduct (5-dimension model)', () => {
       expect(result.missing_ingredients).toBe(false);
     });
 
-    it('penalizes missing ingredient data with 30 and flags it', async () => {
+    // UNKNOWN ≠ BAD. Missing ingredient data returns null so the product ends
+    // up UNSCORED rather than looking like a bad product.
+    it('returns null (not a low score) for missing ingredient data and flags it', async () => {
       const result = await scoreProduct({ ingredients: '' });
-      expect(result.harmful_ingredients_score).toBe(30);
+      expect(result.harmful_ingredients_score).toBeNull();
       expect(result.missing_ingredients).toBe(true);
+      expect(result.insufficient_data).toBe(true);
+      expect(result.unknown_dimensions).toContain('harmful_ingredients_score');
     });
 
     it('treats garbage placeholder text as missing data', async () => {
       const result = await scoreProduct({ ingredients: 'undefined' });
-      expect(result.harmful_ingredients_score).toBe(30);
+      expect(result.harmful_ingredients_score).toBeNull();
       expect(result.missing_ingredients).toBe(true);
+      expect(result.insufficient_data).toBe(true);
     });
 
     it('detects a harmful ingredient by name and applies the medium-risk cap (55)', async () => {
@@ -112,9 +117,9 @@ describe('scoreProduct (5-dimension model)', () => {
   });
 
   describe('dimension 2: banned elsewhere (20%)', () => {
-    it('penalizes missing ingredient data with 35', async () => {
+    it('returns null when there are no ingredients to check for bans', async () => {
       const result = await scoreProduct({ ingredients: '' });
-      expect(result.banned_elsewhere_score).toBe(35);
+      expect(result.banned_elsewhere_score).toBeNull();
     });
 
     it('returns 100 for clean ingredients', async () => {
@@ -208,9 +213,9 @@ describe('scoreProduct (5-dimension model)', () => {
       expect(result.processing_score).toBe(15);
     });
 
-    it('returns 35 when neither NOVA nor ingredients are available', async () => {
+    it('returns null when neither NOVA nor ingredients are available', async () => {
       const result = await scoreProduct({});
-      expect(result.processing_score).toBe(35);
+      expect(result.processing_score).toBeNull();
     });
 
     it('infers high score from short clean ingredient list without NOVA', async () => {
@@ -337,6 +342,63 @@ describe('scoreProduct (5-dimension model)', () => {
     });
   });
 
+  // A product nobody has published ingredients for must come out UNSCORED, not
+  // badly scored. This is what makes the app say "not enough info" instead of
+  // showing a red 35 that reads as "this water is bad for you".
+  describe('insufficient data → unscored (not low-scored)', () => {
+    it('yields a null weighted total when ingredients are missing', async () => {
+      const result = await scoreProduct({ brand: 'Chippewa', image_url: 'http://x/y.jpg' });
+      expect(result.insufficient_data).toBe(true);
+      expect(weightedTotal(result)).toBeNull();
+    });
+
+    it('still scores transparency, which measures disclosure rather than the food', async () => {
+      const result = await scoreProduct({ brand: 'Chippewa', image_url: 'http://x/y.jpg' });
+      expect(result.transparency_score).toBeGreaterThan(0);
+      expect(result.unknown_dimensions).not.toContain('transparency_score');
+    });
+
+    it('stays unscored even when NOVA is known, since 60% of the weight is not', async () => {
+      const result = await scoreProduct({ nova_group: 4, brand: 'Chippewa' });
+      expect(result.processing_score).toBe(15);        // NOVA is usable
+      expect(result.harmful_ingredients_score).toBeNull();
+      expect(weightedTotal(result)).toBeNull();
+    });
+
+    it('reports no unknown dimensions and a real total for a complete product', async () => {
+      const result = await scoreProduct({
+        ingredients: 'water, sugar', brand: 'TestCo', nutriscore_grade: 'b', nova_group: 2,
+      });
+      expect(result.insufficient_data).toBe(false);
+      expect(result.unknown_dimensions).toEqual([]);
+      expect(weightedTotal(result)).toBeGreaterThan(0);
+    });
+  });
+
+  describe('weightedTotal', () => {
+    it('matches the documented 40/20/15/15/10 weighting', () => {
+      expect(weightedTotal({
+        harmful_ingredients_score: 100, banned_elsewhere_score: 100,
+        transparency_score: 100, processing_score: 100, company_behavior_score: 100,
+      })).toBe(100);
+      expect(weightedTotal({
+        harmful_ingredients_score: 50, banned_elsewhere_score: 100,
+        transparency_score: 0, processing_score: 0, company_behavior_score: 0,
+      })).toBe(40); // 50*.40 + 100*.20 = 40
+    });
+
+    it('returns null if ANY dimension is unknown, mirroring NULL arithmetic in the DB trigger', () => {
+      expect(weightedTotal({
+        harmful_ingredients_score: null, banned_elsewhere_score: 100,
+        transparency_score: 100, processing_score: 100, company_behavior_score: 100,
+      })).toBeNull();
+      expect(weightedTotal({
+        harmful_ingredients_score: 100, banned_elsewhere_score: 100,
+        transparency_score: 100, processing_score: 100, company_behavior_score: null,
+      })).toBeNull();
+    });
+  });
+
   describe('return structure', () => {
     it('returns all five dimension scores plus display data', async () => {
       const result = await scoreProduct({
@@ -350,6 +412,8 @@ describe('scoreProduct (5-dimension model)', () => {
       expect(result).toHaveProperty('processing_score');
       expect(result).toHaveProperty('company_behavior_score');
       expect(result).toHaveProperty('missing_ingredients');
+      expect(result).toHaveProperty('insufficient_data');
+      expect(result).toHaveProperty('unknown_dimensions');
       expect(result).toHaveProperty('harmful_ingredients_found');
       expect(result).toHaveProperty('nutrition_facts');
       expect(result).toHaveProperty('nutriscore_grade');

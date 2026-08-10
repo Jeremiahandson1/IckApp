@@ -3,7 +3,8 @@ import fetch from 'node-fetch';
 import pool from '../db/init.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { getScoreRating } from '../utils/helpers.js';
-import { scoreProduct as calculateProductScore } from '../utils/scoring.js';
+import { scoreProduct as calculateProductScore, weightedTotal } from '../utils/scoring.js';
+import { upcVariants, canonicalUpc } from '../utils/upc.js';
 import { lookupByUPC as usdaLookup, searchProducts as usdaSearch } from '../utils/usda.js';
 import { lookupByBarcode as fatsecretLookup, searchFoods as fatsecretSearch } from '../utils/fatsecret.js';
 
@@ -35,13 +36,19 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Invalid barcode check digit', upc });
     }
 
-    // First check our database
+    // First check our database.
+    // Match every equivalent barcode form, not just the exact string: 87% of
+    // our catalog is stored zero-padded to EAN-13 while scanners report US
+    // products as 12-digit UPC-A, so exact matching missed products we HAD.
+    // See utils/upc.js.
     let result = await pool.query(
       `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies
        FROM products p
        LEFT JOIN companies c ON p.company_id = c.id
-       WHERE p.upc = $1`,
-      [upc]
+       WHERE p.upc = ANY($1::text[])
+       ORDER BY array_position($1::text[], p.upc)
+       LIMIT 1`,
+      [upcVariants(upc)]
     );
 
     if (result.rows.length > 0) {
@@ -287,17 +294,22 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
              updated_at = NOW()
            RETURNING id, total_score`,
           [
-            upc,
+            // Store canonical EAN-13 so we don't create a second row for a
+            // product already in the catalog under its zero-padded code.
+            canonicalUpc(upc),
             fsProduct.name,
             fsProduct.brand,
             fsProduct.category,
             null,
             fsProduct.ingredients || '',
-            fsScores?.harmful_ingredients_score ?? 50,
-            fsScores?.banned_elsewhere_score ?? 50,
-            fsScores?.transparency_score ?? 50,
-            fsScores?.processing_score ?? 50,
-            fsScores?.company_behavior_score ?? 50,
+            // null (not 50) when a dimension is unknown — NULL propagates
+            // through the total_score trigger so the product reads as
+            // UNSCORED instead of badly scored. See utils/scoring.js.
+            fsScores?.harmful_ingredients_score ?? null,
+            fsScores?.banned_elsewhere_score ?? null,
+            fsScores?.transparency_score ?? null,
+            fsScores?.processing_score ?? null,
+            fsScores?.company_behavior_score ?? null,
             fsScores?.harmful_ingredients_found ? JSON.stringify(fsScores.harmful_ingredients_found) : null,
             fsScores?.nutrition_facts ? JSON.stringify(fsScores.nutrition_facts) : JSON.stringify(fsProduct.nutrition_facts || {}),
             '[]',
@@ -377,17 +389,17 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
            updated_at = NOW()
          RETURNING id, total_score`,
         [
-          upc,
+          canonicalUpc(upc),
           usdaProduct.name,
           usdaProduct.brand,
           usdaProduct.category,
           null,
           usdaProduct.ingredients,
-          usdaScores?.harmful_ingredients_score ?? 50,
-          usdaScores?.banned_elsewhere_score ?? 50,
-          usdaScores?.transparency_score ?? 50,
-          usdaScores?.processing_score ?? 50,
-          usdaScores?.company_behavior_score ?? 50,
+          usdaScores?.harmful_ingredients_score ?? null,
+          usdaScores?.banned_elsewhere_score ?? null,
+          usdaScores?.transparency_score ?? null,
+          usdaScores?.processing_score ?? null,
+          usdaScores?.company_behavior_score ?? null,
           usdaScores?.harmful_ingredients_found ? JSON.stringify(usdaScores.harmful_ingredients_found) : null,
           usdaScores?.nutrition_facts ? JSON.stringify(usdaScores.nutrition_facts) : JSON.stringify(usdaProduct.nutrition_facts || {}),
           usdaProduct.allergens_tags ? JSON.stringify(usdaProduct.allergens_tags) : '[]',
@@ -497,17 +509,18 @@ router.get('/scan/:upc', optionalAuth, async (req, res) => {
          updated_at = NOW()
        RETURNING id, total_score`,
       [
-        upc,
+        // OFF already keys products by EAN-13; store the same form.
+        canonicalUpc(upc),
         offProduct.product_name || 'Unknown Product',
         brand,
         offProduct.categories_tags?.[0]?.replace('en:', '') || 'Unknown',
         offProduct.image_url || offProduct.image_front_url,
         ingredients,
-        scores?.harmful_ingredients_score ?? 50,
-        scores?.banned_elsewhere_score ?? 50,
-        scores?.transparency_score ?? 50,
-        scores?.processing_score ?? 50,
-        scores?.company_behavior_score ?? 50,
+        scores?.harmful_ingredients_score ?? null,
+        scores?.banned_elsewhere_score ?? null,
+        scores?.transparency_score ?? null,
+        scores?.processing_score ?? null,
+        scores?.company_behavior_score ?? null,
         scores?.harmful_ingredients_found ? JSON.stringify(scores.harmful_ingredients_found) : null,
         scores?.nutrition_facts ? JSON.stringify(scores.nutrition_facts) : '{}',
         scores?.allergens_tags ? JSON.stringify(scores.allergens_tags) : '[]',
@@ -561,12 +574,15 @@ router.get('/view/:upc', optionalAuth, async (req, res) => {
     // discoveries from Open Food Facts) carry codes that fail strict GS1
     // validation — if we have the product, serve it. Validation below only
     // gates codes we DON'T have, so garbage scans still get rejected.
+    // Match every equivalent barcode form — see the note in /scan and utils/upc.js.
     const result = await pool.query(
       `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies
        FROM products p
        LEFT JOIN companies c ON p.company_id = c.id
-       WHERE p.upc = $1`,
-      [upc]
+       WHERE p.upc = ANY($1::text[])
+       ORDER BY array_position($1::text[], p.upc)
+       LIMIT 1`,
+      [upcVariants(upc)]
     );
 
     if (result.rows.length === 0) {
@@ -741,13 +757,8 @@ router.get('/search', async (req, res) => {
           is_organic: !!p.is_organic,
           image_url: p.image_url || null,
         });
-        const total = Math.round(
-          fresh.harmful_ingredients_score * 0.40 +
-          fresh.banned_elsewhere_score    * 0.20 +
-          fresh.transparency_score        * 0.15 +
-          fresh.processing_score          * 0.15 +
-          fresh.company_behavior_score    * 0.10
-        );
+        // null when any dimension is unknown — matches the DB trigger.
+        const total = weightedTotal(fresh);
         return {
           ...p,
           harmful_ingredients_score: fresh.harmful_ingredients_score,
@@ -927,8 +938,13 @@ router.get('/favorites', authenticateToken, async (req, res) => {
 router.post('/favorites/:upc', authenticateToken, async (req, res) => {
   try {
     const { upc } = req.params;
-    // Get product_id if it exists
-    const product = await pool.query('SELECT id FROM products WHERE upc = $1', [upc]);
+    // Get product_id if it exists — match any equivalent barcode form so
+    // favouriting a product you just scanned always links to its row.
+    const product = await pool.query(
+      `SELECT id FROM products WHERE upc = ANY($1::text[])
+       ORDER BY array_position($1::text[], upc) LIMIT 1`,
+      [upcVariants(upc)]
+    );
     const productId = product.rows[0]?.id || null;
 
     await pool.query(
@@ -1095,21 +1111,29 @@ router.delete('/family/:id', authenticateToken, async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const isNumeric = /^\d+$/.test(id);
+    // A 12+ digit barcode is all digits but is NOT an id — comparing it against
+    // the int4 id column throws "integer out of range". Only in-range numbers
+    // are treated as ids; the rest match as barcodes.
+    const isNumeric = /^\d+$/.test(id) && Number(id) <= 2147483647;
     
+    // Barcodes match on any equivalent form; an explicit numeric id wins.
     const result = await pool.query(
       isNumeric
-        ? `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies, 
+        ? `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies,
                   c.positive_actions, c.lobbying_history
            FROM products p
            LEFT JOIN companies c ON p.company_id = c.id
-           WHERE p.id = $1 OR p.upc = $2`
-        : `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies, 
+           WHERE p.id = $1 OR p.upc = ANY($2::text[])
+           ORDER BY array_position($2::text[], p.upc) NULLS FIRST
+           LIMIT 1`
+        : `SELECT p.*, c.name as company_name, c.behavior_score, c.controversies,
                   c.positive_actions, c.lobbying_history
            FROM products p
            LEFT JOIN companies c ON p.company_id = c.id
-           WHERE p.upc = $1`,
-      isNumeric ? [parseInt(id), id] : [id]
+           WHERE p.upc = ANY($1::text[])
+           ORDER BY array_position($1::text[], p.upc)
+           LIMIT 1`,
+      isNumeric ? [parseInt(id), upcVariants(id)] : [upcVariants(id)]
     );
 
     if (result.rows.length === 0) {

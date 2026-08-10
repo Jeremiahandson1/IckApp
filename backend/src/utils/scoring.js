@@ -13,6 +13,16 @@ import pool from '../db/init.js';
  *
  * total_score = weighted sum of the 5 above (computed column in DB).
  * Nutri-Score and NOVA are stored for display only — they do NOT drive total_score.
+ *
+ * UNKNOWN ≠ BAD. A dimension we cannot assess returns `null`, not a low number.
+ * Because total_score is a weighted sum, a single null dimension makes
+ * total_score null too — the product comes out UNSCORED rather than badly
+ * scored. That is deliberate: guessing "30" for a product whose ingredient
+ * list nobody published reads to the user as "this is bad", which is a claim
+ * we have not earned. Null flows through the app's existing "unscored / ?"
+ * path (getScoreRating(null) → 'unscored') and keeps unknown products out of
+ * "better alternative" suggestions, since `total_score > floor` is never true
+ * for NULL.
  */
 
 // ============================================================
@@ -133,10 +143,23 @@ function looksLikeGarbageIngredients(text) {
   return false;
 }
 
+/**
+ * True when we have an ingredient list we can actually reason about.
+ * This is the authoritative test — the frontend does NOT duplicate the garbage
+ * heuristics; it reads the resulting null scores instead (see isUnscored in
+ * frontend/src/utils/helpers.js).
+ */
+export function hasUsableIngredients(ingredientsText) {
+  if (!ingredientsText) return false;
+  if (String(ingredientsText).trim().length < 3) return false;
+  return !looksLikeGarbageIngredients(ingredientsText);
+}
+
 async function computeHarmfulIngredientsScore(ingredientsText) {
-  if (!ingredientsText || String(ingredientsText).trim().length < 3 || looksLikeGarbageIngredients(ingredientsText)) {
-    // No usable ingredient data = we can't verify safety. Penalize, don't reward.
-    return { score: 30, found: [], missing_data: true };
+  if (!hasUsableIngredients(ingredientsText)) {
+    // No usable ingredient data = we can't verify safety either way.
+    // Return null (unknown) rather than a low score — see header note.
+    return { score: null, found: [], missing_data: true };
   }
 
   const ingredientsLower = ingredientsText.toLowerCase();
@@ -189,8 +212,8 @@ async function computeHarmfulIngredientsScore(ingredientsText) {
 // ============================================================
 
 function computeBannedElsewhereScore(harmfulFound, missingIngredients) {
-  // If we have no ingredient data, we can't check for bans — penalize
-  if (missingIngredients) return 35;
+  // No ingredient data means we can't check for bans — unknown, not bad.
+  if (missingIngredients) return null;
   if (!harmfulFound || harmfulFound.length === 0) return 100;
 
   const bannedIngredients = harmfulFound.filter(h => {
@@ -331,8 +354,8 @@ function computeProcessingScore(opts) {
     return clamp(score);
   }
 
-  // No NOVA group and no ingredients — can't assess processing level
-  if (!ingredients || ingredients.length < 3) return 35;
+  // No NOVA group and no usable ingredients — can't assess processing at all.
+  if (!hasUsableIngredients(ingredients)) return null;
 
   const il = ingredients.toLowerCase();
   const markerCount = countProcessingMarkers(il);
@@ -450,6 +473,34 @@ function matchCompany(brand, companies) {
 }
 
 // ============================================================
+// WEIGHTED TOTAL
+// ============================================================
+
+const DIMENSION_WEIGHTS = {
+  harmful_ingredients_score: 0.40,
+  banned_elsewhere_score: 0.20,
+  transparency_score: 0.15,
+  processing_score: 0.15,
+  company_behavior_score: 0.10,
+};
+
+/**
+ * Weighted total of the 5 dimensions, or null if ANY dimension is unknown.
+ * Mirrors the compute_total_score() DB trigger, where NULL arithmetic already
+ * yields NULL. Use this anywhere a total is computed in JS instead of read back
+ * from the DB, so the two can't disagree.
+ */
+export function weightedTotal(scores = {}) {
+  let total = 0;
+  for (const [key, weight] of Object.entries(DIMENSION_WEIGHTS)) {
+    const val = scores[key];
+    if (val == null) return null;
+    total += val * weight;
+  }
+  return Math.round(total);
+}
+
+// ============================================================
 // MAIN SCORING FUNCTION
 // ============================================================
 
@@ -531,15 +582,24 @@ export async function scoreProduct(opts = {}) {
     if (n.added_sugars_100g != null) nutritionFacts.added_sugars = Math.round(n.added_sugars_100g * 10) / 10;
   }
 
-  return {
-    // 5-dimension scores (these drive total_score via DB generated column)
+  // Which dimensions came back unknown (null). If any are, total_score will be
+  // NULL and the product is presented as UNSCORED rather than low-scoring.
+  const dimensions = {
     harmful_ingredients_score: harmfulIngredientsScore,
     banned_elsewhere_score: bannedElsewhereScore,
     transparency_score: transparencyScore,
     processing_score: processingScore,
     company_behavior_score: companyBehaviorScore,
+  };
+  const unknownDimensions = Object.keys(dimensions).filter(k => dimensions[k] == null);
 
-    // Data
+  return {
+    // 5-dimension scores (these drive total_score via the DB trigger)
+    ...dimensions,
+
+    // Data-quality signals
+    unknown_dimensions: unknownDimensions,
+    insufficient_data: unknownDimensions.length > 0,
     missing_ingredients: !!missingIngredients,
     harmful_ingredients_found: harmfulFound,
     nutrition_facts: nutritionFacts,

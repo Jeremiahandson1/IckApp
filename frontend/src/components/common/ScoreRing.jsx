@@ -6,9 +6,14 @@ const VERDICTS = {
   fair:      { label: 'Meh',     color: '#fbbf24', ring: '#fbbf24',  bg: 'rgba(251,191,36,0.08)',  border: 'rgba(251,191,36,0.2)' },
   poor:      { label: 'Ick It',  color: '#f97316', ring: '#f97316',  bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.2)' },
   bad:       { label: 'Avoid',   color: '#ff3b30', ring: '#ff3b30',  bg: 'rgba(255,59,48,0.08)',   border: 'rgba(255,59,48,0.25)' },
+  unknown:   { label: 'No Score', color: '#8a8a8a', ring: '#8a8a8a', bg: 'rgba(138,138,138,0.06)', border: 'rgba(138,138,138,0.2)' },
 };
 
 function getVerdict(score) {
+  // A null score is "not enough data", not "avoid". Callers should render
+  // NoScoreCard instead of a ring — this guard just stops a null from
+  // silently falling through to the worst verdict.
+  if (score == null) return VERDICTS.unknown;
   if (score >= 86) return VERDICTS.excellent;
   if (score >= 71) return VERDICTS.good;
   if (score >= 51) return VERDICTS.fair;
@@ -18,6 +23,7 @@ function getVerdict(score) {
 
 function getVerdictSentence(score, name) {
   const short = name?.split(' ').slice(0, 3).join(' ') || 'This product';
+  if (score == null) return `We don't have enough data to judge ${short} yet.`;
   if (score >= 86) return `${short} is a clean choice. No ick here.`;
   if (score >= 71) return `${short} is decent. Could be worse.`;
   if (score >= 51) return `${short} is just okay. We'd keep looking.`;
@@ -34,6 +40,7 @@ export default function ScoreRing({ score, name, size = 140 }) {
   const verdict = getVerdict(score);
 
   useEffect(() => {
+    if (score == null) { setAnimatedScore(null); setAnimatedPct(0); return; }
     const duration = 900;
     const start = performance.now();
     let frameId;
@@ -81,7 +88,7 @@ export default function ScoreRing({ score, name, size = 140 }) {
             lineHeight: 1,
             color: verdict.color,
           }}>
-            {animatedScore}
+            {animatedScore == null ? '?' : animatedScore}
           </span>
           <span style={{
             fontFamily: 'var(--font-mono)',

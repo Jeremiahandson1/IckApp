@@ -1,3 +1,34 @@
+// ── Data confidence ─────────────────────────────────────────────────────────
+// The backend returns null for any dimension it cannot actually assess (e.g.
+// no published ingredient list), and a null dimension makes total_score null.
+// So `total_score == null` means "we don't know", NOT "this is bad", and the UI
+// must say so instead of rendering a low number. See backend/src/utils/scoring.js.
+
+export const DIMENSION_LABELS = {
+  harmful_ingredients_score: 'Harmful Ingredients',
+  banned_elsewhere_score: 'Banned Elsewhere',
+  transparency_score: 'Transparency',
+  processing_score: 'Processing Level',
+  company_behavior_score: 'Company Behavior',
+};
+
+/** True when we don't have enough data to give this product a verdict. */
+export function isUnscored(product) {
+  return !product || product.total_score == null;
+}
+
+/** Names of the dimensions we couldn't assess, for "why isn't this scored?". */
+export function getUnknownDimensions(product) {
+  if (!product) return [];
+  return Object.keys(DIMENSION_LABELS).filter(k => product[k] == null);
+}
+
+/** True when the product has an ingredient list we could actually read. */
+export function hasIngredientList(product) {
+  const ing = product?.ingredients;
+  return typeof ing === 'string' && ing.trim().length >= 3;
+}
+
 // Score rating helpers
 export function getScoreRating(score) {
   if (score == null) return 'unscored';
@@ -162,10 +193,13 @@ export function getScoreExplanation(product) {
   // ── Harmful Ingredients ──
   let harmful_detail;
   const harmful_items = [];
-  const missingIngredients = product.missing_ingredients || !product.ingredients || (typeof product.ingredients === 'string' && product.ingredients.length < 3);
+  // Unknown, not bad: the backend leaves this dimension null when there's no
+  // usable ingredient list, and we say so rather than implying a bad result.
+  const missingIngredients = product.harmful_ingredients_score == null
+    || product.missing_ingredients
+    || !hasIngredientList(product);
   if (harmful.length === 0 && missingIngredients) {
-    harmful_detail = 'Ingredient data is missing — score may not reflect actual product safety.';
-    reasons.push('missing ingredients');
+    harmful_detail = 'Not scored — nobody has published an ingredient list for this product, so there is nothing for us to check.';
   } else if (harmful.length === 0) {
     harmful_detail = 'No harmful additives detected in this product.';
   } else {
@@ -192,7 +226,7 @@ export function getScoreExplanation(product) {
   let banned_detail;
   const banned_items = [];
   if (bannedIngredients.length === 0 && missingIngredients) {
-    banned_detail = 'Cannot check — ingredient data is missing.';
+    banned_detail = 'Not scored — without an ingredient list there is nothing to check against overseas bans.';
   } else if (bannedIngredients.length === 0) {
     banned_detail = 'None of the ingredients are banned in other countries.';
   } else {
@@ -224,7 +258,7 @@ export function getScoreExplanation(product) {
     ? 'Full product data available — highly transparent.'
     : presentCount >= 3
       ? 'Good transparency — most product data is available.'
-      : 'Limited data available — score may be less accurate.';
+      : 'Very little published about this product. Transparency is the one thing we CAN measure when data is missing — it scores what the maker discloses, not what the food contains.';
 
   // ── Processing ──
   // The rating leans heavily on Open Food Facts' NOVA group, which is opaque:
@@ -299,6 +333,8 @@ export function getScoreExplanation(product) {
       ? 'Ultra-processed (NOVA 4) — contains the industrial additives listed below.'
       : 'Rated ultra-processed (NOVA 4) by Open Food Facts, but no specific additive markers were found in the listed ingredients. NOVA 4 can be driven by added sugars, refined oils, or emulsifiers rather than chemical additives.';
     reasons.push('ultra-processed');
+  } else if (product.processing_score == null) {
+    processing_detail = 'Not scored — no NOVA classification and no ingredient list, so there is no way to tell how processed this is.';
   } else {
     processing_detail = product.processing_score >= 70
       ? 'Low processing indicators based on ingredient analysis.'
@@ -354,7 +390,13 @@ export function getScoreExplanation(product) {
   if (product.is_organic) positives.push('certified organic');
 
   let summary;
-  if (reasons.length === 0) {
+  if (isUnscored(product)) {
+    // Never let an unscored product's summary read like a verdict.
+    const unknownCount = getUnknownDimensions(product).length;
+    summary = unknownCount > 0
+      ? `Not enough data to score — ${unknownCount} of 5 dimensions couldn't be checked`
+      : 'Not enough data to score this product';
+  } else if (reasons.length === 0) {
     summary = positives.length > 0
       ? positives.join(', ')
       : 'No major concerns detected';
