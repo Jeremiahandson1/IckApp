@@ -46,6 +46,11 @@ workflows:
         XCODE_PROJECT: "frontend/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.ickthatish.app"
+        # Baked into the bundle at `npm run build` time. Without it api.js falls
+        # back to the relative '/api', which on a device resolves against the
+        # WebView origin (capacitor://localhost) instead of the server — every
+        # request 404s in a build that otherwise looks fine.
+        VITE_API_URL: "https://ickthatish.com/api"
         # Numeric App Store App ID — not sensitive (visible in every
         # TestFlight + App Store URL). Used to auto-increment the
         # build number from the latest TestFlight/App Store build.
@@ -87,6 +92,53 @@ workflows:
             echo "ERROR: cap add ios did not produce App.xcodeproj" >&2
             exit 1
           fi
+
+      - name: Add camera + photo permission usage strings
+        script: |
+          cd frontend/ios/App/App
+          # The Info.plist `cap add ios` generates has NO usage descriptions.
+          # iOS terminates an app the moment it touches the camera without
+          # NSCameraUsageDescription, and barcode scanning is the core feature,
+          # so without this the app crashes on the Scan tab and fails review.
+          # ios/ is gitignored and rebuilt every run, so this has to happen here.
+          PLIST=Info.plist
+          set_str() {
+            /usr/libexec/PlistBuddy -c "Add :$1 string \"$2\"" "$PLIST" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Set :$1 \"$2\"" "$PLIST"
+          }
+          set_str NSCameraUsageDescription \
+            "Ick uses the camera to scan product barcodes and receipts so it can look up ingredients and health scores."
+          set_str NSPhotoLibraryUsageDescription \
+            "Ick needs access to your photos so you can upload a receipt image and add those products to your pantry."
+
+          for KEY in NSCameraUsageDescription NSPhotoLibraryUsageDescription; do
+            if ! /usr/libexec/PlistBuddy -c "Print :$KEY" "$PLIST" >/dev/null 2>&1; then
+              echo "ERROR: $KEY missing from Info.plist" >&2
+              exit 1
+            fi
+          done
+          echo "----- usage strings -----"
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$PLIST"
+
+      - name: Generate app icon + splash screen
+        script: |
+          cd frontend
+          # `cap add ios` above scaffolds a fresh project carrying Capacitor's
+          # placeholder icon. ios/ is gitignored, so nothing we commit survives
+          # into it — the branded assets have to be regenerated here, after the
+          # native project exists and before xcodebuild runs. Apple rejects
+          # builds that ship the default placeholder icon.
+          node scripts/generate-icons.js
+          npx capacitor-assets generate --ios
+          ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          if [ ! -f "$ICONSET/AppIcon-512@2x.png" ]; then
+            echo "ERROR: capacitor-assets did not write the 1024 marketing icon" >&2
+            ls -la "$ICONSET" || true
+            exit 1
+          fi
+          echo "----- generated AppIcon.appiconset -----"
+          ls -la "$ICONSET"
 
       - name: Resolve Swift Package dependencies
         script: |
@@ -166,6 +218,9 @@ workflows:
         - keystore_reference   # name your keystore exactly "keystore_reference" in Codemagic UI
       vars:
         PACKAGE_NAME: "com.ickthatish.app"
+        # See the note in ios-workflow — the relative '/api' fallback is dead
+        # on a device, so the real origin has to be baked in at build time.
+        VITE_API_URL: "https://ickthatish.com/api"
       node: 22
       # Capacitor 8's generated android build.gradle declares
       # sourceCompatibility/targetCompatibility = JavaVersion.VERSION_21,
@@ -198,6 +253,46 @@ workflows:
             npx cap add android
           fi
           npx cap sync android
+
+      - name: Add camera + notification permissions to the manifest
+        script: |
+          cd frontend/android/app/src/main
+          # `cap add android` generates a manifest declaring only INTERNET.
+          # Without CAMERA the barcode scanner — the core feature — cannot open
+          # the camera at all, and POST_NOTIFICATIONS is required to prompt for
+          # push on Android 13+. android/ is gitignored and rebuilt every run,
+          # so a locally-patched manifest never reaches this build.
+          MANIFEST=AndroidManifest.xml
+          if grep -q "android.permission.CAMERA" "$MANIFEST"; then
+            echo "camera permission already present — leaving manifest alone"
+          else
+            perl -i -0pe 's|</manifest>|    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n</manifest>|' "$MANIFEST"
+          fi
+          for PERM in CAMERA POST_NOTIFICATIONS; do
+            if ! grep -q "android.permission.$PERM" "$MANIFEST"; then
+              echo "ERROR: $PERM missing from AndroidManifest.xml" >&2
+              exit 1
+            fi
+          done
+          echo "----- manifest permissions -----"
+          grep "uses-permission\|uses-feature" "$MANIFEST"
+
+      - name: Generate app icon + splash screen
+        script: |
+          cd frontend
+          # android/ is gitignored, so `cap add android` scaffolds a fresh
+          # project carrying Capacitor's placeholder launcher icon. Regenerate
+          # the branded icons + splash here, after the native project exists
+          # and before bundleRelease. Play rejects placeholder icons.
+          node scripts/generate-icons.js
+          npx capacitor-assets generate --android
+          FG="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png"
+          if [ ! -f "$FG" ]; then
+            echo "ERROR: capacitor-assets did not write the adaptive launcher icon" >&2
+            exit 1
+          fi
+          echo "----- generated launcher icons -----"
+          ls -la android/app/src/main/res/mipmap-xxxhdpi/
 
       - name: Set Gradle versionCode (auto-increment)
         script: |

@@ -13,7 +13,14 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     iosScheme: 'capacitor',
     // localhost entries are for dev builds pointing at a local API/Vite server
-    allowNavigation: ['*.ick.com', '*.openfoodfacts.org', '*.stripe.com', 'localhost', '127.0.0.1']
+    allowNavigation: [
+      'ickthatish.com',
+      '*.ickthatish.com',
+      '*.openfoodfacts.org',
+      '*.stripe.com',
+      'localhost',
+      '127.0.0.1'
+    ]
   },
 
   plugins: {
