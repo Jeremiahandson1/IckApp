@@ -159,7 +159,10 @@ const PRODUCT_TYPES = [
     // caught Pillsbury biscuits, biscuit dough/mix, cakes, and OFF's
     // catch-all "biscuits-and-cakes" category, mislabeling them as cookies.
     test: /\bcookies?\b|chips\s*ahoy|\boreos?\b|nutter\s*butter|shortbread|(?:nilla|vanilla)\s*wafers?|fig\s*newton|\bbiscotti\b/i,
-    off_categories: ['en:cookies', 'en:biscuits-and-cakes'],
+    // en:cookies ONLY. OFF's "en:biscuits-and-cakes" is a catch-all that
+    // covers crackers, porridge, meal powders, and pasta — using it here made
+    // both the OFF search and matchTypeByTags stamp those as cookies.
+    off_categories: ['en:cookies'],
     search_terms: 'organic cookies',
     must_contain: ['cookie', 'biscuit', 'shortbread', 'wafer'],
     exclude: ['cream', 'ice', 'dough', 'mix'],

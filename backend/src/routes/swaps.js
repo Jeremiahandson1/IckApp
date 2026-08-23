@@ -101,6 +101,12 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
 
     let swaps = [];
 
+    // Type of the SCANNED product, computed once and used to gate EVERY swap
+    // path below — including curated swaps_to lists. The curated paths used
+    // to skip the type gate entirely, which is how a Doritos row's stored
+    // swaps served chocolate granola squares as a chip alternative.
+    const productType = getProductType(product);
+
     // 1. Check for hand-curated direct swaps first
     if (product.swaps_to && product.swaps_to.length > 0) {
       let swapUpcs;
@@ -116,7 +122,11 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
            AND p.total_score IS NOT NULL`,
           [validUpcs]
         );
-        swaps = swapResult.rows;
+        // Curated targets must still be the same kind of product. A product
+        // we can't type keeps its curated list as-is (nothing to verify against).
+        swaps = productType
+          ? swapResult.rows.filter(r => candidateMatchesType(r, productType))
+          : swapResult.rows;
       }
     }
 
@@ -160,22 +170,34 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
           
           // Try each match — pick the first one whose swap targets actually exist
           for (const match of nameMatch.rows) {
+            // The donor must be the same TYPE of product as the scan. Sharing
+            // one name word is not enough: "Oreo cookies birthday cake"'s
+            // longest word is "birthday", which matched "Birthday Cake Peanut
+            // Butter" and served its peanut-butter swaps for a cookie scan.
+            if (productType) {
+              const donorType = getProductType({ name: match.name });
+              if (donorType?.id !== productType.id) continue;
+            }
+
             let swapUpcs;
             try { swapUpcs = Array.isArray(match.swaps_to) ? match.swaps_to : JSON.parse(match.swaps_to); } catch { swapUpcs = []; }
             if (!Array.isArray(swapUpcs)) swapUpcs = [];
             const validUpcs = swapUpcs.filter(u => u && u.length > 0);
             if (validUpcs.length === 0) continue;
-            
+
             const swapResult = await pool.query(
-              `SELECT p.*, c.name as company_name 
-               FROM products p 
+              `SELECT p.*, c.name as company_name
+               FROM products p
                LEFT JOIN companies c ON p.company_id = c.id
                WHERE p.upc = ANY($1::text[])
                AND p.total_score IS NOT NULL`,
               [validUpcs]
             );
-            if (swapResult.rows.length > 0) {
-              swaps = swapResult.rows;
+            const typedRows = productType
+              ? swapResult.rows.filter(r => candidateMatchesType(r, productType))
+              : swapResult.rows;
+            if (typedRows.length > 0) {
+              swaps = typedRows;
               break;
             }
           }
@@ -190,8 +212,9 @@ router.get('/for/:upc', optionalAuth, async (req, res) => {
     // Only show alternatives that are actually BETTER than what was scanned
     const swapScoreFloor = Math.max(50, (product.total_score || 0) + SWAP_MIN_IMPROVEMENT);
     if (swaps.length === 0) {
-      // Get the comprehensive product type for cross-type rejection
-      const discoveryType = getProductType(product);
+      // Comprehensive product type for cross-type rejection (hoisted above
+      // step 1 so the curated paths share the exact same detection)
+      const discoveryType = productType;
       const discoveryTypeId = discoveryType?.id || '_NONE_';
 
       // Candidate→type gate is the shared allowlist (candidateMatchesType in
@@ -801,7 +824,12 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
       if (item.swaps_to && item.swaps_to.length > 0) {
         let parsed;
         try { parsed = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { parsed = []; }
-        if (Array.isArray(parsed) && parsed.some(u => swapProductsMap[u])) hasSwap = true;
+        // Count only curated targets that survive the type gate — otherwise
+        // an item whose curated swaps are all cross-type garbage would also
+        // be skipped by the category fallback and get no recommendation.
+        const itemType = getProductType(item);
+        if (Array.isArray(parsed) && parsed.some(u => swapProductsMap[u] &&
+            (!itemType || candidateMatchesType(swapProductsMap[u], itemType)))) hasSwap = true;
       }
       if (!hasSwap) {
         const catKey = item.category;
@@ -828,8 +856,10 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
     // Assemble recommendations from batched data
     for (const item of sourceItems) {
       let bestSwap = null;
+      const itemType = getProductType(item);
 
-      // Check curated swaps first
+      // Check curated swaps first — but only targets that pass the type gate
+      // (curated lists can carry cross-type garbage, e.g. granola for chips)
       if (item.swaps_to && item.swaps_to.length > 0) {
         let parsed;
         try { parsed = Array.isArray(item.swaps_to) ? item.swaps_to : JSON.parse(item.swaps_to); } catch { parsed = []; }
@@ -838,7 +868,9 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
           let best = null;
           for (const u of parsed) {
             const p = swapProductsMap[u];
-            if (p && (!best || (p.total_score || 0) > (best.total_score || 0))) best = p;
+            if (!p) continue;
+            if (itemType && !candidateMatchesType(p, itemType)) continue;
+            if (!best || (p.total_score || 0) > (best.total_score || 0)) best = p;
           }
           if (best) bestSwap = best;
         }
@@ -846,7 +878,6 @@ router.get('/recommendations', optionalAuth, async (req, res) => {
 
       // Fall back to category match with type-aware filtering
       if (!bestSwap && item.category && categoryResultsMap[item.category]) {
-        const itemType = getProductType(item);
         let candidates = categoryResultsMap[item.category];
         if (itemType) {
           // Always filter by type — never fall back to untyped candidates
