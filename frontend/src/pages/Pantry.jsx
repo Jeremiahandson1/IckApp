@@ -90,6 +90,12 @@ export default function Pantry() {
         <h1 className="text-xl font-bold text-[#f4f4f0]">My Pantry</h1>
         <div className="flex gap-2">
           <Link
+            to="/pantry/photo-scan"
+            className="px-4 py-2 bg-[#1e1e1e] text-[#888] rounded-sm text-sm font-medium"
+          >
+            📷 Photo Scan
+          </Link>
+          <Link
             to="/scan"
             className="px-4 py-2 bg-[#c8f135] text-[#0d0d0d] rounded-sm text-sm font-semibold"
           >
@@ -216,12 +222,18 @@ export default function Pantry() {
           <div className="text-6xl mb-4">📦</div>
           <h2 className="text-xl font-semibold text-[#f4f4f0] mb-2">Your pantry is empty</h2>
           <p className="text-[#666] mb-6">
-            Start by scanning products or doing a full pantry audit
+            Snap a few photos of your shelves and we'll find what we can — add the rest anytime
           </p>
           <div className="flex flex-col gap-3">
             <Link
+              to="/pantry/photo-scan"
+              className="mx-auto px-6 py-3 bg-[#c8f135] text-[#0d0d0d] rounded-sm font-semibold"
+            >
+              📷 Snap Your Pantry
+            </Link>
+            <Link
               to="/scan"
-              className="mx-auto px-6 py-3 bg-[rgba(200,241,53,0.06)] text-white rounded-sm font-medium"
+              className="mx-auto px-6 py-3 bg-[#1e1e1e] text-[#bbb] rounded-sm font-medium"
             >
               Scan a Product
             </Link>

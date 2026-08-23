@@ -27,6 +27,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const Pantry = lazy(() => import('./pages/Pantry'));
 const PantryAudit = lazy(() => import('./pages/PantryAudit'));
+const PantryPhotoScan = lazy(() => import('./pages/PantryPhotoScan'));
 const Swaps = lazy(() => import('./pages/Swaps'));
 const Recipes = lazy(() => import('./pages/Recipes'));
 const RecipeDetail = lazy(() => import('./pages/RecipeDetail'));
@@ -212,6 +213,7 @@ export default function App() {
         {/* AUTH REQUIRED: Pantry and account features */}
         <Route path="/pantry" element={<AuthGate><Pantry /></AuthGate>} />
         <Route path="/pantry/audit" element={<AuthGate><PremiumGate feature="Pantry health audit"><PantryAudit /></PremiumGate></AuthGate>} />
+        <Route path="/pantry/photo-scan" element={<AuthGate><PantryPhotoScan /></AuthGate>} />
         <Route path="/shopping" element={<AuthGate><PremiumGate feature="Smart shopping lists"><Shopping /></PremiumGate></AuthGate>} />
         <Route path="/shopping/:id" element={<AuthGate><PremiumGate feature="Smart shopping lists"><ShoppingList /></PremiumGate></AuthGate>} />
         <Route path="/shopping/:id/mode" element={<AuthGate><PremiumGate feature="Smart shopping lists"><ShoppingMode /></PremiumGate></AuthGate>} />

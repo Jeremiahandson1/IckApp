@@ -244,6 +244,157 @@ router.post('/bulk', async (req, res) => {
   }
 });
 
+// ============================================================
+// POST /pantry/photo-scan — Identify pantry items from shelf photos
+// Takes 1-4 photos of a pantry (different angles), sends them to GPT-4o
+// vision in ONE request, matches identified products against the catalog.
+// Nothing is written to the DB here — the frontend saves user-confirmed
+// items through POST /pantry/bulk.
+//
+// Free for launch. PLANNED: premium-gate this (add requirePremium below, and
+// wrap the /pantry/photo-scan route in <PremiumGate> in App.jsx) once it's
+// proven — each scan is a paid GPT-4o call. Consider keeping the FIRST scan
+// free as the onboarding hook.
+// ============================================================
+router.post('/photo-scan', async (req, res) => {
+  try {
+    const { images_base64 } = req.body;
+
+    if (!Array.isArray(images_base64) || images_base64.length === 0) {
+      return res.status(400).json({ error: 'images_base64 array required (1-4 photos)' });
+    }
+    if (images_base64.length > 4) {
+      return res.status(400).json({ error: 'Maximum 4 photos per scan' });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: 'Pantry photo scanning not configured. Set OPENAI_API_KEY.' });
+    }
+
+    const imageContents = images_base64.map(b64 => ({
+      type: 'image_url',
+      image_url: { url: `data:image/jpeg;base64,${b64}` }
+    }));
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens: 3000,
+        messages: [{
+          role: 'user',
+          content: [
+            ...imageContents,
+            {
+              type: 'text',
+              text: `These are ${images_base64.length} photo(s) of the same pantry/kitchen shelves, possibly from different angles. Identify every distinct packaged food or drink product you can see. Return ONLY valid JSON, no markdown. Format:
+{
+  "items": [
+    {
+      "brand": "Brand name or null if not readable",
+      "item_name": "clean product name, e.g. Creamy Peanut Butter",
+      "quantity": 1,
+      "confidence": "high|medium|low",
+      "category": "produce|dairy|meat|bakery|snacks|beverages|frozen|pantry_staple|household|personal_care|other"
+    }
+  ]
+}
+Rules:
+- The photos may overlap — if the same product appears in multiple photos, list it ONCE (sum visible count into quantity)
+- Only include products whose packaging you can actually identify; skip items that are turned away, blurry, or generic unlabeled containers
+- confidence: "high" = brand and product clearly readable, "medium" = product type clear but brand uncertain, "low" = best guess
+- quantity = how many units of that product are visible
+- item_name should NOT repeat the brand
+- Skip non-food household objects (appliances, dishes, containers) unless they are packaged household/personal-care products`
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('OpenAI API error (photo-scan):', err);
+      return res.status(502).json({ error: 'Photo analysis failed. Try again.' });
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    let parsed;
+    try {
+      const cleaned = content.replace(/```json\s*|```\s*/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error('Failed to parse GPT photo-scan response:', content);
+      return res.status(422).json({ error: 'Could not read the photos. Try clearer, closer shots.' });
+    }
+
+    // Match each identified item against the catalog — same FTS approach as
+    // the receipt scanner (receipts.js), searching brand + name words.
+    const items = [];
+    for (const item of (parsed.items || [])) {
+      if (!item.item_name) continue;
+
+      let matchedProduct = null;
+      let matchScore = 0;
+
+      const searchText = `${item.brand || ''} ${item.item_name}`.trim();
+      const nameWords = searchText.split(/\s+/).filter(w => w.length > 2);
+      if (nameWords.length > 0) {
+        const searchTerm = nameWords.slice(0, 4).join(' ');
+        try {
+          const matchResult = await pool.query(
+            `SELECT id, upc, name, brand, total_score, image_url,
+                    ts_rank(to_tsvector('english', name || ' ' || COALESCE(brand, '')), plainto_tsquery('english', $1)) as rank
+             FROM products
+             WHERE to_tsvector('english', name || ' ' || COALESCE(brand, '')) @@ plainto_tsquery('english', $1)
+             ORDER BY rank DESC
+             LIMIT 1`,
+            [searchTerm]
+          );
+          if (matchResult.rows.length > 0) {
+            matchedProduct = matchResult.rows[0];
+            matchScore = matchResult.rows[0].rank;
+          }
+        } catch (e) { console.error('Photo-scan FTS match failed for:', searchTerm, e.message); }
+      }
+
+      items.push({
+        brand: item.brand || null,
+        item_name: item.item_name,
+        quantity: Math.max(1, parseInt(item.quantity, 10) || 1),
+        ai_confidence: ['high', 'medium', 'low'].includes(item.confidence) ? item.confidence : 'low',
+        category: item.category || 'other',
+        matched: matchedProduct !== null,
+        match_confidence: matchScore > 0.1 ? 'high' : matchScore > 0 ? 'low' : 'none',
+        upc: matchedProduct?.upc || null,
+        product_id: matchedProduct?.id || null,
+        product: matchedProduct
+      });
+    }
+
+    res.json({
+      items,
+      summary: {
+        photos_analyzed: images_base64.length,
+        total_items: items.length,
+        matched: items.filter(i => i.matched).length,
+        unmatched: items.filter(i => !i.matched).length
+      }
+    });
+
+  } catch (err) {
+    console.error('Pantry photo scan error:', err);
+    res.status(500).json({ error: 'Failed to scan pantry photos' });
+  }
+});
+
 // Mark item as finished (for velocity tracking)
 router.put('/:id/finish', async (req, res) => {
   try {
