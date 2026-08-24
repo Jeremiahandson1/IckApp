@@ -540,6 +540,47 @@ export async function initDatabase() {
       END $$;
     `);
 
+    // Repair missing UNIQUE constraints that ON CONFLICT clauses depend on.
+    // Tables created by old schema versions kept their rows but lost (or never
+    // had) these constraints — CREATE TABLE IF NOT EXISTS silently skips them,
+    // and then every upsert against the table throws "no unique or exclusion
+    // constraint matching the ON CONFLICT specification". On prod this broke
+    // registration itself (user_engagement + subscriptions inserts run inside
+    // the register handler). Every entry here mirrors an ON CONFLICT target
+    // actually used in the codebase.
+    const uniqueTargets = [
+      ['user_engagement',     ['user_id'],                                    'user_engagement_user_id_uniq'],
+      ['subscriptions',       ['user_id'],                                    'subscriptions_user_id_uniq'],
+      ['consumption_velocity',['user_id', 'upc'],                             'consumption_velocity_user_id_upc_uniq'],
+      ['harmful_ingredients', ['name'],                                       'harmful_ingredients_name_uniq'],
+      ['kid_ratings',         ['user_id', 'upc', 'kid_name'],                 'kid_ratings_user_upc_kid_uniq'],
+      ['curated_availability',['upc', 'store_name'],                          'curated_availability_upc_store_uniq'],
+      ['flyer_availability',  ['upc', 'merchant', 'search_zip', 'flyer_item_id'], 'flyer_availability_upsert_uniq'],
+    ];
+    for (const [table, cols, conname] of uniqueTargets) {
+      try {
+        // Any non-partial unique/PK index covering exactly these columns satisfies ON CONFLICT
+        const existing = await pool.query(
+          `SELECT 1 FROM pg_index i
+           WHERE i.indrelid = $1::regclass
+             AND (i.indisunique OR i.indisprimary)
+             AND i.indpred IS NULL
+             AND (SELECT array_agg(a.attname::text ORDER BY a.attname)
+                  FROM pg_attribute a
+                  WHERE a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)) = $2::text[]`,
+          [table, [...cols].sort()]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`ALTER TABLE ${table} ADD CONSTRAINT ${conname} UNIQUE (${cols.join(', ')})`);
+          console.log(`  repaired: added UNIQUE (${cols.join(', ')}) to ${table}`);
+        }
+      } catch (e) {
+        // Duplicate rows would land here — surface loudly, the upserts on this
+        // table will keep failing until resolved
+        console.error(`  FAILED to add UNIQUE (${cols.join(', ')}) on ${table}:`, e.message);
+      }
+    }
+
     // Trigger: auto-compute total_score on every INSERT/UPDATE to products
     await pool.query(`
       CREATE OR REPLACE FUNCTION compute_total_score()
