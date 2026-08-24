@@ -3,6 +3,7 @@ import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePremium } from '../middleware/subscription.js';
 import { upcVariants } from '../utils/upc.js';
+import { claudeVisionExtract, VisionNotConfiguredError } from '../utils/claudeVision.js';
 
 const router = express.Router();
 
@@ -267,32 +268,11 @@ router.post('/photo-scan', async (req, res) => {
       return res.status(400).json({ error: 'Maximum 4 photos per scan' });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({ error: 'Pantry photo scanning not configured. Set OPENAI_API_KEY.' });
-    }
-
-    const imageContents = images_base64.map(b64 => ({
-      type: 'image_url',
-      image_url: { url: `data:image/jpeg;base64,${b64}` }
-    }));
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        max_tokens: 3000,
-        messages: [{
-          role: 'user',
-          content: [
-            ...imageContents,
-            {
-              type: 'text',
-              text: `These are ${images_base64.length} photo(s) of the same pantry/kitchen shelves, possibly from different angles. Identify every distinct packaged food or drink product you can see. Return ONLY valid JSON, no markdown. Format:
+    let content;
+    try {
+      content = await claudeVisionExtract({
+        imagesBase64: images_base64,
+        prompt: `These are ${images_base64.length} photo(s) of the same pantry/kitchen shelves, possibly from different angles. Identify every distinct packaged food or drink product you can see. Return ONLY valid JSON, no markdown. Format:
 {
   "items": [
     {
@@ -311,27 +291,21 @@ Rules:
 - quantity = how many units of that product are visible
 - item_name should NOT repeat the brand
 - Skip non-food household objects (appliances, dishes, containers) unless they are packaged household/personal-care products`
-            }
-          ]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error('OpenAI API error (photo-scan):', err);
+      });
+    } catch (visionErr) {
+      if (visionErr instanceof VisionNotConfiguredError) {
+        return res.status(503).json({ error: 'Pantry photo scanning not configured. Set ANTHROPIC_API_KEY.' });
+      }
+      console.error('Claude vision error (photo-scan):', visionErr.message);
       return res.status(502).json({ error: 'Photo analysis failed. Try again.' });
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
 
     let parsed;
     try {
       const cleaned = content.replace(/```json\s*|```\s*/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch (parseErr) {
-      console.error('Failed to parse GPT photo-scan response:', content);
+      console.error('Failed to parse vision photo-scan response:', content);
       return res.status(422).json({ error: 'Could not read the photos. Try clearer, closer shots.' });
     }
 

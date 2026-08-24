@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -30,28 +30,21 @@ vi.mock('../middleware/subscription.js', () => ({
   requirePremium: (_req, _res, next) => next(),
 }));
 
-// Mock the OpenAI call at the fetch boundary
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
-
-// Build an OpenAI-shaped chat completion response around a content string
-function openAIResponse(content) {
-  return {
-    ok: true,
-    json: async () => ({ choices: [{ message: { content } }] }),
-  };
+// Mock the shared Claude vision helper — tests program its return/throw
+const mockVision = vi.fn();
+class MockNotConfigured extends Error {
+  constructor() { super('Vision not configured'); this.code = 'NOT_CONFIGURED'; }
 }
+vi.mock('../utils/claudeVision.js', () => ({
+  claudeVisionExtract: (...args) => mockVision(...args),
+  VisionNotConfiguredError: MockNotConfigured,
+}));
 
 beforeEach(() => {
   queryResults.length = 0;
   mockPool.query.mockClear();
-  mockFetch.mockReset();
+  mockVision.mockReset();
   mockUser = { id: 'user-1', email: 'test@test.com' };
-  process.env.OPENAI_API_KEY = 'sk-test';
-});
-
-afterEach(() => {
-  delete process.env.OPENAI_API_KEY;
 });
 
 // ─── App setup ───────────────────────────────────────────────────────────────
@@ -130,15 +123,15 @@ describe('POST /pantry/photo-scan', () => {
     expect(res.body.error).toContain('Maximum 4');
   });
 
-  it('returns 503 when OPENAI_API_KEY is not set', async () => {
-    delete process.env.OPENAI_API_KEY;
+  it('returns 503 when vision is not configured', async () => {
+    mockVision.mockRejectedValueOnce(new MockNotConfigured());
     const res = await httpRequest(buildApp(), 'POST', '/pantry/photo-scan', { images_base64: ['abc'] });
     expect(res.status).toBe(503);
     expect(res.body.error).toContain('not configured');
   });
 
-  it('identifies, matches, and returns items from a GPT response', async () => {
-    mockFetch.mockResolvedValueOnce(openAIResponse(
+  it('identifies, matches, and returns items from a vision response', async () => {
+    mockVision.mockResolvedValueOnce(
       // Markdown fences included on purpose — the route must strip them
       '```json\n' + JSON.stringify({
         items: [
@@ -146,7 +139,7 @@ describe('POST /pantry/photo-scan', () => {
           { brand: null, item_name: 'Mystery Sauce', quantity: 1, confidence: 'low', category: 'other' },
         ],
       }) + '\n```'
-    ));
+    );
     // FTS match for item 1 → hit
     queryResults.push({
       rows: [{ id: 7, upc: '0051500255650', name: 'Peanut Butter Spread', brand: 'Jif', total_score: 51, image_url: null, rank: 0.5 }],
@@ -180,22 +173,20 @@ describe('POST /pantry/photo-scan', () => {
       unmatched: 1,
     });
 
-    // The OpenAI request must carry both images and the vision model
-    const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(sentBody.model).toBe('gpt-4o');
-    const imageParts = sentBody.messages[0].content.filter(c => c.type === 'image_url');
-    expect(imageParts).toHaveLength(2);
-    expect(imageParts[0].image_url.url).toContain('img1');
+    // The vision helper must receive both images and a prompt
+    const callArgs = mockVision.mock.calls[0][0];
+    expect(callArgs.imagesBase64).toEqual(['img1', 'img2']);
+    expect(callArgs.prompt).toContain('Return ONLY valid JSON');
   });
 
   it('normalizes bad quantities and confidence values, skips nameless items', async () => {
-    mockFetch.mockResolvedValueOnce(openAIResponse(JSON.stringify({
+    mockVision.mockResolvedValueOnce(JSON.stringify({
       items: [
         { brand: 'X', item_name: 'Thing A', quantity: 0, confidence: 'certain!!' },
         { brand: 'Y', item_name: 'Thing B', quantity: '3', confidence: 'medium' },
         { brand: 'Z', item_name: null, quantity: 1, confidence: 'high' },
       ],
-    })));
+    }));
     queryResults.push({ rows: [] });
     queryResults.push({ rows: [] });
 
@@ -210,9 +201,9 @@ describe('POST /pantry/photo-scan', () => {
   });
 
   it('returns items unmatched when the FTS lookup errors', async () => {
-    mockFetch.mockResolvedValueOnce(openAIResponse(JSON.stringify({
+    mockVision.mockResolvedValueOnce(JSON.stringify({
       items: [{ brand: 'A', item_name: 'Something', quantity: 1, confidence: 'high' }],
-    })));
+    }));
     mockPool.query.mockRejectedValueOnce(new Error('FTS exploded'));
 
     const res = await httpRequest(buildApp(), 'POST', '/pantry/photo-scan', { images_base64: ['a'] });
@@ -221,8 +212,8 @@ describe('POST /pantry/photo-scan', () => {
     expect(res.body.items[0].matched).toBe(false);
   });
 
-  it('returns 422 when GPT returns unparseable content', async () => {
-    mockFetch.mockResolvedValueOnce(openAIResponse('I see some food but cannot list it as JSON, sorry!'));
+  it('returns 422 when the model returns unparseable content', async () => {
+    mockVision.mockResolvedValueOnce('I see some food but cannot list it as JSON, sorry!');
 
     const res = await httpRequest(buildApp(), 'POST', '/pantry/photo-scan', { images_base64: ['a'] });
 
@@ -230,8 +221,8 @@ describe('POST /pantry/photo-scan', () => {
     expect(res.body.error).toContain('Could not read');
   });
 
-  it('returns 502 when the OpenAI API errors', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'rate limited' });
+  it('returns 502 when the vision API errors', async () => {
+    mockVision.mockRejectedValueOnce(new Error('rate limited'));
 
     const res = await httpRequest(buildApp(), 'POST', '/pantry/photo-scan', { images_base64: ['a'] });
 

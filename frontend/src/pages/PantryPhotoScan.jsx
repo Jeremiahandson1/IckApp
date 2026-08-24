@@ -223,13 +223,13 @@ export default function PantryPhotoScan() {
       {/* ── STEP 1: Capture ── */}
       {step === 'capture' && (
         <div className="space-y-4">
-          {/* Privacy notice — point-of-use disclosure for OpenAI processing */}
+          {/* Privacy notice — point-of-use disclosure for AI processing */}
           <div className="bg-[#161616] border-l-2 border-[#c8f135] rounded-sm p-4">
             <p className="text-xs font-bold text-[#c8f135] mb-2" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>
               Before you scan — privacy notice
             </p>
             <p className="text-xs text-[#bbb] leading-relaxed">
-              Your photos are sent to <strong className="text-[#f4f4f0]">OpenAI's GPT-4o</strong> to identify the products. Make sure the photos only show your shelves — avoid capturing people, mail, or anything personal.{' '}
+              Your photos are sent to <strong className="text-[#f4f4f0]">Anthropic's Claude</strong> to identify the products. Make sure the photos only show your shelves — avoid capturing people, mail, or anything personal.{' '}
               <button onClick={() => navigate('/privacy-policy')} className="text-[#c8f135] underline">Full privacy details →</button>
             </p>
           </div>

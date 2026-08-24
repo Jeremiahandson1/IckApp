@@ -2,47 +2,27 @@ import express from 'express';
 import pool from '../db/init.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { upcVariants } from '../utils/upc.js';
+import { claudeVisionExtract, VisionNotConfiguredError } from '../utils/claudeVision.js';
 
 const router = express.Router();
 router.use(authenticateToken);
 
 // ============================================================
-// POST /receipts/scan — Parse a receipt image with GPT-4o vision
+// POST /receipts/scan — Parse a receipt image with Claude vision
 // ============================================================
 router.post('/scan', async (req, res) => {
   try {
-    const { image_base64, image_url } = req.body;
+    const { image_base64 } = req.body;
 
-    if (!image_base64 && !image_url) {
-      return res.status(400).json({ error: 'image_base64 or image_url required' });
+    if (!image_base64) {
+      return res.status(400).json({ error: 'image_base64 required' });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({ error: 'Receipt scanning not configured. Set OPENAI_API_KEY.' });
-    }
-
-    // Build image content for GPT-4o
-    const imageContent = image_base64
-      ? { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } }
-      : { type: 'image_url', image_url: { url: image_url } };
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: [
-            imageContent,
-            {
-              type: 'text',
-              text: `Extract all items from this receipt. Return ONLY valid JSON, no markdown. Format:
+    let content;
+    try {
+      content = await claudeVisionExtract({
+        imagesBase64: [image_base64],
+        prompt: `Extract all items from this receipt. Return ONLY valid JSON, no markdown. Format:
 {
   "store_name": "Store Name or null",
   "store_address": "Address or null",
@@ -69,20 +49,14 @@ Rules:
 - For BOGO or discounts, use the actual price paid
 - category should be your best guess from the list above
 - item_name should be a clean, readable product name (not receipt shorthand)`
-            }
-          ]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error('OpenAI API error:', err);
+      });
+    } catch (visionErr) {
+      if (visionErr instanceof VisionNotConfiguredError) {
+        return res.status(503).json({ error: 'Receipt scanning not configured. Set ANTHROPIC_API_KEY.' });
+      }
+      console.error('Claude vision error (receipt):', visionErr.message);
       return res.status(502).json({ error: 'Receipt parsing failed. Try again.' });
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
 
     // Parse JSON from response (strip markdown fences if present)
     let parsed;
@@ -90,7 +64,7 @@ Rules:
       const cleaned = content.replace(/```json\s*|```\s*/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch (parseErr) {
-      console.error('Failed to parse GPT response:', content);
+      console.error('Failed to parse vision receipt response:', content);
       return res.status(422).json({ error: 'Could not parse receipt. Try a clearer photo.', raw: content });
     }
 

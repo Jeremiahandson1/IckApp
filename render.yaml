@@ -69,8 +69,8 @@ services:
       # - key: RESEND_API_KEY
       # - key: EMAIL_FROM
       #   value: Ick <hello@ick.app>
-      # OpenAI (receipt scanning with GPT-4o vision)
-      # - key: OPENAI_API_KEY
+      # Anthropic (receipt scanning + pantry photo scan with Claude vision)
+      # - key: ANTHROPIC_API_KEY
       # VAPID (Web Push for PWA notifications)
       # Generate once: node -e "const wp=require('web-push'); console.log(JSON.stringify(wp.generateVAPIDKeys()))"
       # - key: VAPID_PUBLIC_KEY

@@ -243,14 +243,14 @@ export default function ReceiptScan() {
       {/* ── STEP 1: Capture ── */}
       {step === 'capture' && (
         <div className="space-y-4">
-          {/* Privacy notice — point-of-use disclosure for OpenAI processing.
+          {/* Privacy notice — point-of-use disclosure for AI processing.
               Placed above the action buttons so users see it before they tap. */}
           <div className="bg-[#161616] border-l-2 border-[#c8f135] rounded-sm p-4">
             <p className="text-xs font-bold text-[#c8f135] mb-2" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>
               Before you scan — privacy notice
             </p>
             <p className="text-xs text-[#bbb] leading-relaxed">
-              Your receipt image is sent to <strong className="text-[#f4f4f0]">OpenAI's GPT-4o</strong> to read the line items. Don't scan receipts containing personal info you don't want shared with OpenAI — for example, full credit card numbers or ID details.{' '}
+              Your receipt image is sent to <strong className="text-[#f4f4f0]">Anthropic's Claude</strong> to read the line items. Don't scan receipts containing personal info you don't want shared with Anthropic — for example, full credit card numbers or ID details.{' '}
               <button onClick={() => navigate('/privacy-policy')} className="text-[#c8f135] underline">Full privacy details →</button>
             </p>
           </div>
